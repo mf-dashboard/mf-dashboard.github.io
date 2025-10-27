@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MF MF Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
+    <link rel="stylesheet" href="styles.css?v=20251028" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+      referrerpolicy="no-referrer"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      href="/img/favicon-96x96.png"
+      sizes="96x96"
+    />
+    <link rel="icon" type="image/svg+xml" href="/img/favicon.svg" />
+    <link rel="shortcut icon" href="/img/favicon.ico" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/img/apple-touch-icon.png"
+    />
+    <meta name="apple-mobile-web-app-title" content="my-mf-dashboard" />
+    <link rel="manifest" href="/img/site.webmanifest" />
+  </head>
+  <body>
+    <div class="loader hidden">
+      <div class="loader-con">
+        <div style="--i: 0" class="pfile"></div>
+        <div style="--i: 1" class="pfile"></div>
+        <div class="pfile" style="--i: 2"></div>
+        <div style="--i: 3" class="pfile"></div>
+        <div style="--i: 4" class="pfile"></div>
+        <div style="--i: 5" class="pfile"></div>
+      </div>
+      <div class="loader-text">Processing. Please Wait...</div>
+    </div>
+
+    <div class="container">
+      <div class="dashboard" id="dashboard">
+        <div class="dashboard-tabs">
+          <div class="tab-container">
+            <button
+              class="dashboard-tab-btn cas-upload-tab-button"
+              onclick="switchDashboardTab('cas-upload-tab')"
+            >
+              Upload CAS
+            </button>
+            <button
+              class="dashboard-tab-btn main-button active"
+              onclick="switchDashboardTab('main')"
+            >
+              Dashboard
+            </button>
+            <button
+              class="dashboard-tab-btn current-holding-button"
+              onclick="switchDashboardTab('current-holding')"
+            >
+              Current Holdings
+            </button>
+            <button
+              class="dashboard-tab-btn past-holding-button"
+              id="show-past"
+              onclick="switchDashboardTab('past-holding')"
+            >
+              Past Holdings
+            </button>
+            <button
+              class="dashboard-tab-btn charts-button"
+              onclick="switchDashboardTab('charts')"
+            >
+              Analysis
+            </button>
+            <button
+              class="dashboard-tab-btn transactions-button"
+              onclick="switchDashboardTab('transactions')"
+            >
+              Transactions
+            </button>
+            <button
+              class="dashboard-tab-btn capital-gains-button"
+              onclick="switchDashboardTab('capital-gains')"
+            >
+              Capital Gains
+            </button>
+          </div>
+          <div class="see-more current-holdings-header">
+            <button id="toggleSeeMore" class="see-more-btn">
+              <i class="fa-solid fa-eye"></i> Show Overall Stats
+            </button>
+            <button id="toggleExtendedBtn" class="see-more-btn">
+              <i class="fa-solid fa-eye"></i> Show Fund Stats
+            </button>
+          </div>
+        </div>
+        <section id="cas-upload-tab">
+          <div class="upload-tab-content">
+            <div class="upload-card">
+              <div class="upload-icon">📄</div>
+              <h3>Upload New CAS</h3>
+              <p>
+                Upload a fresh Consolidated Account Statement to update your
+                portfolio
+              </p>
+              <div class="file-input-container">
+                <input
+                  type="file"
+                  id="fileInputTab"
+                  accept=".json,application/json,.pdf,application/pdf"
+                />
+                <input
+                  type="password"
+                  id="filePasswordTab"
+                  placeholder="Enter CAS password"
+                />
+                <button type="button" class="load" onclick="loadFileFromTab();">
+                  Load Portfolio
+                </button>
+              </div>
+            </div>
+            <div class="upload-card update-nav">
+              <div class="upload-icon">🔄</div>
+              <h3>Update NAV</h3>
+              <p>Fetch latest NAV (Net Asset Value) for all your funds</p>
+              <p class="update-info">
+                <small
+                  >Updates daily. Last updated:
+                  <span id="lastNavUpdateDate">--</span></small
+                >
+              </p>
+              <button
+                type="button"
+                class="primary-btn"
+                onclick="updateNavManually()"
+                style="width: 100%"
+              >
+                Update NAV
+              </button>
+            </div>
+
+            <div class="upload-card update-stats">
+              <div class="upload-icon">📊</div>
+              <h3>Update Fund Statistics</h3>
+              <p>
+                Fetch latest portfolio composition, returns, and ratings
+                (updates monthly after 10th)
+              </p>
+              <p class="update-info">
+                <small
+                  >Updates monthly. Last updated:
+                  <span id="lastStatsUpdateDate">--</span></small
+                >
+              </p>
+              <button
+                type="button"
+                class="primary-btn"
+                onclick="updateMFStats()"
+                style="width: 100%"
+              >
+                Update Stats
+              </button>
+            </div>
+
+            <div class="upload-card clear-cache">
+              <div class="upload-icon">🗑️</div>
+              <h3>Clear Cache</h3>
+              <p>Remove all stored portfolio data from browser cache</p>
+              <button
+                type="button"
+                class="secondary-btn"
+                onclick="clearCache()"
+                style="width: 100%"
+              >
+                Clear Cache
+              </button>
+            </div>
+            <div class="upload-card instructions-card">
+              <div class="upload-icon">📋</div>
+              <h3>How to Get Your CAS File</h3>
+              <div class="instructions-list">
+                <ol>
+                  <li>
+                    Visit
+                    <a
+                      href="https://www.camsonline.com/Investors/Statements/Consolidated-Account-Statement"
+                      target="_blank"
+                      rel="noopener"
+                      >CAMS Online</a
+                    >
+                    or use myCAMS mobile app
+                  </li>
+                  <li>Select <strong>"Detailed Statement"</strong> option</li>
+                  <li>
+                    Choose either <strong>"With Zero Balance"</strong> or
+                    <strong>"Without Zero Balance"</strong> (both work)
+                  </li>
+                  <li>
+                    Provide your <strong>email address</strong> and set a
+                    <strong>password</strong> for the CAS file
+                  </li>
+                  <li>
+                    You'll receive the CAS PDF via email within a few minutes
+                  </li>
+                  <li>
+                    Upload the PDF here and enter the same password you set
+                    during generation
+                  </li>
+                </ol>
+              </div>
+              <p class="instructions-note">
+                Currently supports CAMS CAS files.
+              </p>
+            </div>
+          </div>
+          <footer class="dashboard-footer" id="dashboardFooter">
+            <div class="footer-content">
+              <div class="footer-item">
+                <span class="footer-label">Last CAS Parsed:</span>
+                <span class="footer-value" id="footerCASDate">--</span>
+              </div>
+              <div class="footer-item">
+                <span class="footer-label">Stats Updated:</span>
+                <span class="footer-value" id="footerStatsDate">--</span>
+              </div>
+              <div class="footer-item">
+                <span class="footer-label">NAV Updated:</span>
+                <span class="footer-value" id="footerNavDate">--</span>
+              </div>
+            </div>
+          </footer>
+        </section>
+        <section id="main">
+          <div class="summary-cards">
+            <div class="card">
+              <h3>Current Value</h3>
+              <div class="value">₹<span id="currentValue">0</span></div>
+              <div class="subtext">Total Value of Active Holdings</div>
+            </div>
+            <div class="card">
+              <h3>Current Cost</h3>
+              <div class="value">₹<span id="costBasis">0</span></div>
+              <div class="subtext">Cost of Current Holdings</div>
+            </div>
+            <div class="card">
+              <h3>Unrealized P&L</h3>
+              <div class="value" id="unrealizedGain">₹0</div>
+              <div class="subtext" id="unrealizedGainPercent">
+                0% | XIRR: --
+              </div>
+            </div>
+            <div class="card">
+              <h3>Current Holdings</h3>
+              <div class="value" id="totalHoldings">0</div>
+              <div class="subtext">Currently Invested Funds</div>
+            </div>
+            <div class="card">
+              <h3>Avg. Holding Days</h3>
+              <div class="value" id="avgHoldingDays">0</div>
+              <div class="subtext">Average Holding Period</div>
+            </div>
+            <div class="card extra-card hidden">
+              <h3>All-Time Invested</h3>
+              <div class="value">₹<span id="totalInvested">0</span></div>
+              <div class="subtext">Total Investment Till Date</div>
+            </div>
+            <div class="card extra-card hidden">
+              <h3>All-Time Withdrawn</h3>
+              <div class="value">₹<span id="totalWithdrawn">0</span></div>
+              <div class="subtext">Total Redemptions Made Till Date</div>
+            </div>
+            <div class="card extra-card hidden">
+              <h3>All-Time P&L</h3>
+              <div class="value" id="overallGain">₹0</div>
+              <div class="subtext" id="overallGainPercent">0% | XIRR: --</div>
+            </div>
+            <div class="card extra-card hidden">
+              <h3>Realized P&L</h3>
+              <div class="value" id="realizedGain">₹0</div>
+              <div class="subtext" id="realizedGainPercent">0%</div>
+            </div>
+          </div>
+          <div class="portfolio-analytics-section">
+            <h3>Portfolio Analytics</h3>
+            <div class="analytics-grid">
+              <div class="analytics-card loading" id="assetAllocationCard">
+                <h4>Asset Allocation</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="assetAllocationChart"></canvas>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="marketCapCard">
+                <h4>Equity Market Cap Split</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="marketCapChart"></canvas>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="amcCard">
+                <h4>Fund House Distribution</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="amcChart"></canvas>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="sectorCard">
+                <h4>Equity Sector Distribution</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="sectorChart"></canvas>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="holdingsCard">
+                <h4>
+                  Portfolio Holdings
+                  <button
+                    class="holdings-eye-btn"
+                    onclick="showAllPortfolioHoldings()"
+                  >
+                    <i class="fa-solid fa-eye"></i>
+                  </button>
+                </h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="holdingsChart"></canvas>
+                </div>
+              </div>
+            </div>
+            <div class="weighted-returns-section">
+              <h4>Weighted Portfolio Returns</h4>
+              <div class="returns-grid" id="weightedReturnsContainer"></div>
+            </div>
+          </div>
+        </section>
+        <section id="current-holding">
+          <div class="folio-section">
+            <div class="folio-grid" id="currentFolioGrid"></div>
+          </div>
+        </section>
+        <section id="past-holding">
+          <div id="pastSection" class="past-section folio-section">
+            <div id="pastFolioGrid" class="folio-grid"></div>
+          </div>
+        </section>
+        <section id="charts">
+          <div class="chart-section">
+            <div class="chart-tabs">
+              <button class="tab-btn active" onclick="switchTab('growth')">
+                Portfolio Growth
+              </button>
+              <button class="tab-btn" onclick="switchTab('investment')">
+                Investment
+              </button>
+              <button class="tab-btn" onclick="switchTab('withdrawal')">
+                Withdrawal
+              </button>
+              <button class="tab-btn" onclick="switchTab('netinvest')">
+                Net Investment
+              </button>
+            </div>
+
+            <div class="time-filter" id="timeFilter"></div>
+
+            <div class="chart-container">
+              <canvas id="portfolioChart"></canvas>
+            </div>
+
+            <div class="stats-grid hidden" id="statsGrid"></div>
+          </div>
+        </section>
+        <section id="transactions">
+          <div class="excel"></div>
+        </section>
+        <section id="capital-gains">
+          <div id="capitalGainsContent"></div>
+        </section>
+      </div>
+    </div>
+    <script src="indexeddb-helper.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
