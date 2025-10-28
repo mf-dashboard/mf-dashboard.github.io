@@ -949,5 +949,3 @@ _Star ⭐ this repo if you find it helpful!_
 - [CAMS CAS Portal](https://www.camsonline.com/Investors/Statements/Consolidated-Account-Statement)
 
 ---
-
-**Version**: 1.0.0 | **Last Updated**: January 2025
