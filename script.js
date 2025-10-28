@@ -12,7 +12,15 @@ let currentPeriod = "1Y";
 let fundWiseData = {};
 const allTimeFlows = [];
 const activeFlows = [];
-const BACKEND_SERVER = "https://my-mf-dashboard-backend.onrender.com";
+
+// Auto-detect backend
+const BACKEND_SERVER =
+  window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1"
+    ? "http://localhost:3000"
+    : "https://my-mf-dashboard-backend.onrender.com";
+
+console.log("🔧 Backend Server:", BACKEND_SERVER);
 
 let assetAllocationChart = null;
 let marketCapChart = null;
@@ -1395,7 +1403,12 @@ async function loadFileFromTab() {
     }
 
     portfolioData = result.data;
-    console.log("folios:", portfolioData.folios?.length);
+    console.log(
+      "Folios Fetched: ",
+      portfolioData.folios?.length,
+      " : ",
+      portfolioData
+    );
 
     await fetchOrUpdateMFStats("initial");
 
@@ -1546,10 +1559,12 @@ function switchDashboardTab(tabId) {
     section.classList.remove("active-tab");
   });
 
-  // Remove active class from all tab buttons
-  document.querySelectorAll(".dashboard-tab-btn").forEach((btn) => {
-    btn.classList.remove("active");
-  });
+  // Remove active class from all tab buttons (both desktop and mobile)
+  document
+    .querySelectorAll(".dashboard-tab-btn, .mobile-menu-item")
+    .forEach((btn) => {
+      btn.classList.remove("active");
+    });
 
   // Show selected section
   const selectedSection = document.getElementById(tabId);
@@ -1557,12 +1572,10 @@ function switchDashboardTab(tabId) {
     selectedSection.classList.add("active-tab");
   }
 
-  // Add active class to clicked button
+  // Add active class to clicked button (desktop)
   const buttonClass = "." + tabId + "-button";
-  const activeButton = document.querySelector(buttonClass);
-  if (activeButton) {
-    activeButton.classList.add("active");
-  }
+  const activeButtons = document.querySelectorAll(buttonClass);
+  activeButtons.forEach((btn) => btn.classList.add("active"));
 
   if (tabId === "main") {
     document.getElementById("toggleExtendedBtn").classList.add("hidden");
@@ -1583,6 +1596,33 @@ function switchDashboardTab(tabId) {
     top: 0,
     behavior: "smooth",
   });
+}
+
+function toggleMobileMenu() {
+  const menu = document.getElementById("mobileMenu");
+  const overlay = document.getElementById("mobileMenuOverlay");
+  const hamburger = document.getElementById("hamburgerMenu");
+
+  menu.classList.toggle("active");
+  overlay.classList.toggle("active");
+  hamburger.classList.toggle("active");
+
+  if (menu.classList.contains("active")) {
+    lockBodyScroll();
+  } else {
+    unlockBodyScroll();
+  }
+}
+
+function closeMobileMenu() {
+  const menu = document.getElementById("mobileMenu");
+  const overlay = document.getElementById("mobileMenuOverlay");
+  const hamburger = document.getElementById("hamburgerMenu");
+
+  menu.classList.remove("active");
+  overlay.classList.remove("active");
+  hamburger.classList.remove("active");
+  unlockBodyScroll();
 }
 
 function renderAllFundCharts() {
@@ -4023,9 +4063,13 @@ function renderFundValuationChart(fundKey, canvasId) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: {
-        intersect: false,
-        mode: "index",
+      interaction: { intersect: false, mode: "index", axis: "x" },
+      events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
+      onClick: (evt, activeEls, chart) => {
+        if (!activeEls.length) {
+          chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+          chart.update();
+        }
       },
       plugins: {
         legend: {
@@ -4068,10 +4112,7 @@ function renderFundValuationChart(fundKey, canvasId) {
         },
         y: {
           display: true,
-          grid: {
-            color: "rgba(0, 0, 0, 0.05)",
-            drawBorder: false,
-          },
+          grid: { display: false },
           ticks: {
             font: { size: 9 },
             color: "#9ca3af",
@@ -4171,7 +4212,14 @@ function renderFundPerformanceChart(canvasId, extendedData) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: { intersect: false, mode: "index" },
+      interaction: { intersect: false, mode: "index", axis: "x" },
+      events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
+      onClick: (evt, activeEls, chart) => {
+        if (!activeEls.length) {
+          chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+          chart.update();
+        }
+      },
       plugins: {
         legend: {
           display: true,
@@ -4316,6 +4364,7 @@ function updateFundBreakdown() {
   const currentGrid = document.getElementById("currentFolioGrid");
   const pastGrid = document.getElementById("pastFolioGrid");
   const pastSection = document.getElementById("show-past");
+  const pastSectionMobile = document.getElementById("show-past-mobile");
   currentGrid.innerHTML = "";
   pastGrid.innerHTML = "";
   let hasPast = false;
@@ -4334,7 +4383,6 @@ function updateFundBreakdown() {
 
     if (totalInvested === 0) return;
 
-    // Group folios by active/inactive status using transaction folio property
     const activeFolios = [];
     const inactiveFolios = [];
 
@@ -4381,9 +4429,13 @@ function updateFundBreakdown() {
     }
   });
 
-  hasPast
-    ? pastSection.classList.remove("hidden")
-    : pastSection.classList.add("hidden");
+  if (hasPast) {
+    pastSection?.classList.remove("hidden");
+    pastSectionMobile?.classList.remove("hidden");
+  } else {
+    pastSection?.classList.add("hidden");
+    pastSectionMobile?.classList.add("hidden");
+  }
 }
 
 function createFundCardWithTransactions(
@@ -5096,15 +5148,15 @@ function updateChart() {
           {
             label: "Portfolio Value",
             data: data.values,
-            borderColor: "#3b82f6",
+            borderColor: "#52528c",
             fill: false,
             tension: 0.3,
-            borderWidth: 2.5,
+            borderWidth: window.innerWidth <= 768 ? 1.5 : 2,
             pointRadius: 0,
-            pointHoverRadius: 6,
-            pointHoverBackgroundColor: "#3b82f6",
+            pointHoverRadius: window.innerWidth <= 768 ? 4 : 6,
+            pointHoverBackgroundColor: "#52528c",
             pointHoverBorderColor: "#fff",
-            pointHoverBorderWidth: 2,
+            pointHoverBorderWidth: window.innerWidth <= 768 ? 1 : 1.5,
           },
           {
             label: "Total Invested",
@@ -5113,12 +5165,12 @@ function updateChart() {
             borderDash: [6, 4],
             fill: false,
             tension: 0.3,
-            borderWidth: 2,
+            borderWidth: window.innerWidth <= 768 ? 1.5 : 2,
             pointRadius: 0,
-            pointHoverRadius: 6,
+            pointHoverRadius: window.innerWidth <= 768 ? 4 : 6,
             pointHoverBackgroundColor: "#9ca3af",
             pointHoverBorderColor: "#fff",
-            pointHoverBorderWidth: 2,
+            pointHoverBorderWidth: window.innerWidth <= 768 ? 1 : 1.5,
           },
         ],
       },
@@ -5126,10 +5178,17 @@ function updateChart() {
         responsive: true,
         maintainAspectRatio: false,
         animation: {
-          duration: 800, // Smooth animation
+          duration: 0,
           easing: "easeInOutQuart",
         },
-        interaction: { intersect: false, mode: "index" },
+        interaction: { intersect: false, mode: "index", axis: "x" },
+        events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
+        onClick: (evt, activeEls, chart) => {
+          if (!activeEls.length) {
+            chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+            chart.update();
+          }
+        },
         plugins: {
           legend: {
             display: true,
@@ -5142,6 +5201,7 @@ function updateChart() {
             },
           },
           tooltip: {
+            enabled: true,
             backgroundColor: "rgba(0,0,0,0.85)",
             borderColor: "#3b82f6",
             borderWidth: 2,
@@ -5149,6 +5209,8 @@ function updateChart() {
             titleFont: { size: 13, weight: "bold" },
             bodyFont: { size: 12 },
             displayColors: false,
+            mode: "index",
+            intersect: false,
             callbacks: {
               title: (items) => {
                 const dateStr = data.rawData[items[0].dataIndex].date;
@@ -5202,6 +5264,17 @@ function updateChart() {
       },
     });
 
+    if (window.innerWidth <= 768) {
+      canvas.addEventListener("touchend", function () {
+        setTimeout(() => {
+          if (chart && chart.tooltip) {
+            chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+            chart.update("none");
+          }
+        }, 100);
+      });
+    }
+
     updateStatsForGrowth(data);
     return;
   }
@@ -5233,7 +5306,18 @@ function updateChart() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: { duration: 800, easing: "easeInOutQuart" }, // Smooth animation
+      animation: {
+        duration: 0,
+        easing: "easeInOutQuart",
+      },
+      interaction: { intersect: false, mode: "index", axis: "x" },
+      events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
+      onClick: (evt, activeEls, chart) => {
+        if (!activeEls.length) {
+          chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+          chart.update();
+        }
+      },
       plugins: {
         legend: { display: false },
         datalabels: {
@@ -5766,28 +5850,32 @@ function showUploadSection() {
 }
 
 function enableAllTabs() {
-  document.querySelectorAll(".dashboard-tab-btn").forEach((btn) => {
-    btn.disabled = false;
-    btn.style.opacity = "1";
-    btn.style.cursor = "pointer";
-    btn.style.pointerEvents = "auto";
-  });
-}
-
-function disableAllTabsExceptUpload() {
-  document.querySelectorAll(".dashboard-tab-btn").forEach((btn) => {
-    if (!btn.classList.contains("cas-upload-tab-button")) {
-      btn.disabled = true;
-      btn.style.opacity = "0.5";
-      btn.style.cursor = "not-allowed";
-      btn.style.pointerEvents = "none";
-    } else {
+  document
+    .querySelectorAll(".dashboard-tab-btn, .mobile-menu-item")
+    .forEach((btn) => {
       btn.disabled = false;
       btn.style.opacity = "1";
       btn.style.cursor = "pointer";
       btn.style.pointerEvents = "auto";
-    }
-  });
+    });
+}
+
+function disableAllTabsExceptUpload() {
+  document
+    .querySelectorAll(".dashboard-tab-btn, .mobile-menu-item")
+    .forEach((btn) => {
+      if (!btn.classList.contains("cas-upload-tab-button")) {
+        btn.disabled = true;
+        btn.style.opacity = "0.5";
+        btn.style.cursor = "not-allowed";
+        btn.style.pointerEvents = "none";
+      } else {
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        btn.style.cursor = "pointer";
+        btn.style.pointerEvents = "auto";
+      }
+    });
 }
 
 window.addEventListener("DOMContentLoaded", async () => {

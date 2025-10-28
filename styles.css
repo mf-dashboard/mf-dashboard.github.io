@@ -573,6 +573,10 @@ button:disabled {
   font-weight: 700;
   padding-top: 30px;
   animation: fadeInUp 0.6s ease-out;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  text-align: center;
 }
 
 .pfile {
@@ -776,7 +780,7 @@ button:disabled {
 
 .transaction-table tbody tr:hover {
   background: rgba(102, 126, 234, 0.05);
-  transition: background 0.2s ease;
+  transition: background-color 0.2s ease;
 }
 
 .transaction-table .tx-type {
@@ -801,7 +805,6 @@ button:disabled {
   color: #ef4444;
 }
 
-/* View Transactions Button in Extended Stats */
 .view-tx-btn {
   display: block;
   width: 100%;
@@ -953,7 +956,6 @@ button:disabled {
   box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
-/* Scrollbar styling for modal content */
 .modal-content::-webkit-scrollbar {
   width: 8px;
 }
@@ -984,7 +986,6 @@ button:disabled {
   color: #ef4444;
 }
 
-/* Dashboard Tabs */
 .dashboard-tabs {
   display: flex;
   gap: 8px;
@@ -1032,7 +1033,6 @@ button:disabled {
   transform: translateY(-2px);
 }
 
-/* Hide sections by default */
 .dashboard section {
   display: none;
 }
@@ -1041,7 +1041,6 @@ button:disabled {
   display: block;
 }
 
-/* Transaction Buttons Container */
 .transaction-buttons-container {
   max-width: 1200px;
   margin: 0 auto;
@@ -1160,7 +1159,6 @@ button:disabled {
   transform: translateY(-2px);
 }
 
-/* Capital Gains Styles */
 .capital-gains-section {
   background: white;
   border-radius: 12px;
@@ -1521,7 +1519,6 @@ button:disabled {
   animation: spin 1s linear infinite;
 }
 
-/* Upload Tab Styles */
 .upload-tab-content {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -1591,7 +1588,6 @@ p.instructions-note {
   margin: 0;
 }
 
-/* Initial upload section (before data loaded) */
 #casUploadSection {
   display: none;
 }
@@ -1600,7 +1596,6 @@ p.instructions-note {
   display: block;
 }
 
-/* Dashboard disabled state */
 .dashboard.disabled {
   pointer-events: none;
   opacity: 0.5;
@@ -1611,103 +1606,6 @@ p.instructions-note {
   cursor: not-allowed;
 }
 
-@media (max-width: 768px) {
-  .chart-container {
-    height: 350px;
-  }
-
-  .upload-tab-content {
-    grid-template-columns: 1fr;
-  }
-
-  .upload-card {
-    padding: 20px;
-  }
-
-  .upload-icon {
-    font-size: 36px;
-  }
-  .chart-container {
-    height: 300px;
-  }
-
-  .upload-section h2 {
-    font-size: 16px;
-  }
-  .transaction-modal {
-    padding-bottom: 60px; /* optional: avoid clipping on mobile */
-  }
-
-  .modal-header h2 {
-    font-size: 16px;
-  }
-
-  .transaction-table th,
-  .transaction-table td {
-    padding: 8px 12px;
-    font-size: 11px;
-  }
-
-  .view-tx-btn {
-    padding: 8px 12px;
-    font-size: 11px;
-  }
-  .dashboard-tabs {
-    gap: 6px;
-    padding: 10px 0;
-  }
-
-  .dashboard-tab-btn {
-    padding: 8px 12px;
-    font-size: 11px;
-  }
-  .transaction-cards-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-
-  .transaction-header h2 {
-    font-size: 22px;
-  }
-
-  .transaction-card {
-    padding: 20px;
-  }
-
-  .transaction-card-icon {
-    font-size: 36px;
-  }
-  .capital-gains-section {
-    padding: 16px;
-  }
-
-  .gains-table th,
-  .gains-table td {
-    padding: 8px;
-    font-size: 12px;
-  }
-
-  .section-header h3 {
-    font-size: 16px;
-  }
-
-  .gains-table-wrapper h4 {
-    font-size: 14px;
-  }
-
-  .gains-summary-grid {
-    grid-template-columns: 1fr;
-  }
-}
-@media (max-width: 500px) {
-  .load {
-    width: 100%;
-  }
-}
-
-/* Add these styles at the end of your CSS file */
-
-/* Instructions Card Styles */
 .instructions-card {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -1789,18 +1687,6 @@ p.instructions-note {
   letter-spacing: 0.3px;
 }
 
-@media (max-width: 768px) {
-  .footer-content {
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .footer-label,
-  .footer-value {
-    font-size: 12px;
-  }
-}
-
 .holdings-eye-btn {
   background: none;
   border: none;
@@ -1821,7 +1707,6 @@ p.instructions-note {
   box-shadow: none;
 }
 
-/* Hide charts initially to prevent pop-in effect */
 .fund-card-separator canvas {
   opacity: 0;
   transition: opacity 0.4s ease-in;
@@ -1831,7 +1716,6 @@ p.instructions-note {
   opacity: 1;
 }
 
-/* Loading spinner for fund charts - smaller size */
 .fund-card-separator.loading::before {
   content: "";
   position: absolute;
@@ -1861,6 +1745,413 @@ p.instructions-note {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+.dashboard-tab-btn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Hamburger Menu Styles */
+.hamburger-menu {
+  display: none;
+  flex-direction: column;
+  justify-content: space-around;
+  width: 30px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  z-index: 1001;
+  box-shadow: none;
+}
+
+.hamburger-menu span {
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 3px;
+  transition: all 0.3s ease;
+}
+
+.hamburger-menu:hover span {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+.hamburger-menu.active span:nth-child(1) {
+  transform: rotate(45deg) translate(8px, 8px);
+}
+
+.hamburger-menu.active span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger-menu.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(7px, -7px);
+}
+
+.mobile-menu-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.mobile-menu-overlay.active {
+  display: block;
+  opacity: 1;
+}
+
+.mobile-menu {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: -100%;
+  width: 280px;
+  height: 100vh;
+  background: white;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  z-index: 1001;
+  transition: left 0.3s ease;
+  overflow-y: auto;
+}
+
+.mobile-menu.active {
+  left: 0;
+}
+
+.mobile-menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.mobile-menu-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: white;
+}
+
+.mobile-menu-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  padding: 0;
+  box-shadow: none;
+}
+
+.mobile-menu-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: none;
+}
+
+.mobile-menu-items {
+  padding: 10px 0;
+}
+
+.mobile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  width: 100%;
+  padding: 15px 20px;
+  background: transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+  color: #4b5563;
+  transition: all 0.2s ease;
+  text-align: left;
+  box-shadow: none;
+}
+
+.mobile-menu-item:hover {
+  background: rgba(102, 126, 234, 0.05);
+  border-left-color: #667eea;
+  transform: none;
+  box-shadow: none;
+}
+
+.mobile-menu-item.active {
+  background: rgba(102, 126, 234, 0.1);
+  border-left-color: #667eea;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.mobile-menu-item i {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+}
+
+.mobile-menu-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.mobile-menu-item:disabled:hover {
+  background: transparent;
+  border-left-color: transparent;
+  transform: none;
+}
+
+.mobile-header {
+  display: none;
+  align-items: center;
+  gap: 15px;
+}
+
+.dashboard-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+}
+
+/* Show hamburger menu on mobile */
+@media (max-width: 1024px) {
+  .mobile-header {
+    display: flex;
+  }
+
+  .hamburger-menu {
+    display: flex;
+  }
+
+  .mobile-menu {
+    display: block;
+  }
+
+  .dashboard-tabs .tab-container {
+    display: none;
+  }
+
+  .dashboard-tabs {
+    padding: 15px;
+    justify-content: space-between;
+    display: flex;
+    align-items: center;
+  }
+
+  .see-more {
+    margin-left: auto;
+  }
+}
+
+/* Hide hamburger on desktop */
+@media (min-width: 1025px) {
+  .hamburger-menu,
+  .mobile-menu,
+  .mobile-menu-overlay {
+    display: none !important;
+  }
+
+  .dashboard-tabs .tab-container {
+    display: flex;
+  }
+}
+
+@media (max-width: 768px) {
+  .chart-container {
+    height: 350px;
+  }
+
+  .upload-icon {
+    font-size: 36px;
+  }
+  .chart-container {
+    height: 300px;
+  }
+
+  .upload-section h2 {
+    font-size: 16px;
+  }
+  .transaction-modal {
+    padding-bottom: 60px;
+  }
+
+  .modal-header h2 {
+    font-size: 16px;
+  }
+
+  .transaction-table th,
+  .transaction-table td {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+
+  .view-tx-btn {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+
+  .dashboard-tab-btn {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+  .transaction-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .transaction-header h2 {
+    font-size: 22px;
+  }
+
+  .transaction-card {
+    padding: 20px;
+  }
+
+  .transaction-card-icon {
+    font-size: 36px;
+  }
+  .capital-gains-section {
+    padding: 16px;
+  }
+
+  .gains-table th,
+  .gains-table td {
+    padding: 8px;
+    font-size: 12px;
+  }
+
+  .section-header h3 {
+    font-size: 16px;
+  }
+
+  .gains-table-wrapper h4 {
+    font-size: 14px;
+  }
+
+  .gains-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .footer-content {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .footer-label,
+  .footer-value {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 500px) {
+  .load {
+    width: 100%;
+  }
+  body {
+    background: #ffffff;
+  }
+
+  .container {
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+    border: none;
+  }
+
+  .folio-section {
+    box-shadow: none;
+    margin-bottom: 0px;
+    padding: 10px 20px;
+  }
+
+  .folio-card,
+  .card,
+  .analytics-card,
+  .transaction-card,
+  .capital-gains-section {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  }
+
+  .folio-card:hover,
+  .upload-card:hover,
+  .card:hover,
+  .analytics-card:hover,
+  .transaction-card:hover {
+    transform: none;
+    background: none;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  }
+
+  .upload-tab-content {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 0;
+  }
+
+  #cas-upload-tab,
+  .summary-cards,
+  #transactionSectionsWrapper,
+  #capitalGainsContent,
+  .secondary-btn {
+    padding: 10px 20px;
+  }
+
+  .dashboard-footer {
+    margin-top: 20px;
+  }
+
+  .portfolio-analytics-section,
+  .chart-section {
+    box-shadow: none;
+    background: none;
+    border: none;
+  }
+
+  .secondary-btn {
+    font-size: 12px;
+  }
+
+  .capital-gains-section,
+  .summary-cards {
+    margin-bottom: 20px;
+  }
+
+  .dashboard-title {
+    font-size: 16px;
+  }
+
+  .see-more.current-holdings-header {
+    flex-wrap: wrap;
+  }
+
+  .see-more-btn {
+    font-size: 11px;
+    padding: 6px 10px;
   }
 }
 

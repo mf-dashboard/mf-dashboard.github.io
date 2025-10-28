@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
-    <link rel="stylesheet" href="styles.css?v=20251028" />
+    <link rel="stylesheet" href="styles.css?v=20251029" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -41,58 +41,144 @@
         <div style="--i: 5" class="pfile"></div>
       </div>
       <div class="loader-text">
-        <p>
-          Working some data magic... Your dashboard will be ready in ~2 minutes!
-        </p>
+        <p>Working some data magic.</p>
+        &nbsp;
+        <p>Your dashboard will be ready in ~2 minutes!</p>
       </div>
     </div>
 
     <div class="container">
       <div class="dashboard" id="dashboard">
         <div class="dashboard-tabs">
+          <div class="mobile-header">
+            <button
+              class="hamburger-menu"
+              id="hamburgerMenu"
+              onclick="toggleMobileMenu()"
+            >
+              <span></span>
+              <span></span>
+              <span></span>
+            </button>
+            <h1 class="dashboard-title">My MF Dashboard</h1>
+          </div>
+
+          <div
+            class="mobile-menu-overlay"
+            id="mobileMenuOverlay"
+            onclick="closeMobileMenu()"
+          ></div>
+
+          <div class="mobile-menu" id="mobileMenu">
+            <div class="mobile-menu-header">
+              <h3>My MF Dashboard</h3>
+              <button class="mobile-menu-close" onclick="closeMobileMenu()">
+                ✕
+              </button>
+            </div>
+            <div class="mobile-menu-items">
+              <button
+                class="mobile-menu-item cas-upload-tab-button"
+                onclick="switchDashboardTab('cas-upload-tab'); closeMobileMenu();"
+              >
+                <i class="fa-solid fa-upload"></i>
+                <span>Upload CAS</span>
+              </button>
+              <button
+                class="mobile-menu-item main-button active"
+                onclick="switchDashboardTab('main'); closeMobileMenu();"
+              >
+                <i class="fa-solid fa-house"></i>
+                <span>Dashboard</span>
+              </button>
+              <button
+                class="mobile-menu-item current-holding-button"
+                onclick="switchDashboardTab('current-holding'); closeMobileMenu();"
+              >
+                <i class="fa-solid fa-briefcase"></i>
+                <span>Current Holdings</span>
+              </button>
+              <button
+                class="mobile-menu-item past-holding-button"
+                id="show-past-mobile"
+                onclick="switchDashboardTab('past-holding'); closeMobileMenu();"
+              >
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>Past Holdings</span>
+              </button>
+              <button
+                class="mobile-menu-item charts-button"
+                onclick="switchDashboardTab('charts'); closeMobileMenu();"
+              >
+                <i class="fa-solid fa-chart-line"></i>
+                <span>Analysis</span>
+              </button>
+              <button
+                class="mobile-menu-item transactions-button"
+                onclick="switchDashboardTab('transactions'); closeMobileMenu();"
+              >
+                <i class="fa-solid fa-exchange-alt"></i>
+                <span>Transactions</span>
+              </button>
+              <button
+                class="mobile-menu-item capital-gains-button"
+                onclick="switchDashboardTab('capital-gains'); closeMobileMenu();"
+              >
+                <i class="fa-solid fa-coins"></i>
+                <span>Capital Gains</span>
+              </button>
+            </div>
+          </div>
           <div class="tab-container">
             <button
               class="dashboard-tab-btn cas-upload-tab-button"
               onclick="switchDashboardTab('cas-upload-tab')"
             >
-              Upload CAS
+              <i class="fa-solid fa-upload"></i>
+              <span>Upload CAS</span>
             </button>
             <button
               class="dashboard-tab-btn main-button active"
               onclick="switchDashboardTab('main')"
             >
-              Dashboard
+              <i class="fa-solid fa-house"></i>
+              <span>Dashboard</span>
             </button>
             <button
               class="dashboard-tab-btn current-holding-button"
               onclick="switchDashboardTab('current-holding')"
             >
-              Current Holdings
+              <i class="fa-solid fa-briefcase"></i>
+              <span>Current Holdings</span>
             </button>
             <button
               class="dashboard-tab-btn past-holding-button"
               id="show-past"
               onclick="switchDashboardTab('past-holding')"
             >
-              Past Holdings
+              <i class="fa-solid fa-clock-rotate-left"></i>
+              <span>Past Holdings</span>
             </button>
             <button
               class="dashboard-tab-btn charts-button"
               onclick="switchDashboardTab('charts')"
             >
-              Analysis
+              <i class="fa-solid fa-chart-line"></i>
+              <span>Analysis</span>
             </button>
             <button
               class="dashboard-tab-btn transactions-button"
               onclick="switchDashboardTab('transactions')"
             >
-              Transactions
+              <i class="fa-solid fa-exchange-alt"></i>
+              <span>Transactions</span>
             </button>
             <button
               class="dashboard-tab-btn capital-gains-button"
               onclick="switchDashboardTab('capital-gains')"
             >
-              Capital Gains
+              <i class="fa-solid fa-coins"></i>
+              <span>Capital Gains</span>
             </button>
           </div>
           <div class="see-more current-holdings-header">
