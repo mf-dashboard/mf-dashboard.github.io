@@ -1595,16 +1595,14 @@ function renderAllFundCharts() {
   window.fundChartsRendered = true;
 
   // Delay to ensure smooth tab transition
-  setTimeout(() => {
-    Object.entries(fundWiseData).forEach(([fundKey, fund]) => {
-      const chartIdVal = `fundChart_${fundKey.replace(/\s+/g, "_")}`;
-      renderFundValuationChart(fundKey, chartIdVal);
+  Object.entries(fundWiseData).forEach(([fundKey, fund]) => {
+    const chartIdVal = `fundChart_${fundKey.replace(/\s+/g, "_")}`;
+    renderFundValuationChart(fundKey, chartIdVal);
 
-      const perfChartId = `fundPerfChart_${fundKey.replace(/\s+/g, "_")}`;
-      const extendedData = mfStats[fund.isin];
-      if (extendedData) renderFundPerformanceChart(perfChartId, extendedData);
-    });
-  }, 100);
+    const perfChartId = `fundPerfChart_${fundKey.replace(/\s+/g, "_")}`;
+    const extendedData = mfStats[fund.isin];
+    if (extendedData) renderFundPerformanceChart(perfChartId, extendedData);
+  });
 }
 
 function normalizeBenchmarkName(name) {
@@ -5451,14 +5449,21 @@ async function updateNavManually() {
   try {
     const success = await updateNavHistoryOnly();
 
-    hideProcessingSplash();
     if (success) {
-      storageManager.markManualUpdate(); // Mark manual update done
+      // Reset chart render flag to force re-render
+      window.fundChartsRendered = false;
+
+      // Re-process portfolio with updated NAV
+      await processPortfolio();
+
+      storageManager.markManualUpdate();
       showToast("NAV updated successfully!", "success");
       updateFooterInfo();
     } else {
       showToast("Failed to update NAV", "error");
     }
+
+    hideProcessingSplash();
   } catch (err) {
     hideProcessingSplash();
     console.error("NAV update error:", err);
