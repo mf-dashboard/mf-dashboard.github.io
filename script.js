@@ -5382,10 +5382,13 @@ async function updateMFStats() {
     return;
   }
 
-  // Check if already updated today
-  if (!storageManager.needsFullUpdate()) {
+  // Check if already updated today (auto + manual)
+  if (
+    !storageManager.needsFullUpdate() &&
+    storageManager.hasManualUpdateToday()
+  ) {
     showToast(
-      "Fund statistics already updated this month. Next update available after 10th of next month.",
+      "Fund statistics already updated today (auto + manual). Next update available tomorrow after 6 AM.",
       "info"
     );
     return;
@@ -5405,6 +5408,7 @@ async function updateMFStats() {
 
     await storageManager.savePortfolioData(portfolioData, mfStats, false);
     storageManager.updateLastFullUpdate();
+    storageManager.markManualUpdate(); // Mark manual update done
     await processPortfolio();
 
     hideProcessingSplash();
@@ -5423,9 +5427,15 @@ async function updateNavManually() {
     return;
   }
 
-  // Check if already updated today
-  if (!storageManager.needsNavUpdate()) {
-    showToast("NAV already updated today. Please try again tomorrow.", "info");
+  // Check if already updated today (auto + manual)
+  if (
+    !storageManager.needsNavUpdate() &&
+    storageManager.hasManualUpdateToday()
+  ) {
+    showToast(
+      "NAV already updated today (auto + manual). Please try again tomorrow after 6 AM.",
+      "info"
+    );
     return;
   }
 
@@ -5443,6 +5453,7 @@ async function updateNavManually() {
 
     hideProcessingSplash();
     if (success) {
+      storageManager.markManualUpdate(); // Mark manual update done
       showToast("NAV updated successfully!", "success");
       updateFooterInfo();
     } else {
@@ -5690,9 +5701,21 @@ async function updateFullMFStats() {
   }
 }
 
+function isAfter6AM() {
+  const now = new Date();
+  const hours = now.getHours();
+  return hours >= 6; // 6 AM or later
+}
+
 async function checkAndPerformAutoUpdates() {
   if (!portfolioData || !mfStats) {
     console.log("ℹ️ No portfolio data, skipping auto-updates");
+    return;
+  }
+
+  // Only auto-update after 6 AM
+  if (!isAfter6AM()) {
+    console.log("⏰ Auto-updates only run after 6 AM");
     return;
   }
 

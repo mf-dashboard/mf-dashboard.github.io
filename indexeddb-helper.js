@@ -197,6 +197,22 @@ class ManifestManager {
       localStorage.setItem(this.MANIFEST_KEY, JSON.stringify(manifest));
     }
   }
+
+  static hasManualUpdateToday() {
+    const manifest = this.getManifest();
+    if (!manifest || !manifest.lastManualUpdate) return false;
+
+    const today = new Date().toISOString().split("T")[0];
+    return manifest.lastManualUpdate === today;
+  }
+
+  static markManualUpdate() {
+    const manifest = this.getManifest();
+    if (manifest) {
+      manifest.lastManualUpdate = new Date().toISOString().split("T")[0];
+      localStorage.setItem(this.MANIFEST_KEY, JSON.stringify(manifest));
+    }
+  }
 }
 
 // Unified storage manager
@@ -322,6 +338,14 @@ class StorageManager {
 
   getManifest() {
     return ManifestManager.getManifest();
+  }
+
+  hasManualUpdateToday() {
+    return ManifestManager.hasManualUpdateToday();
+  }
+
+  markManualUpdate() {
+    ManifestManager.markManualUpdate();
   }
 }
 

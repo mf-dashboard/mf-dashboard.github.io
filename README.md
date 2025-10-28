@@ -65,7 +65,7 @@ The application automatically keeps your portfolio data fresh:
 
 - **Automatic**: Every day when you load the app, the latest NAV is fetched automatically
 - **Manual**: Trigger updates from the Upload CAS tab
-- **Restriction**: Once per day to avoid unnecessary API calls
+- **Restriction**: Once per day to avoid unnecessary API calls (allows one manual update)
 - **Incremental**: Only new NAV data is fetched and merged with existing history
 - **Silent Operation**: Updates happen seamlessly in the background
 
@@ -74,7 +74,7 @@ The application automatically keeps your portfolio data fresh:
 - **Automatic**: After the 10th of every month, complete fund statistics are updated
 - **Comprehensive Data**: Portfolio composition, returns, ratings, holdings, expense ratios
 - **Manual Trigger**: Available from Upload CAS tab
-- **Restriction**: Once per month (after 10th)
+- **Restriction**: Once per month (after 10th & allows one manual update)
 - **Background Process**: Non-blocking updates for smooth user experience
 
 ### Smart Update Tracking
@@ -452,32 +452,6 @@ Calculated for:
 - **Prevents Re-upload**: Warns if same file is uploaded again
 - **File Signature**: Based on file size, content hash, and binary fingerprint
 - **Persists**: Stores signature in localStorage
-
-### Auto-Update System
-
-**Daily NAV Updates**:
-
-```javascript
-// Checks last update date
-if (needsNavUpdate()) {
-  // Fetches only new NAV entries since last update
-  await updateNavHistoryOnly();
-  // Merges with existing history
-  // Updates timestamp
-}
-```
-
-**Monthly Stats Updates**:
-
-```javascript
-// Checks if current date > 10th and last update was previous month
-if (needsFullUpdate()) {
-  // Fetches complete fund statistics
-  await updateFullMFStats();
-  // Updates all extended data
-  // Refreshes entire portfolio
-}
-```
 
 ### Fund Valuation History
 
