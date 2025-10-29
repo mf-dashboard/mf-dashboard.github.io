@@ -4039,9 +4039,7 @@ function renderFundValuationChart(fundKey, canvasId) {
 
   const ctx = canvas.getContext("2d");
 
-  // Use ALL available data
   const allData = dailyValuation;
-
   const labels = allData.map((d) => {
     const date = new Date(d.date);
     return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
@@ -4090,9 +4088,7 @@ function renderFundValuationChart(fundKey, canvasId) {
         }
       },
       plugins: {
-        legend: {
-          display: false,
-        },
+        legend: { display: false },
         tooltip: {
           backgroundColor: "rgba(0, 0, 0, 0.8)",
           padding: 8,
@@ -4108,13 +4104,10 @@ function renderFundValuationChart(fundKey, canvasId) {
                 year: "numeric",
               });
             },
-            label: (ctx) => {
-              if (ctx.datasetIndex === 0) {
-                return `Value: ₹${ctx.parsed.y.toLocaleString("en-IN")}`;
-              } else {
-                return `Cost: ₹${ctx.parsed.y.toLocaleString("en-IN")}`;
-              }
-            },
+            label: (ctx) =>
+              ctx.datasetIndex === 0
+                ? `Value: ₹${ctx.parsed.y.toLocaleString("en-IN")}`
+                : `Cost: ₹${ctx.parsed.y.toLocaleString("en-IN")}`,
           },
         },
       },
@@ -4122,11 +4115,7 @@ function renderFundValuationChart(fundKey, canvasId) {
         x: {
           display: false,
           grid: { display: false },
-          ticks: {
-            maxTicksLimit: 5,
-            font: { size: 9 },
-            color: "#9ca3af",
-          },
+          ticks: { maxTicksLimit: 5, font: { size: 9 }, color: "#9ca3af" },
         },
         y: {
           display: true,
@@ -4147,31 +4136,37 @@ function renderFundValuationChart(fundKey, canvasId) {
         duration: 0,
         onComplete: () => {
           canvas.classList.add("chart-ready");
-          if (container) {
-            container.classList.remove("loading");
-          }
+          if (container) container.classList.remove("loading");
         },
       },
     },
   });
+
+  if (window.innerWidth <= 1024) {
+    canvas.addEventListener("touchend", function () {
+      setTimeout(() => {
+        if (chart && chart.tooltip) {
+          chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+          chart.update("none");
+        }
+      }, 100);
+    });
+  }
 }
 
 function renderFundPerformanceChart(canvasId, extendedData) {
   const ctx = document.getElementById(canvasId);
   if (!ctx) return;
 
-  // Extract fundKey from canvasId - remove the prefix
   const fundKey = canvasId.replace("fundPerfChart_", "");
   const containerId = `fundPerfChartContainer_${fundKey}`;
   const container = document.getElementById(containerId);
 
   const labels = ["1Y", "3Y", "5Y"];
-
   const safeRound = (val) =>
     typeof val === "number" && !isNaN(val) ? Math.round(val * 100) / 100 : null;
 
   const stats = extendedData.return_stats || {};
-
   const fundData = [stats.return1y, stats.return3y, stats.return5y].map(
     safeRound
   );
@@ -4218,9 +4213,7 @@ function renderFundPerformanceChart(canvasId, extendedData) {
   if (datasets.length === 0) {
     ctx.parentElement.innerHTML =
       '<div style="padding:10px;text-align:center;color:#9ca3af;font-size:11px;">No performance data available</div>';
-    if (container) {
-      container.classList.remove("loading");
-    }
+    if (container) container.classList.remove("loading");
     return;
   }
 
@@ -4270,13 +4263,22 @@ function renderFundPerformanceChart(canvasId, extendedData) {
         duration: 0,
         onComplete: () => {
           ctx.classList.add("chart-ready");
-          if (container) {
-            container.classList.remove("loading");
-          }
+          if (container) container.classList.remove("loading");
         },
       },
     },
   });
+
+  if (window.innerWidth <= 1024) {
+    ctx.addEventListener("touchend", function () {
+      setTimeout(() => {
+        if (chart && chart.tooltip) {
+          chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+          chart.update("none");
+        }
+      }, 100);
+    });
+  }
 }
 
 function createFundCardForFolios(fund, fundKey, folios, isActive) {
@@ -5282,7 +5284,7 @@ function updateChart() {
       },
     });
 
-    if (window.innerWidth <= 768) {
+    if (window.innerWidth <= 1024) {
       canvas.addEventListener("touchend", function () {
         setTimeout(() => {
           if (chart && chart.tooltip) {
