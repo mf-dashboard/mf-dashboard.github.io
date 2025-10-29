@@ -562,7 +562,23 @@ function displaySectorSplit(sectorObj) {
     sectorChart = buildBarChart("sectorChart", sortedLabels, sortedData);
 
     setTimeout(() => {
-      document.getElementById("sectorCard")?.classList.remove("loading");
+      const sectorCard = document.getElementById("sectorCard");
+      if (!sectorCard) return;
+
+      // remove loading state
+      sectorCard.classList.remove("loading");
+
+      //Check if only "Unclassified" is there (and non-zero)
+      const nonZeroEntries = entries.filter(([_, v]) => v > 0);
+      const onlyUnclassified =
+        nonZeroEntries.length === 1 &&
+        nonZeroEntries[0][0].toLowerCase() === "unclassified";
+
+      if (onlyUnclassified) {
+        sectorCard.classList.add("hidden");
+      } else {
+        sectorCard.classList.remove("hidden");
+      }
     }, 150);
   }, 50);
 }
@@ -2705,6 +2721,8 @@ function calculateSummary() {
     }));
     activeXirr = calculatePortfolioXIRR(cashFlowsSimple);
   }
+
+  updatePortfolioDataWithActiveStatus();
 
   return {
     totalInvested,
@@ -5467,10 +5485,10 @@ async function updateMFStats() {
   // Check if already updated today (auto + manual)
   if (
     !storageManager.needsFullUpdate() &&
-    storageManager.hasManualUpdateToday()
+    storageManager.hasManualStatsUpdateThisMonth()
   ) {
     showToast(
-      "Fund statistics already updated today (auto + manual). Next update available tomorrow after 6 AM.",
+      "Manual fund statistics update already used this month. You can manually update once per month (in addition to the automatic monthly update after the 10th).",
       "info"
     );
     return;
@@ -5488,9 +5506,12 @@ async function updateMFStats() {
   try {
     await fetchOrUpdateMFStats("manual");
 
-    await storageManager.savePortfolioData(portfolioData, mfStats, false);
+    await storageManager.idb.saveFile("mf-stats.json", mfStats);
+
     storageManager.updateLastFullUpdate();
-    storageManager.markManualUpdate(); // Mark manual update done
+    storageManager.updateLastNavUpdate();
+    storageManager.markManualStatsUpdate();
+    storageManager.markManualNavUpdate();
     await processPortfolio();
 
     hideProcessingSplash();
@@ -5512,7 +5533,7 @@ async function updateNavManually() {
   // Check if already updated today (auto + manual)
   if (
     !storageManager.needsNavUpdate() &&
-    storageManager.hasManualUpdateToday()
+    storageManager.hasManualNavUpdateToday()
   ) {
     showToast(
       "NAV already updated today (auto + manual). Please try again tomorrow after 6 AM.",
@@ -5534,13 +5555,11 @@ async function updateNavManually() {
     const success = await updateNavHistoryOnly();
 
     if (success) {
-      // Reset chart render flag to force re-render
       window.fundChartsRendered = false;
 
-      // Re-process portfolio with updated NAV
       await processPortfolio();
 
-      storageManager.markManualUpdate();
+      storageManager.markManualNavUpdate(); // ✅ Mark NAV manual update
       showToast("NAV updated successfully!", "success");
       updateFooterInfo();
     } else {
@@ -5595,16 +5614,38 @@ function updateFooterInfo() {
   }
 }
 
+function updatePortfolioDataWithActiveStatus() {
+  portfolioData.folios.forEach((folio) => {
+    folio.schemes.forEach((scheme) => {
+      const key = scheme.scheme.trim().toLowerCase();
+      const fund = fundWiseData[key];
+
+      if (fund && fund.advancedMetrics) {
+        scheme.currentValue = fund.advancedMetrics.currentValue;
+        scheme.isActive = fund.advancedMetrics.currentValue > 0;
+      } else {
+        scheme.currentValue = 0;
+        scheme.isActive = false;
+      }
+    });
+  });
+}
+
 async function updateNavHistoryOnly() {
   if (!portfolioData) return;
 
-  console.log("🔄 Auto-updating NAV history...");
+  console.log("📄 Auto-updating NAV history for active holdings...");
 
   const navUpdateData = {}; // Track scheme_code and last NAV date for each ISIN
 
   portfolioData.folios.forEach((folio) => {
     folio.schemes.forEach((scheme) => {
-      if (scheme.isin) {
+      // Only update NAV for schemes with current value > 0
+      const hasValue =
+        scheme.isActive ||
+        (scheme.currentValue && parseFloat(scheme.currentValue || 0) > 0);
+
+      if (scheme.isin && hasValue) {
         const existingStats = mfStats[scheme.isin];
 
         if (existingStats?.scheme_code) {
@@ -5617,7 +5658,13 @@ async function updateNavHistoryOnly() {
     });
   });
 
-  console.log("NAV update data:", navUpdateData);
+  const activeHoldingsCount = Object.keys(navUpdateData).length;
+  console.log(`📊 Updating NAV for ${activeHoldingsCount} active holdings`);
+
+  if (activeHoldingsCount === 0) {
+    console.log("ℹ️ No active holdings to update NAV for.");
+    return true;
+  }
 
   try {
     const response = await fetch(BACKEND_SERVER + "/api/update-nav-only", {
@@ -5626,7 +5673,7 @@ async function updateNavHistoryOnly() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        navUpdateData, // Contains ISIN -> {scheme_code, last_nav_date}
+        navUpdateData,
       }),
     });
 
@@ -5637,14 +5684,12 @@ async function updateNavHistoryOnly() {
     const result = await response.json();
 
     if (result.success) {
-      // Merge the updated NAV data with existing mfStats
       const updatedNavData = result.data;
 
       Object.keys(updatedNavData).forEach((isin) => {
         if (mfStats[isin]) {
           const newNavData = updatedNavData[isin];
 
-          // Update latest NAV and date
           if (newNavData.latest_nav) {
             mfStats[isin].latest_nav = newNavData.latest_nav;
           }
@@ -5652,46 +5697,40 @@ async function updateNavHistoryOnly() {
             mfStats[isin].latest_nav_date = newNavData.latest_nav_date;
           }
 
-          // Handle NAV history
           if (newNavData.nav_entries && newNavData.nav_entries.length > 0) {
             const existingHistory = mfStats[isin].nav_history || [];
 
-            // If this is full history (last_nav_date was null), replace everything
             if (newNavData.is_full_history) {
               mfStats[isin].nav_history = newNavData.nav_entries;
             } else {
-              // Merge incremental updates
               const combined = [...newNavData.nav_entries, ...existingHistory];
-
-              // Remove duplicates by date
               const uniqueByDate = Array.from(
                 new Map(combined.map((item) => [item.date, item])).values()
               );
 
-              // Sort by date descending (newest first)
-              uniqueByDate.sort((a, b) => new Date(b.date) - new Date(a.date));
+              uniqueByDate.sort((a, b) => {
+                const [dayA, monthA, yearA] = a.date.split("-");
+                const [dayB, monthB, yearB] = b.date.split("-");
+                const dateA = new Date(`${yearA}-${monthA}-${dayA}`);
+                const dateB = new Date(`${yearB}-${monthB}-${dayB}`);
+                return dateB - dateA;
+              });
 
               mfStats[isin].nav_history = uniqueByDate;
             }
           }
 
-          // Update meta if provided
           if (newNavData.meta) {
             mfStats[isin].meta = newNavData.meta;
           }
         }
       });
 
-      await storageManager.savePortfolioData(portfolioData, mfStats, false);
+      await storageManager.idb.saveFile("mf-stats.json", mfStats);
       storageManager.updateLastNavUpdate();
-      console.log("✅ NAV history updated successfully");
-
-      // Refresh the display without full recalculation
-      aggregateFundWiseData();
-      const summary = calculateSummary();
-      updateSummaryCards(summary);
-      updateFundBreakdown();
-
+      console.log(
+        `✅ NAV history updated for ${activeHoldingsCount} active holdings`
+      );
       return true;
     }
     return false;
@@ -5701,38 +5740,70 @@ async function updateNavHistoryOnly() {
   }
 }
 
-async function fetchOrUpdateMFStats(updateType = "full") {
+async function fetchOrUpdateMFStats(updateType = "auto") {
   try {
     if (!portfolioData) {
       console.warn("No portfolio data available");
       return {};
     }
 
-    console.log(`🔄 Fetching MF stats (${updateType})...`);
+    console.log(`📄 Fetching MF stats (${updateType})...`);
 
-    // Step 1: Collect all ISINs from portfolio
-    const isins = [];
-    portfolioData.folios.forEach((folio) => {
-      folio.schemes.forEach((scheme) => {
-        if (scheme.isin) {
-          isins.push(scheme.isin);
-        }
+    // Step 1: Collect ISINs based on updateType
+    const targetIsins = new Set();
+
+    if (updateType === "initial") {
+      // For initial load, fetch ALL funds
+      portfolioData.folios.forEach((folio) => {
+        folio.schemes.forEach((scheme) => {
+          if (scheme.isin) {
+            targetIsins.add(scheme.isin);
+          }
+        });
       });
-    });
+      console.log(`📊 Initial load: Fetching all ${targetIsins.size} funds`);
+    } else {
+      // For auto/manual updates, only fetch active holdings
+      portfolioData.folios.forEach((folio) => {
+        folio.schemes.forEach((scheme) => {
+          const hasValue =
+            scheme.isActive ||
+            (scheme.currentValue && parseFloat(scheme.currentValue || 0) > 0);
 
-    const uniqueIsins = [...new Set(isins)];
+          if (scheme.isin && hasValue) {
+            targetIsins.add(scheme.isin);
+          }
+        });
+      });
+      console.log(
+        `📊 Update mode: Fetching ${targetIsins.size} active holdings`
+      );
+    }
+
+    const uniqueIsins = [...targetIsins];
 
     // Step 2: Get ISIN → searchString map
     const searchKeyJson = await getSearchKeys();
 
-    // Step 3: Find corresponding search strings for unique ISINs
+    // Step 3: Find corresponding search strings
     const searchKeys = uniqueIsins
-      .map((isin) => searchKeyJson[isin])
-      .filter(Boolean); // remove undefined if any ISIN not found
+      .map((isin) => {
+        const searchValue = searchKeyJson[isin];
+        if (!searchValue) {
+          console.log(`⚠️ No search value found for ISIN: ${isin}`);
+        }
+        return searchValue;
+      })
+      .filter(Boolean);
 
     const uniqueSearchKeys = [...new Set(searchKeys)];
 
-    // Step 4: Call API with only search keys
+    if (uniqueSearchKeys.length === 0) {
+      console.warn("No funds to fetch stats for");
+      return mfStats || {};
+    }
+
+    // Step 4: Call API with search keys
     const response = await fetch(BACKEND_SERVER + "/api/mf-stats", {
       method: "POST",
       headers: {
@@ -5754,20 +5825,39 @@ async function fetchOrUpdateMFStats(updateType = "full") {
       throw new Error(result.error);
     }
 
-    mfStats = result.data || result;
-    console.log(
-      "✅ MF Stats fetched successfully:",
-      Object.keys(mfStats).length,
-      "funds"
-    );
+    const newStats = result.data || result;
+
+    if (updateType === "initial") {
+      // For initial load, replace mfStats completely
+      mfStats = newStats;
+      console.log(
+        "✅ MF Stats fetched successfully (initial):",
+        Object.keys(mfStats).length,
+        "funds"
+      );
+    } else {
+      // For updates, merge with existing data (preserve historical data)
+      mfStats = {
+        ...mfStats, // Keep existing data for inactive funds
+        ...newStats, // Update/add data for active funds
+      };
+      console.log(
+        "✅ MF Stats updated successfully:",
+        Object.keys(newStats).length,
+        "active funds updated,",
+        Object.keys(mfStats).length,
+        "total funds in cache"
+      );
+    }
 
     return mfStats;
   } catch (err) {
     console.error("❌ Failed to fetch MF stats:", err);
     showToast("Failed to fetch MF stats: " + err.message, "error");
-    return {};
+    return mfStats || {};
   }
 }
+
 async function updateFullMFStats() {
   if (!portfolioData) return false;
 
@@ -5776,8 +5866,10 @@ async function updateFullMFStats() {
   try {
     await fetchOrUpdateMFStats("auto");
 
-    await storageManager.savePortfolioData(portfolioData, mfStats, false);
+    await storageManager.idb.saveFile("mf-stats.json", mfStats);
+
     storageManager.updateLastFullUpdate();
+    storageManager.updateLastNavUpdate();
     console.log("✅ Full MF stats updated successfully");
 
     // Refresh entire portfolio

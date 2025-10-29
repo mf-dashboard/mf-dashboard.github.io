@@ -198,18 +198,39 @@ class ManifestManager {
     }
   }
 
-  static hasManualUpdateToday() {
+  static hasManualNavUpdateToday() {
     const manifest = this.getManifest();
-    if (!manifest || !manifest.lastManualUpdate) return false;
+    if (!manifest || !manifest.lastManualNavUpdate) return false;
 
     const today = new Date().toISOString().split("T")[0];
-    return manifest.lastManualUpdate === today;
+    return manifest.lastManualNavUpdate === today;
   }
 
-  static markManualUpdate() {
+  static markManualNavUpdate() {
     const manifest = this.getManifest();
     if (manifest) {
-      manifest.lastManualUpdate = new Date().toISOString().split("T")[0];
+      manifest.lastManualNavUpdate = new Date().toISOString().split("T")[0];
+      localStorage.setItem(this.MANIFEST_KEY, JSON.stringify(manifest));
+    }
+  }
+
+  static hasManualStatsUpdateThisMonth() {
+    const manifest = this.getManifest();
+    if (!manifest || !manifest.lastManualStatsUpdate) return false;
+
+    const lastUpdate = new Date(manifest.lastManualStatsUpdate);
+    const today = new Date();
+
+    return (
+      lastUpdate.getFullYear() === today.getFullYear() &&
+      lastUpdate.getMonth() === today.getMonth()
+    );
+  }
+
+  static markManualStatsUpdate() {
+    const manifest = this.getManifest();
+    if (manifest) {
+      manifest.lastManualStatsUpdate = new Date().toISOString().split("T")[0];
       localStorage.setItem(this.MANIFEST_KEY, JSON.stringify(manifest));
     }
   }
@@ -340,12 +361,20 @@ class StorageManager {
     return ManifestManager.getManifest();
   }
 
-  hasManualUpdateToday() {
-    return ManifestManager.hasManualUpdateToday();
+  hasManualNavUpdateToday() {
+    return ManifestManager.hasManualNavUpdateToday();
   }
 
-  markManualUpdate() {
-    ManifestManager.markManualUpdate();
+  markManualNavUpdate() {
+    ManifestManager.markManualNavUpdate();
+  }
+
+  hasManualStatsUpdateThisMonth() {
+    return ManifestManager.hasManualStatsUpdateThisMonth();
+  }
+
+  markManualStatsUpdate() {
+    ManifestManager.markManualStatsUpdate();
   }
 }
 
