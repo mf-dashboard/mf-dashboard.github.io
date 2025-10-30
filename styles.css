@@ -1938,6 +1938,27 @@ p.instructions-note {
   letter-spacing: -0.5px;
 }
 
+.dashboard-tab-btn.disabled-tab,
+.mobile-menu-item.disabled-tab {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  pointer-events: all !important; /* Allow pointer events to show cursor */
+  position: relative;
+}
+
+.dashboard-tab-btn.disabled-tab:hover,
+.mobile-menu-item.disabled-tab:hover {
+  background-color: inherit;
+  transform: none;
+}
+
+.dashboard-tab-btn.disabled-tab::after,
+.mobile-menu-item.disabled-tab::after {
+  content: "🔒";
+  margin-left: 5px;
+  font-size: 0.8em;
+}
+
 /* Show hamburger menu on mobile */
 @media (max-width: 1024px) {
   .mobile-header {

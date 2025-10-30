@@ -12,6 +12,7 @@ let currentPeriod = "1Y";
 let fundWiseData = {};
 const allTimeFlows = [];
 const activeFlows = [];
+let isSummaryCAS = false;
 
 // Auto-detect backend
 const BACKEND_SERVER =
@@ -1419,16 +1420,27 @@ async function loadFileFromTab() {
     }
 
     portfolioData = result.data;
+
+    // Detect CAS type
+    isSummaryCAS = portfolioData.cas_type === "SUMMARY";
+
     console.log(
+      "CAS Type:",
+      isSummaryCAS ? "SUMMARY" : "DETAILED",
       "Folios Fetched: ",
-      portfolioData.folios?.length,
-      " : ",
-      portfolioData
+      portfolioData.folios?.length
     );
 
-    await fetchOrUpdateMFStats("initial");
+    if (isSummaryCAS) {
+      await fetchOrUpdateMFStats("initial");
+      processSummaryCAS();
+    } else {
+      await fetchOrUpdateMFStats("initial");
+      await processPortfolio();
+      enableSummaryIncompatibleTabs();
+    }
 
-    // Save to IndexedDB with current date for both NAV and Stats
+    // Save to IndexedDB
     await storageManager.savePortfolioData(portfolioData, mfStats, true);
 
     // Store the file signature after successful upload
@@ -1440,26 +1452,22 @@ async function loadFileFromTab() {
 
     enableAllTabs();
 
-    await processPortfolio();
-
     try {
       fileInput.value = "";
       passwordInput.value = "";
     } catch (err) {}
 
     hideProcessingSplash();
-    const showCards = ["clear-cache", "update-stats", "update-nav"];
 
+    const showCards = ["clear-cache", "update-stats", "update-nav"];
     const hideCard = "instructions-card";
 
     showCards.forEach((e) =>
       document.querySelector("." + e).classList.remove("hidden")
     );
-
     document.querySelector("." + hideCard).classList.add("hidden");
-    showToast("Portfolio loaded and saved successfully!", "success");
 
-    // Update footer info
+    showToast("Portfolio loaded and saved successfully!", "success");
     updateFooterInfo();
 
     switchDashboardTab("main");
@@ -1473,7 +1481,344 @@ async function loadFileFromTab() {
   }
 }
 
-// Fetch search-key.json from server
+function processSummaryCAS() {
+  // Disable tabs that are not relevant for summary
+  disableSummaryIncompatibleTabs();
+
+  // Build fundWiseData from summary folios
+  fundWiseData = {};
+
+  portfolioData.folios.forEach((folio) => {
+    const key = folio.scheme.trim().toLowerCase();
+    const extendedData = folio.isin ? mfStats[folio.isin] : null;
+
+    const amcName =
+      extendedData?.amc?.trim() || folio.amc?.trim() || "Unknown AMC";
+
+    const latestNav = extendedData?.latest_nav
+      ? parseFloat(extendedData.latest_nav)
+      : parseFloat(folio.nav || 0);
+
+    const navHistory = extendedData?.nav_history || [];
+    const meta = extendedData?.meta || {};
+    const return_stats = extendedData?.return_stats || {};
+    const benchmark = extendedData?.benchmark;
+    const holdings = extendedData?.holdings || [];
+
+    const units = parseFloat(folio.units || 0);
+    const cost = parseFloat(folio.cost || 0);
+    const currentValue =
+      units > 0 && latestNav > 0
+        ? units * latestNav
+        : parseFloat(folio.current_value || 0);
+    const unrealizedGain = currentValue - cost;
+    const unrealizedGainPercentage =
+      cost > 0 ? ((unrealizedGain / cost) * 100).toFixed(2) : 0;
+
+    folio.current_value = currentValue;
+    folio.nav = latestNav;
+    folio.nav_date = extendedData?.latest_nav_date || folio.nav_date;
+
+    fundWiseData[key] = {
+      scheme: folio.scheme,
+      schemeDisplay: sanitizeSchemeName(folio.scheme),
+      isin: folio.isin,
+      amc: amcName,
+      type: extendedData?.category || "Unknown",
+      category: extendedData?.category || "Unknown",
+      folios: [folio.folio],
+      transactions: [],
+      navHistory: navHistory,
+      latestNav: latestNav,
+      meta: meta,
+      benchmark: benchmark,
+      return_stats: return_stats,
+      holdings: holdings,
+      valuation: {
+        date:
+          extendedData?.latest_nav_date ||
+          folio.nav_date ||
+          new Date().toISOString(),
+        nav: latestNav,
+        value: currentValue,
+        cost: cost,
+      },
+      advancedMetrics: {
+        totalInvested: cost,
+        totalWithdrawn: 0,
+        realizedGain: 0,
+        realizedGainPercentage: 0,
+        unrealizedGain: unrealizedGain,
+        unrealizedGainPercentage: unrealizedGainPercentage,
+        remainingCost: cost,
+        currentValue: currentValue,
+        totalUnitsRemaining: units,
+        averageRemainingCostPerUnit: units > 0 ? (cost / units).toFixed(3) : 0,
+        averageHoldingDays: 0,
+        category: extendedData?.category || "hybrid",
+        capitalGains: {
+          stcg: 0,
+          ltcg: 0,
+          stcgRedeemed: 0,
+          ltcgRedeemed: 0,
+          byYear: {},
+        },
+        folioSummaries: {},
+        dailyValuation: [],
+      },
+    };
+  });
+  console.log("Fund Wise Data:", fundWiseData);
+
+  portfolioData.current_value = portfolioData.folios.reduce(
+    (sum, folio) => sum + parseFloat(folio.current_value || 0),
+    0
+  );
+
+  const summary = calculateSummarySummary();
+  updateSummaryCards(summary);
+
+  requestAnimationFrame(() => {
+    updateSummaryFundBreakdown();
+    calculateAndDisplayPortfolioAnalytics();
+    switchDashboardTab("main");
+  });
+}
+
+function calculateSummarySummary() {
+  let totalInvested = 0;
+  let totalWithdrawn = 0;
+  let currentValue = 0;
+  let totalRealizedGain = 0;
+  let totalUnrealizedGain = 0;
+  let totalRemainingCost = 0;
+
+  Object.values(fundWiseData).forEach((fund) => {
+    totalInvested += fund.advancedMetrics.totalInvested;
+    currentValue += fund.advancedMetrics.currentValue;
+    totalUnrealizedGain += fund.advancedMetrics.unrealizedGain;
+    totalRemainingCost += fund.advancedMetrics.remainingCost;
+  });
+
+  const overallGain = currentValue - totalInvested;
+
+  return {
+    totalInvested,
+    totalWithdrawn,
+    currentValue,
+    overallGain,
+    realizedGain: totalRealizedGain,
+    unrealizedGain: totalUnrealizedGain,
+    costPrice: totalRemainingCost,
+    allTimeXirr: null,
+    activeXirr: null,
+  };
+}
+
+function updateSummaryFundBreakdown() {
+  const currentGrid = document.getElementById("currentFolioGrid");
+  const pastGrid = document.getElementById("pastFolioGrid");
+  const pastSection = document.getElementById("show-past");
+  const pastSectionMobile = document.getElementById("show-past-mobile");
+
+  currentGrid.innerHTML = "";
+  pastGrid.innerHTML = "";
+
+  pastSection?.classList.add("hidden");
+  pastSectionMobile?.classList.add("hidden");
+
+  const fundsArray = Object.entries(fundWiseData);
+  fundsArray.sort((a, b) => {
+    const aVal = a[1].valuation ? parseFloat(a[1].valuation.value || 0) : 0;
+    const bVal = b[1].valuation ? parseFloat(b[1].valuation.value || 0) : 0;
+    return bVal - aVal;
+  });
+
+  fundsArray.forEach(([fundKey, fund]) => {
+    const card = createSummaryFundCard(fund, fundKey);
+    currentGrid.appendChild(card);
+  });
+}
+
+function createSummaryFundCard(fund, fundKey) {
+  const card = document.createElement("div");
+  card.className = "folio-card";
+
+  const extendedData = mfStats[fund.isin];
+  const displayName = fund.schemeDisplay || fund.scheme;
+
+  const currentValue = fund.advancedMetrics.currentValue;
+  const cost = fund.advancedMetrics.remainingCost;
+  const unrealizedGain = fund.advancedMetrics.unrealizedGain;
+  const unrealizedGainPercentage =
+    fund.advancedMetrics.unrealizedGainPercentage;
+  const units = fund.advancedMetrics.totalUnitsRemaining;
+  const avgNav = fund.advancedMetrics.averageRemainingCostPerUnit;
+
+  function roundValue(val) {
+    if (val === null || val === undefined) return "--";
+    if (typeof val === "number") return Math.round(val * 100) / 100;
+    return val;
+  }
+
+  card.innerHTML = `
+    <h4 title="${displayName}">${displayName}</h4>
+    <div class="folio-info">
+      ${standardizeTitle(fund.amc)}${
+    fund.folios.length > 0
+      ? " • " + fund.folios.map((f) => f.split("/")[0].trim()).join(", ")
+      : ""
+  }</div>
+    <div class="folio-stat"><span class="label">Current Value:</span><span class="value">₹${formatNumber(
+      currentValue
+    )}</span></div>
+    <div class="folio-stat"><span class="label">Current Cost:</span><span class="value">₹${formatNumber(
+      cost
+    )}</span></div>
+    <div class="folio-stat"><span class="label">Units:</span><span class="value">${roundValue(
+      units
+    )}</span></div>
+    <div class="folio-stat"><span class="label">Avg NAV:</span><span class="value">${roundValue(
+      avgNav
+    )}</span></div>
+    <div class="folio-stat"><span class="label">P&L:</span><span class="value ${
+      unrealizedGain >= 0 ? "gain" : "loss"
+    }">
+      ${unrealizedGain >= 0 ? "+" : ""}₹${formatNumber(
+    Math.abs(unrealizedGain)
+  )} (${unrealizedGainPercentage}%)</span></div>
+    ${
+      extendedData
+        ? `<div class="extended-stats hidden">
+        <div class="folio-stat fund-card-separator-header"><span class="label">Fund Stats: </span><span></span></div>
+        <div class="folio-stat fund-card-separator"><span class="label">Alpha:</span><span class="value">${roundValue(
+          extendedData.return_stats?.alpha
+        )}</span></div>
+        <div class="folio-stat"><span class="label">Beta:</span><span class="value">${roundValue(
+          extendedData.return_stats?.beta
+        )}</span></div>
+        <div class="folio-stat"><span class="label">Sharpe Ratio:</span><span class="value">${roundValue(
+          extendedData.return_stats?.sharpe_ratio
+        )}</span></div>
+        <div class="folio-stat"><span class="label">Sortino Ratio:</span><span class="value">${roundValue(
+          extendedData.return_stats?.sortino_ratio
+        )}</span></div>
+        <div class="folio-stat"><span class="label">Information Ratio:</span><span class="value">${roundValue(
+          extendedData.return_stats?.information_ratio
+        )}</span></div>
+        <div class="folio-stat"><span class="label">Standard Deviation:</span><span class="value">${roundValue(
+          extendedData.return_stats?.standard_deviation
+        )}</span></div>
+        <div class="folio-stat"><span class="label">Expense Ratio:</span><span class="value">${roundValue(
+          extendedData.expense_ratio
+        )}%</span></div>
+        <div class="folio-stat"><span class="label">1Y Return:</span><span class="value">${roundValue(
+          extendedData.return_stats?.return1y
+        )}%</span></div>
+        <div class="folio-stat"><span class="label">3Y Return:</span><span class="value">${roundValue(
+          extendedData.return_stats?.return3y
+        )}%</span></div>
+        <div class="folio-stat"><span class="label">5Y Return:</span><span class="value">${roundValue(
+          extendedData.return_stats?.return5y
+        )}%</span></div>
+        <div class="folio-stat"><span class="label">Rating:</span><span class="value">${roundValue(
+          extendedData.groww_rating
+        )}</span></div>
+        <div class="folio-stat"><span class="label">AUM:</span><span class="value">₹${formatNumber(
+          roundValue(extendedData.aum)
+        )}CR</span></div>
+        <div class="folio-stat fund-card-separator-space"><span class="label">Holdings:</span><span class="value"><button class="holdings-eye-btn" onclick="event.stopPropagation(); showFundHoldings('${fundKey}')"><i class="fa-solid fa-eye"></i></button><span>${
+            fund.holdings.length
+          }</span></span></div>
+      </div>`
+        : ""
+    }
+  `;
+
+  return card;
+}
+
+function disableSummaryIncompatibleTabs() {
+  const tabsToDisable = [
+    ".charts-button",
+    ".transactions-button",
+    ".capital-gains-button",
+    ".past-holding-button",
+  ];
+
+  tabsToDisable.forEach((selector) => {
+    const buttons = document.querySelectorAll(selector);
+    buttons.forEach((btn) => {
+      btn.disabled = true;
+      btn.classList.add("disabled-tab");
+      btn.style.opacity = "0.5";
+      btn.style.cursor = "not-allowed";
+      btn.title = "Not available for Summary CAS";
+
+      const originalOnclick = btn.onclick;
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showToast("This feature is not available for Summary CAS", "warning");
+        return false;
+      };
+    });
+  });
+
+  document.getElementById("show-past")?.classList.add("hidden");
+  document.getElementById("show-past-mobile")?.classList.add("hidden");
+}
+
+function enableSummaryIncompatibleTabs() {
+  const tabsToEnable = [
+    ".charts-button",
+    ".transactions-button",
+    ".capital-gains-button",
+    ".past-holding-button",
+  ];
+
+  tabsToEnable.forEach((selector) => {
+    const buttons = document.querySelectorAll(selector);
+    buttons.forEach((btn) => {
+      btn.disabled = false;
+      btn.classList.remove("disabled-tab");
+      btn.style.opacity = "1";
+      btn.style.cursor = "pointer";
+      btn.title = "";
+
+      if (btn.classList.contains("charts-button")) {
+        btn.onclick = () => {
+          switchDashboardTab("charts");
+          if (btn.classList.contains("mobile-menu-item")) {
+            closeMobileMenu();
+          }
+        };
+      } else if (btn.classList.contains("transactions-button")) {
+        btn.onclick = () => {
+          switchDashboardTab("transactions");
+          if (btn.classList.contains("mobile-menu-item")) {
+            closeMobileMenu();
+          }
+        };
+      } else if (btn.classList.contains("capital-gains-button")) {
+        btn.onclick = () => {
+          switchDashboardTab("capital-gains");
+          if (btn.classList.contains("mobile-menu-item")) {
+            closeMobileMenu();
+          }
+        };
+      } else if (btn.classList.contains("past-holding-button")) {
+        btn.onclick = () => {
+          switchDashboardTab("past-holding");
+          if (btn.classList.contains("mobile-menu-item")) {
+            closeMobileMenu();
+          }
+        };
+      }
+    });
+  });
+}
+
 async function getSearchKeys() {
   try {
     // Check if we have cached search keys
@@ -1570,6 +1915,20 @@ async function processPortfolio() {
 }
 
 function switchDashboardTab(tabId) {
+  // Prevent switching to disabled tabs for summary CAS
+  if (isSummaryCAS) {
+    const disabledTabs = [
+      "charts",
+      "transactions",
+      "capital-gains",
+      "past-holding",
+    ];
+    if (disabledTabs.includes(tabId)) {
+      showToast("This feature is not available for Summary CAS", "warning");
+      return;
+    }
+  }
+
   // Hide all sections
   document.querySelectorAll(".dashboard section").forEach((section) => {
     section.classList.remove("active-tab");
@@ -1599,9 +1958,13 @@ function switchDashboardTab(tabId) {
   } else if (tabId === "current-holding") {
     document.getElementById("toggleExtendedBtn").classList.remove("hidden");
     document.getElementById("toggleSeeMore").classList.add("hidden");
-    renderAllFundCharts();
+    if (!isSummaryCAS) {
+      renderAllFundCharts();
+    }
   } else if (tabId === "charts") {
-    updateChart();
+    if (!isSummaryCAS) {
+      updateChart();
+    }
     document.getElementById("toggleExtendedBtn").classList.add("hidden");
     document.getElementById("toggleSeeMore").classList.add("hidden");
   } else {
@@ -1731,9 +2094,19 @@ function aggregateBenchmarkReturns(fundWiseData) {
 }
 
 function aggregateFundWiseData() {
+  if (isSummaryCAS) {
+    console.log("⏭️ Skipping aggregateFundWiseData for Summary CAS");
+    return fundWiseData;
+  }
+
   fundWiseData = {};
 
   portfolioData.folios.forEach((folio) => {
+    if (!folio.schemes || !Array.isArray(folio.schemes)) {
+      console.warn("Folio missing schemes array:", folio.folio);
+      return;
+    }
+
     folio.schemes.forEach((scheme) => {
       const schemeLower = scheme.scheme.toLowerCase();
       if (
@@ -4755,8 +5128,31 @@ function updateSummaryCards(summary) {
   ).length;
 
   document.getElementById("totalHoldings").textContent = activeFundCount;
-  document.getElementById("avgHoldingDays").textContent =
-    calculateWeightedHoldingDays();
+
+  if (isSummaryCAS) {
+    const avgHoldingDaysCard =
+      document.getElementById("avgHoldingDays").parentElement;
+    avgHoldingDaysCard.classList.add("hidden");
+
+    const seeMoreSection = document.querySelector(".see-more");
+    if (seeMoreSection) {
+      seeMoreSection.classList.add("hidden");
+    }
+
+    const extendedElements = document.querySelectorAll(".extra-card");
+    extendedElements.forEach((el) => el.classList.add("hidden"));
+  } else {
+    const avgHoldingDaysCard =
+      document.getElementById("avgHoldingDays").parentElement;
+    avgHoldingDaysCard.classList.remove("hidden");
+    document.getElementById("avgHoldingDays").textContent =
+      calculateWeightedHoldingDays();
+
+    const seeMoreSection = document.querySelector(".see-more");
+    if (seeMoreSection) {
+      seeMoreSection.classList.remove("hidden");
+    }
+  }
 }
 
 function updateGainCard(valueId, percentId, gain, percent, xirr) {
@@ -4765,12 +5161,17 @@ function updateGainCard(valueId, percentId, gain, percent, xirr) {
   el.parentElement.classList.add(gain >= 0 ? "positive" : "negative");
   const xirrText =
     xirr !== null ? ` | XIRR: ${xirr.toFixed(2)}%` : " | XIRR: --";
-  document.getElementById(percentId).textContent =
-    "Absolute: " +
-    (gain >= 0 ? "+" : "") +
-    percent +
-    "%" +
-    (percentId === "realizedGainPercent" ? "" : xirrText);
+  if (isSummaryCAS) {
+    document.getElementById(percentId).textContent =
+      "Absolute: " + (gain >= 0 ? "+" : "") + percent + "%";
+  } else {
+    document.getElementById(percentId).textContent =
+      "Absolute: " +
+      (gain >= 0 ? "+" : "") +
+      percent +
+      "%" +
+      (percentId === "realizedGainPercent" ? "" : xirrText);
+  }
 }
 
 function switchTab(tab) {
@@ -5514,7 +5915,13 @@ async function updateMFStats() {
     storageManager.updateLastNavUpdate();
     storageManager.markManualStatsUpdate();
     storageManager.markManualNavUpdate();
-    await processPortfolio();
+    if (isSummaryCAS) {
+      processSummaryCAS();
+      disableSummaryIncompatibleTabs();
+    } else {
+      await processPortfolio();
+      enableSummaryIncompatibleTabs();
+    }
 
     hideProcessingSplash();
     showToast("Fund statistics updated successfully!", "success");
@@ -5559,7 +5966,13 @@ async function updateNavManually() {
     if (success) {
       window.fundChartsRendered = false;
 
-      await processPortfolio();
+      if (isSummaryCAS) {
+        processSummaryCAS();
+        disableSummaryIncompatibleTabs();
+      } else {
+        await processPortfolio();
+        enableSummaryIncompatibleTabs();
+      }
 
       storageManager.markManualNavUpdate(); // ✅ Mark NAV manual update
       showToast("NAV updated successfully!", "success");
@@ -5636,29 +6049,49 @@ function updatePortfolioDataWithActiveStatus() {
 async function updateNavHistoryOnly() {
   if (!portfolioData) return;
 
-  console.log("📄 Auto-updating NAV history for active holdings...");
+  console.log("🔄 Auto-updating NAV history for active holdings...");
 
-  const navUpdateData = {}; // Track scheme_code and last NAV date for each ISIN
+  const navUpdateData = {};
 
-  portfolioData.folios.forEach((folio) => {
-    folio.schemes.forEach((scheme) => {
-      // Only update NAV for schemes with current value > 0
+  if (portfolioData.cas_type === "SUMMARY") {
+    portfolioData.folios.forEach((folio) => {
       const hasValue =
-        scheme.isActive ||
-        (scheme.currentValue && parseFloat(scheme.currentValue || 0) > 0);
+        folio.current_value && parseFloat(folio.current_value || 0) > 0;
 
-      if (scheme.isin && hasValue) {
-        const existingStats = mfStats[scheme.isin];
+      if (folio.isin && hasValue) {
+        const existingStats = mfStats[folio.isin];
 
         if (existingStats?.scheme_code) {
-          navUpdateData[scheme.isin] = {
+          navUpdateData[folio.isin] = {
             scheme_code: existingStats.scheme_code,
             last_nav_date: existingStats.latest_nav_date || null,
           };
         }
       }
     });
-  });
+  } else {
+    portfolioData.folios.forEach((folio) => {
+      if (folio.schemes && Array.isArray(folio.schemes)) {
+        folio.schemes.forEach((scheme) => {
+          // Only update NAV for schemes with current value > 0
+          const hasValue =
+            scheme.isActive ||
+            (scheme.currentValue && parseFloat(scheme.currentValue || 0) > 0);
+
+          if (scheme.isin && hasValue) {
+            const existingStats = mfStats[scheme.isin];
+
+            if (existingStats?.scheme_code) {
+              navUpdateData[scheme.isin] = {
+                scheme_code: existingStats.scheme_code,
+                last_nav_date: existingStats.latest_nav_date || null,
+              };
+            }
+          }
+        });
+      }
+    });
+  }
 
   const activeHoldingsCount = Object.keys(navUpdateData).length;
   console.log(`📊 Updating NAV for ${activeHoldingsCount} active holdings`);
@@ -5749,34 +6182,56 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
       return {};
     }
 
-    console.log(`📄 Fetching MF stats (${updateType})...`);
+    console.log(`🔄 Fetching MF stats (${updateType})...`);
 
-    // Step 1: Collect ISINs based on updateType
+    // Step 1: Collect ISINs based on updateType and CAS type
     const targetIsins = new Set();
 
     if (updateType === "initial") {
       // For initial load, fetch ALL funds
-      portfolioData.folios.forEach((folio) => {
-        folio.schemes.forEach((scheme) => {
-          if (scheme.isin) {
-            targetIsins.add(scheme.isin);
+      if (portfolioData.cas_type === "SUMMARY") {
+        portfolioData.folios.forEach((folio) => {
+          if (folio.isin) {
+            targetIsins.add(folio.isin);
           }
         });
-      });
+      } else {
+        portfolioData.folios.forEach((folio) => {
+          if (folio.schemes && Array.isArray(folio.schemes)) {
+            folio.schemes.forEach((scheme) => {
+              if (scheme.isin) {
+                targetIsins.add(scheme.isin);
+              }
+            });
+          }
+        });
+      }
       console.log(`📊 Initial load: Fetching all ${targetIsins.size} funds`);
     } else {
-      // For auto/manual updates, only fetch active holdings
-      portfolioData.folios.forEach((folio) => {
-        folio.schemes.forEach((scheme) => {
+      if (portfolioData.cas_type === "SUMMARY") {
+        portfolioData.folios.forEach((folio) => {
           const hasValue =
-            scheme.isActive ||
-            (scheme.currentValue && parseFloat(scheme.currentValue || 0) > 0);
-
-          if (scheme.isin && hasValue) {
-            targetIsins.add(scheme.isin);
+            folio.current_value && parseFloat(folio.current_value || 0) > 0;
+          if (folio.isin && hasValue) {
+            targetIsins.add(folio.isin);
           }
         });
-      });
+      } else {
+        portfolioData.folios.forEach((folio) => {
+          if (folio.schemes && Array.isArray(folio.schemes)) {
+            folio.schemes.forEach((scheme) => {
+              const hasValue =
+                scheme.isActive ||
+                (scheme.currentValue &&
+                  parseFloat(scheme.currentValue || 0) > 0);
+
+              if (scheme.isin && hasValue) {
+                targetIsins.add(scheme.isin);
+              }
+            });
+          }
+        });
+      }
       console.log(
         `📊 Update mode: Fetching ${targetIsins.size} active holdings`
       );
@@ -5875,7 +6330,13 @@ async function updateFullMFStats() {
     console.log("✅ Full MF stats updated successfully");
 
     // Refresh entire portfolio
-    await processPortfolio();
+    if (isSummaryCAS) {
+      processSummaryCAS();
+      disableSummaryIncompatibleTabs();
+    } else {
+      await processPortfolio();
+      enableSummaryIncompatibleTabs();
+    }
 
     return true;
   } catch (err) {
@@ -5919,7 +6380,13 @@ async function checkAndPerformAutoUpdates() {
     if (updated) {
       window.fundChartsRendered = false;
 
-      await processPortfolio();
+      if (isSummaryCAS) {
+        processSummaryCAS();
+        disableSummaryIncompatibleTabs();
+      } else {
+        await processPortfolio();
+        enableSummaryIncompatibleTabs();
+      }
 
       showToast("Latest NAV updated!", "success");
       updateFooterInfo();
@@ -5997,7 +6464,6 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     if (stored) {
       const showCards = ["clear-cache", "update-stats", "update-nav"];
-
       const hideCard = "instructions-card";
 
       showCards.forEach((e) =>
@@ -6010,24 +6476,44 @@ window.addEventListener("DOMContentLoaded", async () => {
 
       portfolioData = stored.casData;
       mfStats = stored.mfStats;
-      console.log("✅ Loaded from IndexedDB");
 
-      await processPortfolio();
+      // Detect CAS type from loaded data
+      isSummaryCAS = portfolioData.cas_type === "SUMMARY";
+
+      console.log(
+        "✅ Loaded from IndexedDB - CAS Type:",
+        isSummaryCAS ? "SUMMARY" : "DETAILED"
+      );
+
+      if (isSummaryCAS) {
+        processSummaryCAS();
+      } else {
+        await processPortfolio();
+        // Enable all tabs for detailed CAS
+        enableSummaryIncompatibleTabs();
+      }
+
       hideProcessingSplash();
       showToast("Portfolio loaded from cache!", "success");
 
-      // Update footer info
       updateFooterInfo();
-
       enableAllTabs();
+
+      // Disable incompatible tabs if summary
+      if (isSummaryCAS) {
+        disableSummaryIncompatibleTabs();
+      }
+
       dashboard.classList.add("active");
       switchDashboardTab("main");
 
-      // Perform auto-updates in background
-      setTimeout(async () => {
-        await checkAndPerformAutoUpdates();
-        updateFooterInfo(); // Update footer after auto-updates
-      }, 2000);
+      // Perform auto-updates in background (only for detailed CAS)
+      if (!isSummaryCAS) {
+        setTimeout(async () => {
+          await checkAndPerformAutoUpdates();
+          updateFooterInfo();
+        }, 2000);
+      }
 
       return;
     }
