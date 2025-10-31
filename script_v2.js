@@ -6390,7 +6390,6 @@ async function checkAndPerformAutoUpdates() {
 
       showToast("Latest NAV updated!", "success");
       updateFooterInfo();
-      hideProcessingSplash();
     } else {
       showToast("Failed to update NAV", "error");
     }
@@ -6507,13 +6506,10 @@ window.addEventListener("DOMContentLoaded", async () => {
       dashboard.classList.add("active");
       switchDashboardTab("main");
 
-      // Perform auto-updates in background (only for detailed CAS)
-      if (!isSummaryCAS) {
-        setTimeout(async () => {
-          await checkAndPerformAutoUpdates();
-          updateFooterInfo();
-        }, 2000);
-      }
+      setTimeout(async () => {
+        await checkAndPerformAutoUpdates();
+        updateFooterInfo();
+      }, 2000);
 
       return;
     }
