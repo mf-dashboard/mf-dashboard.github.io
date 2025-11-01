@@ -2,7 +2,7 @@
 
 A comprehensive web-based portfolio tracker for Indian mutual fund investors. Track your investments, analyze performance, calculate capital gains, and monitor your portfolio with beautiful visualizations - all running locally in your browser!
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Web-brightgreen.svg)
 
@@ -57,33 +57,69 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 - **Cache Control**: Manual cache refresh and clear options
 - **Duplicate Prevention**: Smart detection of already uploaded CAS files
 
-## 🔄 Auto-Update Features
+### 🔄 Auto-Update Features
 
-The application automatically keeps your portfolio data fresh:
+- The application automatically keeps your portfolio data fresh:
 
-### Daily NAV Updates ⏰
+- **Daily NAV Updates ⏰**:
 
-- **Automatic**: Every day when you load the app, the latest NAV is fetched automatically
-- **Manual**: Trigger updates from the Upload CAS tab
-- **Restriction**: Once per day to avoid unnecessary API calls (allows one manual update)
-- **Incremental**: Only new NAV data is fetched and merged with existing history
-- **Silent Operation**: Updates happen seamlessly in the background
+  - **Automatic**: Every day when you load the app, the latest NAV is fetched automatically
+  - **Manual**: Trigger updates from the Upload CAS tab
+  - **Restriction**: Once per day to avoid unnecessary API calls (allows one manual update)
+  - **Incremental**: Only new NAV data is fetched and merged with existing history
+  - **Silent Operation**: Updates happen seamlessly in the background
 
-### Monthly Fund Statistics Updates 📅
+- **Monthly Fund Statistics Updates 📅**
 
-- **Automatic**: After the 10th of every month, complete fund statistics are updated
-- **Comprehensive Data**: Portfolio composition, returns, ratings, holdings, expense ratios
-- **Manual Trigger**: Available from Upload CAS tab
-- **Restriction**: Once per month (after 10th & allows one manual update)
-- **Background Process**: Non-blocking updates for smooth user experience
+  - **Automatic**: After the 10th of every month, complete fund statistics are updated
+  - **Comprehensive Data**: Portfolio composition, returns, ratings, holdings, expense ratios
+  - **Manual Trigger**: Available from Upload CAS tab
+  - **Restriction**: Once per month (after 10th & allows one manual update)
+  - **Background Process**: Non-blocking updates for smooth user experience
 
-### Smart Update Tracking
+- **Smart Update Tracking**: The dashboard footer displays:
 
-The dashboard footer displays:
+  - **Last CAS Parsed**: When you last uploaded a CAS file
+  - **Stats Updated**: When fund statistics were last updated
+  - **NAV Updated**: When NAV values were last refreshed
 
-- **Last CAS Parsed**: When you last uploaded a CAS file
-- **Stats Updated**: When fund statistics were last updated
-- **NAV Updated**: When NAV values were last refreshed
+### 🔍 Advanced Analysis Tools
+
+- **Overlap Analysis**: Identify duplicate holdings across funds
+
+  - Pairwise fund overlap calculation
+  - Common stocks across multiple funds
+  - Overlap percentage visualization
+  - Helps eliminate redundancy in portfolio
+
+- **Expense Impact Analysis**: Understand the cost of fund management
+
+  - Weighted expense ratio calculation
+  - Annual and lifetime cost projections
+  - Fund-wise expense breakdown
+  - Helps optimize portfolio for lower costs
+
+- **Portfolio Health Score**: Data-driven portfolio quality assessment
+  - Diversification score (fund count)
+  - Expense ratio score
+  - Performance vs benchmark score
+  - Overlap score
+  - Overall grade (A+ to D) with actionable insights
+
+### 👨‍👩‍👧‍👦 Multi-User Support
+
+- **Multiple Portfolios**: Track portfolios for entire family
+- **User Management**: Add, switch, and delete users
+- **Separate Storage**: Each user's data stored independently
+- **Quick Switching**: Dropdown to switch between users
+- **Family Dashboard**: Aggregated view across all users (when 2+ users exist)
+
+### 📱 Progressive Web App (PWA)
+
+- **Installable**: Add to home screen on mobile/desktop
+- **Offline Ready**: Works without internet after initial load
+- **App-like Experience**: Full-screen mode, native feel
+- **Auto Updates**: Service worker manages updates
 
 ## 📸 Screenshots
 
@@ -143,6 +179,36 @@ Financial year-wise breakdown of capital gains with STCG/LTCG calculations and d
 ![Transactions](./img/screenshots/transactions.png)
 
 Complete transaction history with folio-wise tracking and Excel export functionality.
+
+### Overlap Analysis
+
+![Overlap Analysis](./img/screenshots/overlap-analysis.png)
+
+Identify duplicate holdings across mutual funds to optimize your portfolio and reduce concentration risk.
+
+---
+
+### Expense Impact
+
+![Expense Impact](./img/screenshots/expense-impact.png)
+
+Analyze the cost of fund management with lifetime expense projections and fund-wise breakdown.
+
+---
+
+### Portfolio Health Score
+
+![Health Score](./img/screenshots/health-score.png)
+
+Get a comprehensive health assessment of your portfolio with actionable insights across multiple dimensions.
+
+---
+
+### Family Dashboard
+
+![Family Dashboard](./img/screenshots/family-dashboard.png)
+
+Track multiple portfolios for your entire family with aggregated metrics and analytics.
 
 ## 🚀 Getting Started
 
@@ -347,7 +413,7 @@ Features:
 - Category-wise breakdown
 - Downloadable Excel report
 
-### 8. Upload CAS Tab
+### 8. Manage CAS Tab
 
 Management options:
 
@@ -362,6 +428,76 @@ Footer shows:
 - Last CAS parsed date
 - Last stats update date
 - Last NAV update date
+
+### 9. Overlap Analysis Tab
+
+**Identify Redundancy**:
+
+- Highest overlapping fund pairs
+- Overlap percentage with color coding
+- Common stocks across funds
+- Shows stocks held in 3+ funds
+- Helps optimize portfolio diversity
+
+**Key Metrics**:
+
+- Pairwise overlap calculation
+- Common holdings list
+- Fund count per stock
+- Average weight across funds
+
+### 10. Expense Impact Tab
+
+**Cost Analysis**:
+
+- Weighted expense ratio
+- Annual cost projection
+- Lifetime cost calculation
+- Fund-wise breakdown
+
+**Insights**:
+
+- High expense funds highlighted
+- Cost optimization opportunities
+- Expense ratio comparison
+- Long-term impact visualization
+
+### 11. Portfolio Health Score Tab
+
+**Comprehensive Assessment**:
+
+- Overall score (0-100)
+- Letter grade (A+ to D)
+- Four key dimensions:
+  - Diversification (25 points)
+  - Expense Ratio (25 points)
+  - Performance (25 points)
+  - Overlap (25 points)
+
+**Visual Feedback**:
+
+- Progress bars for each dimension
+- Color-coded scores
+- Actionable messages
+- Improvement suggestions
+
+### 12. Family Dashboard Tab
+
+**Multi-User View** (appears when 2+ users exist):
+
+- Aggregated summary across all users
+- Combined portfolio analytics
+- Family-wide asset allocation
+- Total current value
+- Combined holdings count
+- Merged portfolio composition
+
+**Features**:
+
+- User-wise breakdown
+- Combined charts
+- Family expense ratio
+- Total P&L across all portfolios
 
 ## 🧮 Calculations & Methodology
 
@@ -815,7 +951,33 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🗓️ Changelog
 
-### Version 1.0.0 (Current)
+### Version 2.0.0 (Current)
+
+**Major Features**:
+
+- ✅ Progressive Web App (PWA) support
+- ✅ Multi-user portfolio management
+- ✅ Family Dashboard for aggregated view
+- ✅ Overlap Analysis tool
+- ✅ Expense Impact calculator
+- ✅ Portfolio Health Score
+
+**Improvements**:
+
+- Enhanced user management (add/delete/switch)
+- Separate data storage per user
+- Improved mobile navigation
+- Better chart rendering
+- Optimized IndexedDB operations
+
+**Bug Fixes**:
+
+- Fixed NAV update issues
+- Corrected capital gains calculations
+- Improved error handling
+- Better file signature detection
+
+### Version 1.0.0
 
 **Features**:
 
@@ -839,14 +1001,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Roadmap
 
-**Upcoming Features**:
+**Completed** ✅:
 
-- 📱 Progressive Web App (PWA)
-- 🔄 KFINTECH full support
-- 🎯 Asset allocation recommendations
-- 📱 Multiple portfolio support
-- 🌙 Dark mode
-- 📤 PDF export
+- ✅ Progressive Web App (PWA)
+- ✅ Multiple portfolio support (Multi-user)
+- ✅ Overlap Analysis
+- ✅ Expense Impact Analysis
+- ✅ Portfolio Health Score
 
 ## ⚖️ Disclaimer
 

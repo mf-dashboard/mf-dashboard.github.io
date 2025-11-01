@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
-    <link rel="stylesheet" href="styles.css?v=20251030" />
+    <link rel="stylesheet" href="styles.css?v=20251102" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -27,8 +27,14 @@
       sizes="180x180"
       href="/img/apple-touch-icon.png"
     />
-    <meta name="apple-mobile-web-app-title" content="my-mf-dashboard" />
-    <link rel="manifest" href="/img/site.webmanifest" />
+
+    <meta name="theme-color" content="#667eea" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="MF Dashboard" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
     <div class="loader hidden">
@@ -53,6 +59,8 @@
           <div class="mobile-header">
             <button
               class="hamburger-menu"
+              name="hamburgerMenu"
+              title="Menu Options"
               id="hamburgerMenu"
               onclick="toggleMobileMenu()"
             >
@@ -82,7 +90,7 @@
                 onclick="switchDashboardTab('cas-upload-tab'); closeMobileMenu();"
               >
                 <i class="fa-solid fa-upload"></i>
-                <span>Upload CAS</span>
+                <span>Manage CAS</span>
               </button>
               <button
                 class="mobile-menu-item main-button active"
@@ -127,6 +135,34 @@
                 <i class="fa-solid fa-coins"></i>
                 <span>Capital Gains</span>
               </button>
+              <button
+                class="mobile-menu-item overlap-analysis-button"
+                onclick="switchDashboardTab('overlap-analysis')"
+              >
+                <i class="fa-solid fa-layer-group"></i>
+                <span>Overlap Analysis</span>
+              </button>
+              <button
+                class="mobile-menu-item expense-impact-button"
+                onclick="switchDashboardTab('expense-impact')"
+              >
+                <i class="fa-solid fa-receipt"></i>
+                <span>Expense Impact</span>
+              </button>
+              <button
+                class="mobile-menu-item health-score-button"
+                onclick="switchDashboardTab('health-score')"
+              >
+                <i class="fa-solid fa-heart-pulse"></i>
+                <span>Portfolio Health</span>
+              </button>
+              <button
+                class="mobile-menu-item family-dashboard-button"
+                onclick="switchDashboardTab('family-dashboard'); closeMobileMenu();"
+              >
+                <i class="fa-solid fa-users"></i>
+                <span>Family Dashboard</span>
+              </button>
             </div>
           </div>
           <div class="tab-container">
@@ -135,7 +171,7 @@
               onclick="switchDashboardTab('cas-upload-tab')"
             >
               <i class="fa-solid fa-upload"></i>
-              <span>Upload CAS</span>
+              <span>Manage CAS</span>
             </button>
             <button
               class="dashboard-tab-btn main-button active"
@@ -180,21 +216,71 @@
               <i class="fa-solid fa-coins"></i>
               <span>Capital Gains</span>
             </button>
-          </div>
-          <div class="see-more current-holdings-header">
-            <button id="toggleSeeMore" class="see-more-btn">
-              <i class="fa-solid fa-eye"></i> Show Overall Stats
+            <button
+              class="dashboard-tab-btn overlap-analysis-button"
+              onclick="switchDashboardTab('overlap-analysis')"
+            >
+              <i class="fa-solid fa-layer-group"></i>
+              <span>Overlap Analysis</span>
             </button>
-            <button id="toggleExtendedBtn" class="see-more-btn">
-              <i class="fa-solid fa-eye"></i> Show Fund Stats
+            <button
+              class="dashboard-tab-btn expense-impact-button"
+              onclick="switchDashboardTab('expense-impact')"
+            >
+              <i class="fa-solid fa-receipt"></i>
+              <span>Expense Impact</span>
+            </button>
+            <button
+              class="dashboard-tab-btn health-score-button"
+              onclick="switchDashboardTab('health-score')"
+            >
+              <i class="fa-solid fa-heart-pulse"></i>
+              <span>Portfolio Health</span>
+            </button>
+            <button
+              class="dashboard-tab-btn family-dashboard-button"
+              onclick="switchDashboardTab('family-dashboard')"
+            >
+              <i class="fa-solid fa-users"></i>
+              <span>Family Dashboard</span>
             </button>
           </div>
         </div>
         <section id="cas-upload-tab">
+          <div
+            class="upload-section"
+            id="userSelectorSection"
+            style="display: none"
+          >
+            <h2>Manage Users</h2>
+            <div class="file-input-container">
+              <select
+                id="userSelector"
+                name="userSelector"
+                title="Select User"
+                class="user-selector"
+              ></select>
+              <button
+                type="button"
+                class="danger-btn"
+                onclick="deleteCurrentUser()"
+              >
+                <i class="fas fa-trash-alt"></i> Delete User
+              </button>
+              <button class="danger-btn" onclick="deleteAllUsers()">
+                <i class="fa-solid fa-trash"></i> Delete All Users
+              </button>
+            </div>
+          </div>
           <div class="upload-tab-content">
             <div class="upload-card">
               <div class="upload-icon">📄</div>
               <h3>Upload New CAS</h3>
+              <p
+                id="currentUserDisplay"
+                class="hidden"
+                style="font-weight: 600; color: #667eea; margin-bottom: 10px"
+              ></p>
               <p>
                 Upload a fresh Consolidated Account Statement to update your
                 portfolio
@@ -203,6 +289,7 @@
                 <input
                   type="file"
                   id="fileInputTab"
+                  placeholder="Select CAS"
                   accept=".json,application/json,.pdf,application/pdf"
                 />
                 <input
@@ -376,6 +463,11 @@
               <div class="subtext" id="realizedGainPercent">0%</div>
             </div>
           </div>
+          <div class="see-more current-holdings-header">
+            <button id="toggleSeeMore" class="see-more-btn">
+              <i class="fa-solid fa-eye"></i> Show Overall Stats
+            </button>
+          </div>
           <div class="portfolio-analytics-section">
             <h3>Portfolio Analytics</h3>
             <div class="analytics-grid">
@@ -420,6 +512,7 @@
                   Portfolio Holdings
                   <button
                     class="holdings-eye-btn"
+                    title="View Holdings"
                     onclick="showAllPortfolioHoldings()"
                   >
                     <i class="fa-solid fa-eye"></i>
@@ -441,6 +534,11 @@
         </section>
         <section id="current-holding">
           <div class="folio-section">
+            <div class="see-more current-holdings-header">
+              <button id="toggleExtendedBtn" class="see-more-btn">
+                <i class="fa-solid fa-eye"></i> Show Fund Stats
+              </button>
+            </div>
             <div class="folio-grid" id="currentFolioGrid"></div>
           </div>
         </section>
@@ -481,9 +579,96 @@
         <section id="capital-gains">
           <div id="capitalGainsContent"></div>
         </section>
+        <section id="overlap-analysis">
+          <div id="overlapContent"></div>
+        </section>
+
+        <section id="expense-impact">
+          <div id="expenseContent"></div>
+        </section>
+
+        <section id="health-score">
+          <div id="healthScoreContent"></div>
+        </section>
+        <section id="family-dashboard">
+          <div class="family-header">
+            <h2>👨‍👩‍👧‍👦 Family Portfolio Dashboard</h2>
+            <p class="family-subtitle">
+              Aggregated view across all family members
+              <!-- <button
+                class="secondary-btn"
+                onclick="invalidateFamilyDashboardCache(); loadFamilyDashboard();"
+                style="margin-left: 15px; padding: 6px 12px; font-size: 12px"
+                title="Refresh family dashboard data"
+              >
+                <i class="fa-solid fa-rotate-right"></i> Refresh
+              </button> -->
+            </p>
+          </div>
+
+          <div class="summary-cards" id="familySummaryCards"></div>
+
+          <div class="portfolio-analytics-section">
+            <h3>Family Portfolio Analytics</h3>
+            <div class="analytics-grid">
+              <div
+                class="analytics-card loading"
+                id="familyAssetAllocationCard"
+              >
+                <h4>Asset Allocation</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="familyAssetAllocationChart"></canvas>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="familyMarketCapCard">
+                <h4>Equity Market Cap Split</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="familyMarketCapChart"></canvas>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="familyAmcCard">
+                <h4>Fund House Distribution</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="familyAmcChart"></canvas>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="familySectorCard">
+                <h4>Equity Sector Distribution</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="familySectorChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <div class="weighted-returns-section">
+              <h4>Family Weighted Portfolio Returns</h4>
+              <div
+                class="returns-grid"
+                id="familyWeightedReturnsContainer"
+              ></div>
+            </div>
+          </div>
+
+          <div class="folio-section">
+            <h3>Family Holdings Breakdown</h3>
+            <div id="familyUserBreakdown"></div>
+          </div>
+        </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20251030"></script>
-    <script src="script_v2.js?v=20251031"></script>
+    <script src="indexeddb-helper.js?v=20251102"></script>
+    <script src="script.js?v=20251102"></script>
   </body>
 </html>

@@ -1,130 +1,141 @@
 /**
  * @file indexeddb-helper.js
- * @description Manages browser Indexed DB and Local Storage for Cache
+ * @description IndexedDB wrapper for storing large JSON files
  * @author Pabitra Swain https://github.com/the-sdet
  * @license MIT
  */
 
-const DB_NAME = "MFPortfolioDB";
-const DB_VERSION = 1;
-const STORE_NAME = "files";
-
-class IndexedDBHelper {
+class IDBHelper {
   constructor() {
+    this.dbName = "MyMFDashboard";
+    this.version = 1;
+    this.storeName = "files";
     this.db = null;
   }
 
   async init() {
+    if (this.db) return this.db;
+
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      const request = indexedDB.open(this.dbName, this.version);
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         this.db = request.result;
-        resolve();
+        resolve(this.db);
       };
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME, { keyPath: "filename" });
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName, { keyPath: "fileName" });
         }
       };
     });
   }
 
-  async saveFile(filename, data) {
-    if (!this.db) await this.init();
+  async saveFile(fileName, data) {
+    try {
+      const db = await this.init();
+      const transaction = db.transaction([this.storeName], "readwrite");
+      const store = transaction.objectStore(this.storeName);
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([STORE_NAME], "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.put({
-        filename: filename,
+      const record = {
+        fileName: fileName,
         data: data,
         timestamp: new Date().toISOString(),
-      });
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  async getFile(filename) {
-    if (!this.db) await this.init();
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([STORE_NAME], "readonly");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.get(filename);
-
-      request.onsuccess = () => {
-        const result = request.result;
-        resolve(result ? result.data : null);
       };
-      request.onerror = () => reject(request.error);
-    });
+
+      return new Promise((resolve, reject) => {
+        const request = store.put(record);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    } catch (err) {
+      console.error("IDB save error:", err);
+      throw err;
+    }
   }
 
-  async deleteFile(filename) {
-    if (!this.db) await this.init();
+  async loadFile(fileName) {
+    try {
+      const db = await this.init();
+      const transaction = db.transaction([this.storeName], "readonly");
+      const store = transaction.objectStore(this.storeName);
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([STORE_NAME], "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.delete(filename);
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+      return new Promise((resolve, reject) => {
+        const request = store.get(fileName);
+        request.onsuccess = () => {
+          const result = request.result;
+          resolve(result ? result.data : null);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    } catch (err) {
+      console.error("IDB load error:", err);
+      return null;
+    }
   }
 
-  async clear() {
-    if (!this.db) await this.init();
+  async deleteFile(fileName) {
+    try {
+      const db = await this.init();
+      const transaction = db.transaction([this.storeName], "readwrite");
+      const store = transaction.objectStore(this.storeName);
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([STORE_NAME], "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.clear();
+      return new Promise((resolve, reject) => {
+        const request = store.delete(fileName);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    } catch (err) {
+      console.error("IDB delete error:", err);
+      throw err;
+    }
+  }
 
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+  async listFiles() {
+    try {
+      const db = await this.init();
+      const transaction = db.transaction([this.storeName], "readonly");
+      const store = transaction.objectStore(this.storeName);
+
+      return new Promise((resolve, reject) => {
+        const request = store.getAllKeys();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    } catch (err) {
+      console.error("IDB list error:", err);
+      return [];
+    }
+  }
+
+  async clearAll() {
+    try {
+      const db = await this.init();
+      const transaction = db.transaction([this.storeName], "readwrite");
+      const store = transaction.objectStore(this.storeName);
+
+      return new Promise((resolve, reject) => {
+        const request = store.clear();
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    } catch (err) {
+      console.error("IDB clear error:", err);
+      throw err;
+    }
   }
 }
 
-// Manifest management in localStorage
 class ManifestManager {
-  static MANIFEST_KEY = "mf_portfolio_manifest";
   static SEARCH_KEYS_KEY = "mf_search_keys";
+  static SEARCH_KEYS_VERSION_KEY = "mf_search_keys_version";
 
-  static getManifest() {
-    const manifest = localStorage.getItem(this.MANIFEST_KEY);
-    return manifest ? JSON.parse(manifest) : null;
-  }
-
-  static saveManifest(
-    files,
-    lastNavUpdate = null,
-    lastFullUpdate = null,
-    originalTimestamp = null
-  ) {
-    const now = new Date().toISOString();
-    const today = now.split("T")[0];
-
-    const manifest = {
-      version: today, // YYYY-MM-DD
-      files: files,
-      timestamp: originalTimestamp || now,
-      lastNavUpdate: lastNavUpdate || today,
-      lastFullUpdate: lastFullUpdate || today,
-    };
-    localStorage.setItem(this.MANIFEST_KEY, JSON.stringify(manifest));
-    return manifest;
-  }
-
-  static saveSearchKeys(searchKeys) {
+  static saveSearchKeys(searchKeys, hash) {
     localStorage.setItem(this.SEARCH_KEYS_KEY, JSON.stringify(searchKeys));
+    localStorage.setItem(this.SEARCH_KEYS_VERSION_KEY, hash);
   }
 
   static getSearchKeys() {
@@ -134,249 +145,287 @@ class ManifestManager {
 
   static clearSearchKeys() {
     localStorage.removeItem(this.SEARCH_KEYS_KEY);
+    localStorage.removeItem(this.SEARCH_KEYS_VERSION_KEY);
+  }
+}
+
+class StorageManager {
+  constructor() {
+    this.idb = new IDBHelper();
+    this.manifestKey = "portfolio-manifest";
+    this.usersKey = "portfolio-users";
   }
 
-  static clearManifest() {
-    localStorage.removeItem(this.MANIFEST_KEY);
-    this.clearSearchKeys();
+  getAllUsers() {
+    try {
+      const users = JSON.parse(localStorage.getItem(this.usersKey) || "[]");
+      return users;
+    } catch {
+      return [];
+    }
   }
 
-  static isStale() {
-    const manifest = this.getManifest();
-    if (!manifest) return true;
+  addUser(userName) {
+    const users = this.getAllUsers();
+    if (!users.includes(userName)) {
+      users.push(userName);
+      localStorage.setItem(this.usersKey, JSON.stringify(users));
+    }
+  }
 
+  async deleteUser(userName) {
+    try {
+      let users = this.getAllUsers();
+      users = users.filter((u) => u !== userName);
+
+      if (users.length === 0) {
+        localStorage.removeItem(this.usersKey);
+        localStorage.removeItem("lastActiveUser");
+        console.log("🗑️ All users deleted, cleared user-specific localStorage");
+      } else {
+        localStorage.setItem(this.usersKey, JSON.stringify(users));
+
+        const lastActive = localStorage.getItem("lastActiveUser");
+        if (lastActive === userName) {
+          localStorage.setItem("lastActiveUser", users[0]);
+          console.log(`🔄 Switched active user to: ${users[0]}`);
+        }
+      }
+      localStorage.removeItem(`${this.manifestKey}-${userName}`);
+      localStorage.removeItem(`lastCASFileInfo_${userName}`);
+
+      await this.idb.deleteFile(`cas-data-${userName}.json`);
+      await this.idb.deleteFile(`mf-stats-${userName}.json`);
+
+      console.log(`✅ User "${userName}" deleted completely`);
+      return true;
+    } catch (err) {
+      console.error(`❌ Error deleting user "${userName}":`, err);
+      throw err;
+    }
+  }
+
+  async deleteAllUsers() {
+    try {
+      const users = this.getAllUsers();
+      for (const user of users) {
+        await this.idb.deleteFile(`cas-data-${user}.json`);
+        await this.idb.deleteFile(`mf-stats-${user}.json`);
+
+        localStorage.removeItem(`${this.manifestKey}-${user}`);
+
+        localStorage.removeItem(`lastCASFileInfo_${user}`);
+
+        console.log(`🗑️ Deleted data for user: ${user}`);
+      }
+
+      localStorage.removeItem(this.usersKey);
+      localStorage.removeItem("lastActiveUser");
+
+      console.log("✅ All users deleted successfully");
+      return true;
+    } catch (err) {
+      console.error("❌ Error deleting all users:", err);
+      throw err;
+    }
+  }
+
+  getManifest(userName = null) {
+    const user = userName || currentUser;
+    if (!user) return null;
+
+    try {
+      const key = `${this.manifestKey}-${user}`;
+      const manifest = JSON.parse(localStorage.getItem(key) || "null");
+      return manifest;
+    } catch {
+      return null;
+    }
+  }
+
+  saveManifest(manifest, userName = null) {
+    const user = userName || currentUser;
+    if (!user) return;
+
+    const key = `${this.manifestKey}-${user}`;
+    localStorage.setItem(key, JSON.stringify(manifest));
+  }
+
+  async savePortfolioData(
+    casData,
+    mfStats,
+    isNewUpload = false,
+    userName = null
+  ) {
+    const user = userName || currentUser;
+    if (!user) {
+      console.error("No user specified for saving data");
+      return;
+    }
+
+    try {
+      this.addUser(user);
+
+      await this.idb.saveFile(`cas-data-${user}.json`, casData);
+      await this.idb.saveFile(`mf-stats-${user}.json`, mfStats);
+
+      const manifest = this.getManifest(user) || {};
+      manifest.timestamp = new Date().toISOString();
+      manifest.userName = user;
+      manifest.casType = casData.cas_type || "DETAILED";
+
+      if (isNewUpload) {
+        manifest.lastFullUpdate = new Date().toISOString();
+        manifest.lastNavUpdate = new Date().toISOString();
+      }
+
+      this.saveManifest(manifest, user);
+
+      console.log(`✅ Portfolio data saved for user: ${user}`);
+    } catch (err) {
+      console.error("Failed to save portfolio data:", err);
+      throw err;
+    }
+  }
+
+  async loadPortfolioData(userName = null) {
+    const user = userName || currentUser;
+    if (!user) {
+      console.log("No user specified for loading data");
+      return null;
+    }
+
+    try {
+      const casData = await this.idb.loadFile(`cas-data-${user}.json`);
+      const mfStats = await this.idb.loadFile(`mf-stats-${user}.json`);
+
+      if (casData && mfStats) {
+        console.log(`✅ Portfolio data loaded for user: ${user}`);
+        return { casData, mfStats };
+      }
+
+      return null;
+    } catch (err) {
+      console.error("Failed to load portfolio data:", err);
+      return null;
+    }
+  }
+
+  async clearAll() {
+    if (!currentUser) {
+      console.log("⚠️ No current user to clear");
+      return;
+    }
+
+    const userName = currentUser;
+    await this.deleteUser(userName);
+
+    const remainingUsers = this.getAllUsers();
+
+    if (remainingUsers.length === 0) {
+      localStorage.removeItem("lastActiveUser");
+      console.log("🗑️ Last user deleted, cleared lastActiveUser");
+    }
+
+    console.log(`✅ Cleared all data for user: ${userName}`);
+  }
+
+  updateLastNavUpdate(userName = null) {
+    const user = userName || currentUser;
+    if (!user) return;
+
+    const manifest = this.getManifest(user) || {};
+    manifest.lastNavUpdate = new Date().toISOString();
+    this.saveManifest(manifest, user);
+  }
+
+  markManualStatsUpdate(userName = null) {
+    const user = userName || currentUser;
+    if (!user) return;
+
+    const manifest = this.getManifest(user) || {};
     const today = new Date().toISOString().split("T")[0];
-    return manifest.version !== today;
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
+    manifest.lastManualStatsUpdate = today;
+    manifest.lastManualStatsMonth = currentMonth;
+    this.saveManifest(manifest, user);
   }
 
-  static needsNavUpdate() {
-    const manifest = this.getManifest();
-    if (!manifest || !manifest.lastNavUpdate) return true;
+  markManualNavUpdate(userName = null) {
+    const user = userName || currentUser;
+    if (!user) return;
 
+    const manifest = this.getManifest(user) || {};
     const today = new Date().toISOString().split("T")[0];
-    return manifest.lastNavUpdate !== today;
+
+    manifest.lastManualNavUpdate = today;
+    this.saveManifest(manifest, user);
   }
 
-  static needsFullUpdate() {
-    const manifest = this.getManifest();
+  needsFullUpdate(userName = null) {
+    const user = userName || currentUser;
+    if (!user) return false;
+
+    const manifest = this.getManifest(user);
     if (!manifest || !manifest.lastFullUpdate) return true;
 
     const lastUpdate = new Date(manifest.lastFullUpdate);
-    const today = new Date();
+    const now = new Date();
 
-    // Check if we're past the 10th of this month and haven't updated yet
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-    const lastUpdateMonth = lastUpdate.getMonth();
-    const lastUpdateYear = lastUpdate.getFullYear();
-
-    // If it's a new month or year, and we're on or after the 10th
     if (
-      (currentYear > lastUpdateYear ||
-        (currentYear === lastUpdateYear && currentMonth > lastUpdateMonth)) &&
-      today.getDate() >= 10
+      now.getMonth() !== lastUpdate.getMonth() ||
+      now.getFullYear() !== lastUpdate.getFullYear()
     ) {
-      return true;
+      return now.getDate() >= 10;
     }
 
     return false;
   }
 
-  static updateLastNavUpdate() {
-    const manifest = this.getManifest();
-    if (manifest) {
-      manifest.lastNavUpdate = new Date().toISOString().split("T")[0];
-      localStorage.setItem(this.MANIFEST_KEY, JSON.stringify(manifest));
-    }
+  needsNavUpdate(userName = null) {
+    const user = userName || currentUser;
+    if (!user) return false;
+
+    const manifest = this.getManifest(user);
+    if (!manifest || !manifest.lastNavUpdate) return true;
+
+    const lastUpdate = new Date(manifest.lastNavUpdate);
+    const today = new Date();
+
+    return lastUpdate.toDateString() !== today.toDateString();
   }
 
-  static updateLastFullUpdate() {
-    const manifest = this.getManifest();
-    if (manifest) {
-      manifest.lastFullUpdate = new Date().toISOString().split("T")[0];
-      localStorage.setItem(this.MANIFEST_KEY, JSON.stringify(manifest));
-    }
+  hasManualStatsUpdateThisMonth(userName = null) {
+    const user = userName || currentUser;
+    if (!user) return false;
+
+    const manifest = this.getManifest(user);
+    if (!manifest || !manifest.lastManualStatsMonth) return false;
+
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    return manifest.lastManualStatsMonth === currentMonth;
   }
 
-  static hasManualNavUpdateToday() {
-    const manifest = this.getManifest();
+  hasManualNavUpdateToday(userName = null) {
+    const user = userName || currentUser;
+    if (!user) return false;
+
+    const manifest = this.getManifest(user);
     if (!manifest || !manifest.lastManualNavUpdate) return false;
 
     const today = new Date().toISOString().split("T")[0];
     return manifest.lastManualNavUpdate === today;
   }
 
-  static markManualNavUpdate() {
-    const manifest = this.getManifest();
-    if (manifest) {
-      manifest.lastManualNavUpdate = new Date().toISOString().split("T")[0];
-      localStorage.setItem(this.MANIFEST_KEY, JSON.stringify(manifest));
-    }
-  }
+  updateLastFullUpdate(userName = null) {
+    const user = userName || currentUser;
+    if (!user) return;
 
-  static hasManualStatsUpdateThisMonth() {
-    const manifest = this.getManifest();
-    if (!manifest || !manifest.lastManualStatsUpdate) return false;
-
-    const lastUpdate = new Date(manifest.lastManualStatsUpdate);
-    const today = new Date();
-
-    return (
-      lastUpdate.getFullYear() === today.getFullYear() &&
-      lastUpdate.getMonth() === today.getMonth()
-    );
-  }
-
-  static markManualStatsUpdate() {
-    const manifest = this.getManifest();
-    if (manifest) {
-      manifest.lastManualStatsUpdate = new Date().toISOString().split("T")[0];
-      localStorage.setItem(this.MANIFEST_KEY, JSON.stringify(manifest));
-    }
+    const manifest = this.getManifest(user) || {};
+    manifest.lastFullUpdate = new Date().toISOString();
+    this.saveManifest(manifest, user);
   }
 }
 
-// Unified storage manager
-class StorageManager {
-  constructor() {
-    this.idb = new IndexedDBHelper();
-    this.initialized = false;
-  }
-
-  async init() {
-    if (this.initialized) return;
-    try {
-      await this.idb.init();
-      this.initialized = true;
-      console.log("✅ IndexedDB initialized");
-    } catch (err) {
-      console.warn(
-        "⚠️ IndexedDB initialization failed, will use API directly:",
-        err
-      );
-      this.initialized = false;
-    }
-  }
-
-  async savePortfolioData(casData, mfStats, isNewCAS = false) {
-    await this.init();
-
-    if (this.initialized) {
-      try {
-        await this.idb.saveFile("parsed-cas.json", casData);
-        await this.idb.saveFile("mf-stats.json", mfStats);
-
-        const manifest = ManifestManager.getManifest();
-        const today = new Date().toISOString().split("T")[0];
-
-        if (isNewCAS) {
-          // Fresh CAS upload - set all dates to today
-          ManifestManager.saveManifest(
-            ["parsed-cas.json", "mf-stats.json"],
-            today, // lastNavUpdate
-            today, // lastFullUpdate
-            new Date().toISOString() // timestamp (CAS parse date)
-          );
-        } else {
-          // Auto-update - preserve original CAS timestamp
-          ManifestManager.saveManifest(
-            ["parsed-cas.json", "mf-stats.json"],
-            manifest?.lastNavUpdate,
-            manifest?.lastFullUpdate,
-            manifest?.timestamp // Preserve original CAS parse date
-          );
-        }
-
-        console.log("✅ Portfolio data saved to IndexedDB");
-        return true;
-      } catch (err) {
-        console.error("❌ Failed to save to IndexedDB:", err);
-        return false;
-      }
-    }
-    return false;
-  }
-
-  async loadPortfolioData() {
-    await this.init();
-
-    if (!this.initialized) {
-      console.log("📡 Loading from API (IndexedDB not available)");
-      return null;
-    }
-
-    const manifest = ManifestManager.getManifest();
-    if (!manifest) {
-      console.log("📡 No manifest found, loading from API");
-      return null;
-    }
-
-    try {
-      const casData = await this.idb.getFile("parsed-cas.json");
-      const mfStats = await this.idb.getFile("mf-stats.json");
-
-      if (casData && mfStats) {
-        console.log("✅ Portfolio data loaded from IndexedDB");
-        return { casData, mfStats };
-      } else {
-        console.log("📡 Incomplete data in IndexedDB, loading from API");
-        return null;
-      }
-    } catch (err) {
-      console.error("❌ Failed to load from IndexedDB:", err);
-      return null;
-    }
-  }
-
-  async clearAll() {
-    await this.init();
-    if (this.initialized) {
-      await this.idb.clear();
-    }
-    ManifestManager.clearManifest();
-    console.log("🗑️ All storage cleared");
-  }
-
-  isStale() {
-    return ManifestManager.isStale();
-  }
-
-  needsNavUpdate() {
-    return ManifestManager.needsNavUpdate();
-  }
-
-  needsFullUpdate() {
-    return ManifestManager.needsFullUpdate();
-  }
-
-  updateLastNavUpdate() {
-    ManifestManager.updateLastNavUpdate();
-  }
-
-  updateLastFullUpdate() {
-    ManifestManager.updateLastFullUpdate();
-  }
-
-  getManifest() {
-    return ManifestManager.getManifest();
-  }
-
-  hasManualNavUpdateToday() {
-    return ManifestManager.hasManualNavUpdateToday();
-  }
-
-  markManualNavUpdate() {
-    ManifestManager.markManualNavUpdate();
-  }
-
-  hasManualStatsUpdateThisMonth() {
-    return ManifestManager.hasManualStatsUpdateThisMonth();
-  }
-
-  markManualStatsUpdate() {
-    ManifestManager.markManualStatsUpdate();
-  }
-}
-
-// Global instance
 const storageManager = new StorageManager();

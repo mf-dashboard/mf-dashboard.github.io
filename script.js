@@ -12,6 +12,12 @@ let currentPeriod = "1Y";
 let fundWiseData = {};
 const allTimeFlows = [];
 const activeFlows = [];
+let isSummaryCAS = false;
+let currentUser = null;
+let allUsers = [];
+let familyDashboardCache = null;
+let familyDashboardCacheTimestamp = null;
+let familyDashboardInitialized = false;
 
 // Auto-detect backend
 const BACKEND_SERVER =
@@ -22,11 +28,21 @@ const BACKEND_SERVER =
 
 console.log("🔧 Backend Server:", BACKEND_SERVER);
 
+if (window.location.pathname === "/index.html") {
+  window.location.replace(
+    window.location.origin + window.location.search + window.location.hash
+  );
+}
+
 let assetAllocationChart = null;
 let marketCapChart = null;
 let sectorChart = null;
 let amcChart = null;
 let holdingsChart = null;
+let familyAssetAllocationChart = null;
+let familyMarketCapChart = null;
+let familySectorChart = null;
+let familyAmcChart = null;
 
 function calculateAndDisplayPortfolioAnalytics() {
   try {
@@ -1365,6 +1381,13 @@ async function getFileSignature(file) {
   }
 }
 
+function getStoredInvestorName(userName) {
+  return (
+    localStorage.getItem(`investorName_${userName}`) ||
+    userName.replace(/_\d+$/, "")
+  );
+}
+
 async function loadFileFromTab() {
   const fileInput = document.getElementById("fileInputTab");
   const passwordInput = document.getElementById("filePasswordTab");
@@ -1381,10 +1404,20 @@ async function loadFileFromTab() {
 
   try {
     const fileSignature = await getFileSignature(file);
+    console.log("🔍 File signature:", fileSignature);
 
-    if (lastUploadedFileInfo === fileSignature) {
+    // Check if THIS EXACT FILE was already uploaded for ANY user
+    let fileAlreadyUploadedForUser = null;
+    allUsers.forEach((user) => {
+      const userFileInfo = localStorage.getItem(`lastCASFileInfo_${user}`);
+      if (userFileInfo === fileSignature) {
+        fileAlreadyUploadedForUser = user;
+      }
+    });
+
+    if (fileAlreadyUploadedForUser) {
       showToast(
-        "This file has already been uploaded... Your data is already updated...",
+        `This file has already been uploaded for user: ${fileAlreadyUploadedForUser}`,
         "warning"
       );
       fileInput.value = "";
@@ -1419,28 +1452,97 @@ async function loadFileFromTab() {
     }
 
     portfolioData = result.data;
+
+    // Detect CAS type
+    isSummaryCAS = portfolioData.cas_type === "SUMMARY";
+
     console.log(
-      "Folios Fetched: ",
-      portfolioData.folios?.length,
-      " : ",
-      portfolioData
+      "CAS Type:",
+      isSummaryCAS ? "SUMMARY" : "DETAILED",
+      " - Folios Fetched: ",
+      portfolioData.folios?.length
     );
 
-    await fetchOrUpdateMFStats("initial");
+    if (isSummaryCAS) {
+      await fetchOrUpdateMFStats("initial");
+      processSummaryCAS();
+    } else {
+      await fetchOrUpdateMFStats("initial");
+      await processPortfolio();
+      enableSummaryIncompatibleTabs();
+    }
 
-    // Save to IndexedDB with current date for both NAV and Stats
-    await storageManager.savePortfolioData(portfolioData, mfStats, true);
+    // Extract investor info from CAS
+    const fullInvestorName =
+      portfolioData.investor_info?.name?.trim() || "User";
+    const firstNameFromCAS = fullInvestorName.split(" ")[0]?.trim() || "User";
 
-    // Store the file signature after successful upload
+    // Check if user with same FULL investor name exists (regardless of CAS type)
+    const existingUserWithSameName = allUsers.find((user) => {
+      const storedName = getStoredInvestorName(user);
+      return storedName.toLowerCase() === fullInvestorName.toLowerCase();
+    });
+
+    if (existingUserWithSameName) {
+      // Same investor - overwrite automatically
+      currentUser = existingUserWithSameName;
+      console.log(
+        `♻️ Overwriting existing user: ${currentUser} (same investor: ${fullInvestorName})`
+      );
+    } else {
+      // Different investor - check if first name with increment exists
+      const existingUsersWithFirstName = allUsers.filter((user) => {
+        const storedName = getStoredInvestorName(user);
+        const storedFirstName = storedName.split(" ")[0]?.trim() || storedName;
+        return storedFirstName.toLowerCase() === firstNameFromCAS.toLowerCase();
+      });
+
+      if (existingUsersWithFirstName.length > 0) {
+        // Find next available increment
+        let counter = 1;
+        let newUserName = `${firstNameFromCAS}_${counter}`;
+        while (allUsers.includes(newUserName)) {
+          counter++;
+          newUserName = `${firstNameFromCAS}_${counter}`;
+        }
+        currentUser = newUserName;
+        console.log(
+          `✨ Creating new user with increment: ${currentUser} (different investor: ${fullInvestorName})`
+        );
+      } else {
+        // First name doesn't exist - use first name
+        currentUser = firstNameFromCAS;
+        console.log(
+          `✨ Creating new user: ${currentUser} (new investor: ${fullInvestorName})`
+        );
+      }
+    }
+
+    localStorage.setItem("lastActiveUser", currentUser);
+
+    // Save to IndexedDB BEFORE updating UI
+    await storageManager.savePortfolioData(
+      portfolioData,
+      mfStats,
+      true,
+      currentUser
+    );
+
+    // Store the file signature for this user
     lastUploadedFileInfo = fileSignature;
-    localStorage.setItem("lastCASFileInfo", fileSignature);
+    localStorage.setItem(`lastCASFileInfo_${currentUser}`, fileSignature);
+    localStorage.setItem(`investorName_${currentUser}`, fullInvestorName); // Store full name
+    console.log(`💾 File signature saved for user: ${currentUser}`);
+
+    allUsers = storageManager.getAllUsers();
+    const userSelector = document.getElementById("userSelector");
+    userSelector.innerHTML = "";
+    initializeUserManagement();
 
     const dashboard = document.getElementById("dashboard");
     dashboard.classList.remove("disabled");
 
     enableAllTabs();
-
-    await processPortfolio();
 
     try {
       fileInput.value = "";
@@ -1448,19 +1550,22 @@ async function loadFileFromTab() {
     } catch (err) {}
 
     hideProcessingSplash();
-    const showCards = ["clear-cache", "update-stats", "update-nav"];
 
+    const showCards = ["clear-cache", "update-stats", "update-nav"];
     const hideCard = "instructions-card";
 
     showCards.forEach((e) =>
       document.querySelector("." + e).classList.remove("hidden")
     );
-
     document.querySelector("." + hideCard).classList.add("hidden");
-    showToast("Portfolio loaded and saved successfully!", "success");
 
-    // Update footer info
+    showToast(
+      `Portfolio loaded and saved successfully for ${currentUser}!`,
+      "success"
+    );
     updateFooterInfo();
+
+    invalidateFamilyDashboardCache();
 
     switchDashboardTab("main");
   } catch (err) {
@@ -1473,56 +1578,449 @@ async function loadFileFromTab() {
   }
 }
 
-// Fetch search-key.json from server
+function processSummaryCAS() {
+  // Disable tabs that are not relevant for summary
+  disableSummaryIncompatibleTabs();
+
+  // Build fundWiseData from summary folios
+  fundWiseData = {};
+
+  portfolioData.folios.forEach((folio) => {
+    const key = folio.scheme.trim().toLowerCase();
+    const extendedData = folio.isin ? mfStats[folio.isin] : null;
+
+    const amcName =
+      extendedData?.amc?.trim() || folio.amc?.trim() || "Unknown AMC";
+
+    const latestNav = extendedData?.latest_nav
+      ? parseFloat(extendedData.latest_nav)
+      : parseFloat(folio.nav || 0);
+
+    const navHistory = extendedData?.nav_history || [];
+    const meta = extendedData?.meta || {};
+    const return_stats = extendedData?.return_stats || {};
+    const benchmark = extendedData?.benchmark;
+    const holdings = extendedData?.holdings || [];
+
+    const units = parseFloat(folio.units || 0);
+    const cost = parseFloat(folio.cost || 0);
+    const currentValue =
+      units > 0 && latestNav > 0
+        ? units * latestNav
+        : parseFloat(folio.current_value || 0);
+    const unrealizedGain = currentValue - cost;
+    const unrealizedGainPercentage =
+      cost > 0 ? ((unrealizedGain / cost) * 100).toFixed(2) : 0;
+
+    folio.current_value = currentValue;
+    folio.nav = latestNav;
+    folio.nav_date = extendedData?.latest_nav_date || folio.nav_date;
+
+    fundWiseData[key] = {
+      scheme: folio.scheme,
+      schemeDisplay: sanitizeSchemeName(folio.scheme),
+      isin: folio.isin,
+      amc: amcName,
+      type: extendedData?.category || "Unknown",
+      category: extendedData?.category || "Unknown",
+      folios: [folio.folio],
+      transactions: [],
+      navHistory: navHistory,
+      latestNav: latestNav,
+      meta: meta,
+      benchmark: benchmark,
+      return_stats: return_stats,
+      holdings: holdings,
+      valuation: {
+        date:
+          extendedData?.latest_nav_date ||
+          folio.nav_date ||
+          new Date().toISOString(),
+        nav: latestNav,
+        value: currentValue,
+        cost: cost,
+      },
+      advancedMetrics: {
+        totalInvested: cost,
+        totalWithdrawn: 0,
+        realizedGain: 0,
+        realizedGainPercentage: 0,
+        unrealizedGain: unrealizedGain,
+        unrealizedGainPercentage: unrealizedGainPercentage,
+        remainingCost: cost,
+        currentValue: currentValue,
+        totalUnitsRemaining: units,
+        averageRemainingCostPerUnit: units > 0 ? (cost / units).toFixed(3) : 0,
+        averageHoldingDays: 0,
+        category: extendedData?.category || "hybrid",
+        capitalGains: {
+          stcg: 0,
+          ltcg: 0,
+          stcgRedeemed: 0,
+          ltcgRedeemed: 0,
+          byYear: {},
+        },
+        folioSummaries: {},
+        dailyValuation: [],
+      },
+    };
+  });
+  console.log("Fund Wise Data:", fundWiseData);
+
+  const benchmarkSummary = aggregateBenchmarkReturns(fundWiseData);
+  Object.values(fundWiseData).forEach((fund) => {
+    if (!fund.benchmark) return (fund.benchmark_returns = null);
+    const bmKey = normalizeBenchmarkName(fund.benchmark);
+    fund.benchmark_returns = benchmarkSummary[bmKey]
+      ? {
+          return1y: benchmarkSummary[bmKey]["1Y"],
+          return3y: benchmarkSummary[bmKey]["3Y"],
+          return5y: benchmarkSummary[bmKey]["5Y"],
+        }
+      : null;
+  });
+
+  portfolioData.current_value = portfolioData.folios.reduce(
+    (sum, folio) => sum + parseFloat(folio.current_value || 0),
+    0
+  );
+
+  const summary = calculateSummarySummary();
+  updateSummaryCards(summary);
+
+  requestAnimationFrame(() => {
+    updateSummaryFundBreakdown();
+    calculateAndDisplayPortfolioAnalytics();
+    switchDashboardTab("main");
+  });
+}
+
+function calculateSummarySummary() {
+  let totalInvested = 0;
+  let totalWithdrawn = 0;
+  let currentValue = 0;
+  let totalRealizedGain = 0;
+  let totalUnrealizedGain = 0;
+  let totalRemainingCost = 0;
+
+  Object.values(fundWiseData).forEach((fund) => {
+    totalInvested += fund.advancedMetrics.totalInvested;
+    currentValue += fund.advancedMetrics.currentValue;
+    totalUnrealizedGain += fund.advancedMetrics.unrealizedGain;
+    totalRemainingCost += fund.advancedMetrics.remainingCost;
+  });
+
+  const overallGain = currentValue - totalInvested;
+
+  return {
+    totalInvested,
+    totalWithdrawn,
+    currentValue,
+    overallGain,
+    realizedGain: totalRealizedGain,
+    unrealizedGain: totalUnrealizedGain,
+    costPrice: totalRemainingCost,
+    allTimeXirr: null,
+    activeXirr: null,
+  };
+}
+
+function updateSummaryFundBreakdown() {
+  const currentGrid = document.getElementById("currentFolioGrid");
+  const pastGrid = document.getElementById("pastFolioGrid");
+  const pastSection = document.getElementById("show-past");
+  const pastSectionMobile = document.getElementById("show-past-mobile");
+
+  currentGrid.innerHTML = "";
+  pastGrid.innerHTML = "";
+
+  pastSection?.classList.add("hidden");
+  pastSectionMobile?.classList.add("hidden");
+
+  const fundsArray = Object.entries(fundWiseData);
+  fundsArray.sort((a, b) => {
+    const aVal = a[1].valuation ? parseFloat(a[1].valuation.value || 0) : 0;
+    const bVal = b[1].valuation ? parseFloat(b[1].valuation.value || 0) : 0;
+    return bVal - aVal;
+  });
+
+  fundsArray.forEach(([fundKey, fund]) => {
+    const card = createSummaryFundCard(fund, fundKey);
+    currentGrid.appendChild(card);
+  });
+}
+
+function createSummaryFundCard(fund, fundKey) {
+  const card = document.createElement("div");
+  card.className = "folio-card";
+
+  const extendedData = mfStats[fund.isin];
+  const displayName = fund.schemeDisplay || fund.scheme;
+
+  const currentValue = fund.advancedMetrics.currentValue;
+  const cost = fund.advancedMetrics.remainingCost;
+  const unrealizedGain = fund.advancedMetrics.unrealizedGain;
+  const unrealizedGainPercentage =
+    fund.advancedMetrics.unrealizedGainPercentage;
+  const units = fund.advancedMetrics.totalUnitsRemaining;
+  const avgNav = fund.advancedMetrics.averageRemainingCostPerUnit;
+
+  function roundValue(val) {
+    if (val === null || val === undefined) return "--";
+    if (typeof val === "number") return Math.round(val * 100) / 100;
+    return val;
+  }
+
+  card.innerHTML = `
+    <h4 title="${displayName}">${displayName}</h4>
+    <div class="folio-info">
+      ${standardizeTitle(fund.amc)}${
+    fund.folios.length > 0
+      ? " • " + fund.folios.map((f) => f.split("/")[0].trim()).join(", ")
+      : ""
+  }</div>
+    <div class="folio-stat"><span class="label">Current Value:</span><span class="value">₹${formatNumber(
+      currentValue
+    )}</span></div>
+    <div class="folio-stat"><span class="label">Current Cost:</span><span class="value">₹${formatNumber(
+      cost
+    )}</span></div>
+    <div class="folio-stat"><span class="label">Units:</span><span class="value">${roundValue(
+      units
+    )}</span></div>
+    <div class="folio-stat"><span class="label">Avg NAV:</span><span class="value">${roundValue(
+      avgNav
+    )}</span></div>
+    <div class="folio-stat"><span class="label">P&L:</span><span class="value ${
+      unrealizedGain >= 0 ? "gain" : "loss"
+    }">
+      ${unrealizedGain >= 0 ? "+" : ""}₹${formatNumber(
+    Math.abs(unrealizedGain)
+  )} (${unrealizedGainPercentage}%)</span></div>
+    ${
+      extendedData
+        ? `<div class="extended-stats hidden">
+        <div class="folio-stat fund-card-separator-header"><span class="label">Fund Stats: </span><span></span></div>
+        <div class="folio-stat fund-card-separator"><span class="label">Alpha:</span><span class="value">${roundValue(
+          extendedData.return_stats?.alpha
+        )}</span></div>
+        <div class="folio-stat"><span class="label">Beta:</span><span class="value">${roundValue(
+          extendedData.return_stats?.beta
+        )}</span></div>
+        <div class="folio-stat"><span class="label">Sharpe Ratio:</span><span class="value">${roundValue(
+          extendedData.return_stats?.sharpe_ratio
+        )}</span></div>
+        <div class="folio-stat"><span class="label">Sortino Ratio:</span><span class="value">${roundValue(
+          extendedData.return_stats?.sortino_ratio
+        )}</span></div>
+        <div class="folio-stat"><span class="label">Information Ratio:</span><span class="value">${roundValue(
+          extendedData.return_stats?.information_ratio
+        )}</span></div>
+        <div class="folio-stat"><span class="label">Standard Deviation:</span><span class="value">${roundValue(
+          extendedData.return_stats?.standard_deviation
+        )}</span></div>
+        <div class="folio-stat"><span class="label">Expense Ratio:</span><span class="value">${roundValue(
+          extendedData.expense_ratio
+        )}%</span></div>
+        <div class="folio-stat"><span class="label">1Y Return:</span><span class="value">${roundValue(
+          extendedData.return_stats?.return1y
+        )}%</span></div>
+        <div class="folio-stat"><span class="label">3Y Return:</span><span class="value">${roundValue(
+          extendedData.return_stats?.return3y
+        )}%</span></div>
+        <div class="folio-stat"><span class="label">5Y Return:</span><span class="value">${roundValue(
+          extendedData.return_stats?.return5y
+        )}%</span></div>
+        <div class="folio-stat"><span class="label">Rating:</span><span class="value">${roundValue(
+          extendedData.groww_rating
+        )}</span></div>
+        <div class="folio-stat"><span class="label">AUM:</span><span class="value">₹${formatNumber(
+          roundValue(extendedData.aum)
+        )}CR</span></div>
+        <div class="folio-stat fund-card-separator-space"><span class="label">Holdings:</span><span class="value"><button class="holdings-eye-btn" title="View Holdings" onclick="event.stopPropagation(); showFundHoldings('${fundKey}')"><i class="fa-solid fa-eye"></i></button><span>${
+            fund.holdings.length
+          }</span></span></div>
+      </div>`
+        : ""
+    }
+  `;
+
+  return card;
+}
+
+function disableSummaryIncompatibleTabs() {
+  const tabsToDisable = [
+    ".charts-button",
+    ".transactions-button",
+    ".capital-gains-button",
+    ".past-holding-button",
+  ];
+
+  tabsToDisable.forEach((selector) => {
+    const buttons = document.querySelectorAll(selector);
+    buttons.forEach((btn) => {
+      btn.disabled = true;
+      btn.classList.add("disabled-tab");
+      btn.style.opacity = "0.5";
+      btn.style.cursor = "not-allowed";
+      btn.title = "Not available for Summary CAS";
+
+      const originalOnclick = btn.onclick;
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showToast("This feature is not available for Summary CAS", "warning");
+        return false;
+      };
+    });
+  });
+
+  document.getElementById("show-past")?.classList.add("hidden");
+  document.getElementById("show-past-mobile")?.classList.add("hidden");
+}
+
+function enableSummaryIncompatibleTabs() {
+  const tabsToEnable = [
+    ".charts-button",
+    ".transactions-button",
+    ".capital-gains-button",
+    ".past-holding-button",
+    ".overlap-analysis-button",
+    ".expense-impact-button",
+    ".health-score-button",
+  ];
+
+  tabsToEnable.forEach((selector) => {
+    const buttons = document.querySelectorAll(selector);
+    buttons.forEach((btn) => {
+      btn.disabled = false;
+      btn.classList.remove("disabled-tab");
+      btn.style.opacity = "1";
+      btn.style.cursor = "pointer";
+      btn.title = "";
+
+      if (btn.classList.contains("charts-button")) {
+        btn.onclick = () => {
+          switchDashboardTab("charts");
+          if (btn.classList.contains("mobile-menu-item")) {
+            closeMobileMenu();
+          }
+        };
+      } else if (btn.classList.contains("transactions-button")) {
+        btn.onclick = () => {
+          switchDashboardTab("transactions");
+          if (btn.classList.contains("mobile-menu-item")) {
+            closeMobileMenu();
+          }
+        };
+      } else if (btn.classList.contains("capital-gains-button")) {
+        btn.onclick = () => {
+          switchDashboardTab("capital-gains");
+          if (btn.classList.contains("mobile-menu-item")) {
+            closeMobileMenu();
+          }
+        };
+      } else if (btn.classList.contains("past-holding-button")) {
+        btn.onclick = () => {
+          switchDashboardTab("past-holding");
+          if (btn.classList.contains("mobile-menu-item")) {
+            closeMobileMenu();
+          }
+        };
+      } else if (btn.classList.contains("overlap-analysis-button")) {
+        btn.onclick = () => {
+          switchDashboardTab("overlap-analysis");
+          if (btn.classList.contains("mobile-menu-item")) {
+            closeMobileMenu();
+          }
+        };
+      } else if (btn.classList.contains("expense-impact-button")) {
+        btn.onclick = () => {
+          switchDashboardTab("expense-impact");
+          if (btn.classList.contains("mobile-menu-item")) {
+            closeMobileMenu();
+          }
+        };
+      } else if (btn.classList.contains("health-score-button")) {
+        btn.onclick = () => {
+          switchDashboardTab("health-score");
+          if (btn.classList.contains("mobile-menu-item")) {
+            closeMobileMenu();
+          }
+        };
+      }
+    });
+  });
+}
+
 async function getSearchKeys() {
   try {
-    // Check if we have cached search keys
-    const cachedKeys = ManifestManager.getSearchKeys();
-    if (cachedKeys) {
-      console.log(
-        "✅ Using cached search keys:",
-        Object.keys(cachedKeys).length
-      );
-      return cachedKeys;
-    }
-
-    // If not cached, fetch from server
     const response = await fetch("./data/search-key.json");
     if (!response.ok) {
       throw new Error(`Failed to load search-key.json: ${response.status}`);
     }
 
     const searchKeys = await response.json();
+
+    const dataHash =
+      Object.keys(searchKeys).length + "_" + JSON.stringify(searchKeys).length;
+    const cachedHash = localStorage.getItem(
+      ManifestManager.SEARCH_KEYS_VERSION_KEY
+    );
+    const cachedKeys = ManifestManager.getSearchKeys();
+
+    if (cachedKeys && cachedHash === dataHash) {
+      return cachedKeys;
+    }
+
     console.log(
-      "📥 Loaded search keys from file:",
+      cachedKeys
+        ? "🔄 Search keys changed, updating cache..."
+        : "📥 Loading search keys for first time...",
       Object.keys(searchKeys).length
     );
 
-    // Cache for future use
-    ManifestManager.saveSearchKeys(searchKeys);
+    ManifestManager.saveSearchKeys(searchKeys, dataHash);
 
     return searchKeys;
   } catch (err) {
     console.error("Error loading search-key.json:", err);
+
+    const cachedKeys = ManifestManager.getSearchKeys();
+    if (cachedKeys) {
+      return cachedKeys;
+    }
+
     return {};
   }
 }
 
 async function clearCache() {
-  if (confirm("This will clear all cached portfolio data. Continue?")) {
-    await storageManager.clearAll();
+  if (!currentUser) {
+    showToast("No user selected", "warning");
+    return;
+  }
 
-    // Reset file info
-    lastUploadedFileInfo = null;
-    localStorage.removeItem("lastCASFileInfo");
+  if (
+    confirm(
+      `This will clear all cached portfolio data for ${currentUser}. Continue?`
+    )
+  ) {
+    showProcessingSplash();
 
-    // Disable all tabs except upload before reload
-    disableAllTabsExceptUpload();
+    try {
+      await storageManager.deleteUser(currentUser);
 
-    // Small delay to show the disabled state before reload
-    setTimeout(() => {
-      location.reload();
-    }, 100);
+      hideProcessingSplash();
+      showToast("User data cleared, reloading...", "success");
+      setTimeout(() => {
+        location.reload();
+      }, 500);
+    } catch (err) {
+      hideProcessingSplash();
+      console.error("Error clearing cache:", err);
+      showToast("Failed to clear cache: " + err.message, "error");
+    }
   }
 }
 
@@ -1570,6 +2068,20 @@ async function processPortfolio() {
 }
 
 function switchDashboardTab(tabId) {
+  // Prevent switching to disabled tabs for summary CAS
+  if (isSummaryCAS) {
+    const disabledTabs = [
+      "charts",
+      "transactions",
+      "capital-gains",
+      "past-holding",
+    ];
+    if (disabledTabs.includes(tabId)) {
+      showToast("This feature is not available for Summary CAS", "warning");
+      return;
+    }
+  }
+
   // Hide all sections
   document.querySelectorAll(".dashboard section").forEach((section) => {
     section.classList.remove("active-tab");
@@ -1593,20 +2105,23 @@ function switchDashboardTab(tabId) {
   const activeButtons = document.querySelectorAll(buttonClass);
   activeButtons.forEach((btn) => btn.classList.add("active"));
 
-  if (tabId === "main") {
-    document.getElementById("toggleExtendedBtn").classList.add("hidden");
-    document.getElementById("toggleSeeMore").classList.remove("hidden");
-  } else if (tabId === "current-holding") {
-    document.getElementById("toggleExtendedBtn").classList.remove("hidden");
-    document.getElementById("toggleSeeMore").classList.add("hidden");
-    renderAllFundCharts();
+  if (tabId === "current-holding") {
+    if (!isSummaryCAS) {
+      renderAllFundCharts();
+    }
   } else if (tabId === "charts") {
-    updateChart();
-    document.getElementById("toggleExtendedBtn").classList.add("hidden");
-    document.getElementById("toggleSeeMore").classList.add("hidden");
+    if (!isSummaryCAS) {
+      updateChart();
+    }
+  } else if (tabId === "overlap-analysis") {
+    displayOverlapAnalysis();
+  } else if (tabId === "expense-impact") {
+    displayExpenseImpact();
+  } else if (tabId === "health-score") {
+    displayHealthScore();
+  } else if (tabId === "family-dashboard") {
+    loadFamilyDashboard();
   } else {
-    document.getElementById("toggleExtendedBtn").classList.add("hidden");
-    document.getElementById("toggleSeeMore").classList.add("hidden");
   }
   window.scrollTo({
     top: 0,
@@ -1731,9 +2246,19 @@ function aggregateBenchmarkReturns(fundWiseData) {
 }
 
 function aggregateFundWiseData() {
+  if (isSummaryCAS) {
+    console.log("⏭️ Skipping aggregateFundWiseData for Summary CAS");
+    return fundWiseData;
+  }
+
   fundWiseData = {};
 
   portfolioData.folios.forEach((folio) => {
+    if (!folio.schemes || !Array.isArray(folio.schemes)) {
+      console.warn("Folio missing schemes array:", folio.folio);
+      return;
+    }
+
     folio.schemes.forEach((scheme) => {
       const schemeLower = scheme.scheme.toLowerCase();
       if (
@@ -1894,9 +2419,9 @@ function aggregateFundWiseData() {
       normalizeBenchmarkName(fund.benchmark)
     ]
       ? {
-          "1Y": benchmarkSummary[bmKey]["1Y"],
-          "3Y": benchmarkSummary[bmKey]["3Y"],
-          "5Y": benchmarkSummary[bmKey]["5Y"],
+          return1y: benchmarkSummary[bmKey]["1Y"],
+          return3y: benchmarkSummary[bmKey]["3Y"],
+          return5y: benchmarkSummary[bmKey]["5Y"],
         }
       : null;
   });
@@ -3989,9 +4514,9 @@ function createFundPerformanceChart(
     cat_return5y,
   } = extendedData.return_stats || {};
 
-  const index_return1y = benchmark_returns?.["1Y"] ?? null;
-  const index_return3y = benchmark_returns?.["3Y"] ?? null;
-  const index_return5y = benchmark_returns?.["5Y"] ?? null;
+  const index_return1y = benchmark_returns?.["return1y"] ?? null;
+  const index_return3y = benchmark_returns?.["return3y"] ?? null;
+  const index_return5y = benchmark_returns?.["return5y"] ?? null;
 
   const valid = [
     return1y,
@@ -4251,7 +4776,7 @@ function renderFundPerformanceChart(canvasId, extendedData) {
         },
         y: {
           beginAtZero: true,
-          grid: { color: "rgba(0,0,0,0.05)" },
+          grid: { display: false },
           ticks: {
             font: { size: 10 },
             color: "#6b7280",
@@ -4755,8 +5280,21 @@ function updateSummaryCards(summary) {
   ).length;
 
   document.getElementById("totalHoldings").textContent = activeFundCount;
-  document.getElementById("avgHoldingDays").textContent =
-    calculateWeightedHoldingDays();
+
+  if (isSummaryCAS) {
+    const avgHoldingDaysCard =
+      document.getElementById("avgHoldingDays").parentElement;
+    avgHoldingDaysCard.classList.add("hidden");
+
+    const extendedElements = document.querySelectorAll(".extra-card");
+    extendedElements.forEach((el) => el.classList.add("hidden"));
+  } else {
+    const avgHoldingDaysCard =
+      document.getElementById("avgHoldingDays").parentElement;
+    avgHoldingDaysCard.classList.remove("hidden");
+    document.getElementById("avgHoldingDays").textContent =
+      calculateWeightedHoldingDays();
+  }
 }
 
 function updateGainCard(valueId, percentId, gain, percent, xirr) {
@@ -4765,12 +5303,17 @@ function updateGainCard(valueId, percentId, gain, percent, xirr) {
   el.parentElement.classList.add(gain >= 0 ? "positive" : "negative");
   const xirrText =
     xirr !== null ? ` | XIRR: ${xirr.toFixed(2)}%` : " | XIRR: --";
-  document.getElementById(percentId).textContent =
-    "Absolute: " +
-    (gain >= 0 ? "+" : "") +
-    percent +
-    "%" +
-    (percentId === "realizedGainPercent" ? "" : xirrText);
+  if (isSummaryCAS) {
+    document.getElementById(percentId).textContent =
+      "Absolute: " + (gain >= 0 ? "+" : "") + percent + "%";
+  } else {
+    document.getElementById(percentId).textContent =
+      "Absolute: " +
+      (gain >= 0 ? "+" : "") +
+      percent +
+      "%" +
+      (percentId === "realizedGainPercent" ? "" : xirrText);
+  }
 }
 
 function switchTab(tab) {
@@ -5444,10 +5987,16 @@ document.getElementById("toggleExtendedBtn").addEventListener("click", () => {
 
   const firstHidden = extendedElements[0].classList.contains("hidden");
 
-  // Update button text + icon
-  document.getElementById("toggleExtendedBtn").innerHTML = firstHidden
-    ? `<i class="fa-solid fa-eye"></i> Show Fund Stats`
-    : `<i class="fa-solid fa-eye-slash"></i> Hide Fund Stats`;
+  if (firstHidden) {
+    document.getElementById(
+      "toggleExtendedBtn"
+    ).innerHTML = `<i class="fa-solid fa-eye"></i> Show Fund Stats`;
+  } else {
+    extendedElements[0].scrollIntoView({ behavior: "smooth", block: "center" });
+    document.getElementById(
+      "toggleExtendedBtn"
+    ).innerHTML = `<i class="fa-solid fa-eye-slash"></i> Hide Fund Stats`;
+  }
 });
 
 document.getElementById("toggleSeeMore").addEventListener("click", () => {
@@ -5484,7 +6033,7 @@ async function updateMFStats() {
     return;
   }
 
-  // Check if already updated today (auto + manual)
+  // Check if already updated this month (manual only, auto doesn't count here)
   if (
     !storageManager.needsFullUpdate() &&
     storageManager.hasManualStatsUpdateThisMonth()
@@ -5497,27 +6046,19 @@ async function updateMFStats() {
   }
 
   const confirmUpdate = confirm(
-    "This will fetch the latest fund statistics (portfolio composition, returns, ratings, etc.). This may take a few minutes. Continue?"
+    "This will fetch the latest fund statistics for ALL users. This may take a few minutes. Continue?"
   );
 
   if (!confirmUpdate) return;
 
   showProcessingSplash();
-  showToast("Updating fund statistics...", "info");
+  showToast("Updating fund statistics for all users...", "info");
 
   try {
-    await fetchOrUpdateMFStats("manual");
-
-    await storageManager.idb.saveFile("mf-stats.json", mfStats);
-
-    storageManager.updateLastFullUpdate();
-    storageManager.updateLastNavUpdate();
-    storageManager.markManualStatsUpdate();
-    storageManager.markManualNavUpdate();
-    await processPortfolio();
+    await updateAllUsersStats("manual");
 
     hideProcessingSplash();
-    showToast("Fund statistics updated successfully!", "success");
+    showToast("Fund statistics updated successfully for all users!", "success");
     updateFooterInfo();
   } catch (err) {
     hideProcessingSplash();
@@ -5538,42 +6079,410 @@ async function updateNavManually() {
     storageManager.hasManualNavUpdateToday()
   ) {
     showToast(
-      "NAV already updated today (auto + manual). Please try again tomorrow after 6 AM.",
+      "NAV already updated today for all users. Please try again tomorrow after 6 AM.",
       "info"
     );
     return;
   }
 
   const confirmUpdate = confirm(
-    "This will fetch the latest NAV for all your funds. Continue?"
+    "This will fetch the latest NAV for ALL users. Continue?"
   );
 
   if (!confirmUpdate) return;
 
   showProcessingSplash();
-  showToast("Updating NAV...", "info");
+  showToast("Updating NAV for all users...", "info");
 
   try {
-    const success = await updateNavHistoryOnly();
-
-    if (success) {
-      window.fundChartsRendered = false;
-
-      await processPortfolio();
-
-      storageManager.markManualNavUpdate(); // ✅ Mark NAV manual update
-      showToast("NAV updated successfully!", "success");
-      updateFooterInfo();
-    } else {
-      showToast("Failed to update NAV", "error");
-    }
+    await updateAllUsersNav("manual");
 
     hideProcessingSplash();
+    showToast("NAV updated successfully for all users!", "success");
+    updateFooterInfo();
   } catch (err) {
     hideProcessingSplash();
     console.error("NAV update error:", err);
     showToast("Failed to update NAV: " + err.message, "error");
   }
+}
+
+async function updateAllUsersStats(updateType = "auto") {
+  const users = storageManager.getAllUsers();
+
+  if (users.length === 0) {
+    console.log("No users to update");
+    return false;
+  }
+
+  console.log(`🔄 Updating stats for ${users.length} users (${updateType})...`);
+
+  // Collect ONLY ACTIVE ISINs from ALL users
+  const allIsins = new Set();
+  const userDataMap = new Map();
+
+  for (const user of users) {
+    try {
+      const stored = await storageManager.loadPortfolioData(user);
+      if (!stored) continue;
+
+      const casData = stored.casData;
+      const mfStatsUser = stored.mfStats;
+
+      userDataMap.set(user, { casData, mfStats: mfStatsUser });
+
+      // Collect ISINs ONLY from active holdings
+      if (casData.cas_type === "SUMMARY") {
+        casData.folios.forEach((folio) => {
+          const hasValue =
+            folio.current_value && parseFloat(folio.current_value || 0) > 0;
+
+          if (folio.isin && hasValue) {
+            allIsins.add(folio.isin);
+          }
+        });
+      } else {
+        casData.folios.forEach((folio) => {
+          if (folio.schemes && Array.isArray(folio.schemes)) {
+            folio.schemes.forEach((scheme) => {
+              const hasValue =
+                scheme.isActive ||
+                (scheme.currentValue &&
+                  parseFloat(scheme.currentValue || 0) > 0);
+
+              if (scheme.isin && hasValue) {
+                allIsins.add(scheme.isin);
+              }
+            });
+          }
+        });
+      }
+    } catch (err) {
+      console.error(`Error loading data for user ${user}:`, err);
+    }
+  }
+
+  if (allIsins.size === 0) {
+    console.log("No active holdings found across all users");
+    return false;
+  }
+
+  console.log(`📊 Fetching stats for ${allIsins.size} unique ACTIVE funds...`);
+
+  // Get search keys for all ISINs
+  const searchKeyJson = await getSearchKeys();
+  const searchKeys = [...allIsins]
+    .map((isin) => searchKeyJson[isin])
+    .filter(Boolean);
+
+  const uniqueSearchKeys = [...new Set(searchKeys)];
+
+  if (uniqueSearchKeys.length === 0) {
+    console.warn("No search keys found");
+    return false;
+  }
+
+  // Single API call for all users
+  try {
+    const response = await fetch(BACKEND_SERVER + "/api/mf-stats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ searchKeys: uniqueSearchKeys }),
+    });
+
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+    const result = await response.json();
+    if (!result.success && result.error) throw new Error(result.error);
+
+    const newStats = result.data || result;
+
+    // Update each user's data
+    for (const [user, userData] of userDataMap.entries()) {
+      try {
+        // Merge: keep existing stats for inactive funds, update active funds
+        const updatedMfStats = { ...userData.mfStats, ...newStats };
+
+        await storageManager.savePortfolioData(
+          userData.casData,
+          updatedMfStats,
+          false,
+          user
+        );
+
+        storageManager.updateLastFullUpdate(user);
+        storageManager.updateLastNavUpdate(user);
+
+        if (updateType === "manual") {
+          storageManager.markManualStatsUpdate(user);
+          storageManager.markManualNavUpdate(user);
+        }
+
+        console.log(`✅ Updated stats for user: ${user}`);
+      } catch (err) {
+        console.error(`Error saving data for user ${user}:`, err);
+      }
+    }
+
+    // Refresh current user's view
+    if (currentUser && userDataMap.has(currentUser)) {
+      mfStats = { ...userDataMap.get(currentUser).mfStats, ...newStats };
+
+      window.fundChartsRendered = false;
+
+      if (isSummaryCAS) {
+        processSummaryCAS();
+        disableSummaryIncompatibleTabs();
+      } else {
+        await processPortfolio();
+        enableSummaryIncompatibleTabs();
+      }
+    }
+
+    console.log(
+      `✅ Stats updated for ${allIsins.size} active funds across ${users.length} users`
+    );
+    invalidateFamilyDashboardCache();
+    return true;
+  } catch (err) {
+    console.error("❌ Stats update failed:", err);
+    throw err;
+  }
+}
+
+async function updateAllUsersNav(updateType = "auto") {
+  const users = storageManager.getAllUsers();
+
+  if (users.length === 0) {
+    console.log("No users to update");
+    return false;
+  }
+
+  console.log(`🔄 Updating NAV for ${users.length} users (${updateType})...`);
+
+  // Collect NAV update data from all users
+  const navUpdateData = {};
+  const userDataMap = new Map();
+
+  for (const user of users) {
+    try {
+      const stored = await storageManager.loadPortfolioData(user);
+      if (!stored) continue;
+
+      const casData = stored.casData;
+      const mfStatsUser = stored.mfStats;
+
+      userDataMap.set(user, { casData, mfStats: mfStatsUser });
+
+      // Collect active holdings
+      if (casData.cas_type === "SUMMARY") {
+        casData.folios.forEach((folio) => {
+          const hasValue =
+            folio.current_value && parseFloat(folio.current_value || 0) > 0;
+
+          if (folio.isin && hasValue && mfStatsUser[folio.isin]?.scheme_code) {
+            if (!navUpdateData[folio.isin]) {
+              navUpdateData[folio.isin] = {
+                scheme_code: mfStatsUser[folio.isin].scheme_code,
+                last_nav_date: mfStatsUser[folio.isin].latest_nav_date || null,
+              };
+            }
+          }
+        });
+      } else {
+        casData.folios.forEach((folio) => {
+          if (folio.schemes && Array.isArray(folio.schemes)) {
+            folio.schemes.forEach((scheme) => {
+              const hasValue =
+                scheme.isActive ||
+                (scheme.currentValue &&
+                  parseFloat(scheme.currentValue || 0) > 0);
+
+              if (
+                scheme.isin &&
+                hasValue &&
+                mfStatsUser[scheme.isin]?.scheme_code
+              ) {
+                if (!navUpdateData[scheme.isin]) {
+                  navUpdateData[scheme.isin] = {
+                    scheme_code: mfStatsUser[scheme.isin].scheme_code,
+                    last_nav_date:
+                      mfStatsUser[scheme.isin].latest_nav_date || null,
+                  };
+                }
+              }
+            });
+          }
+        });
+      }
+    } catch (err) {
+      console.error(`Error loading data for user ${user}:`, err);
+    }
+  }
+
+  const activeHoldingsCount = Object.keys(navUpdateData).length;
+
+  if (activeHoldingsCount === 0) {
+    console.log("ℹ️ No active holdings to update NAV for.");
+    return true;
+  }
+
+  console.log(`📊 Updating NAV for ${activeHoldingsCount} active holdings...`);
+
+  // Single API call for all users
+  try {
+    const response = await fetch(BACKEND_SERVER + "/api/update-nav-only", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ navUpdateData }),
+    });
+
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+    const result = await response.json();
+
+    if (result.success) {
+      const updatedNavData = result.data;
+
+      // Update each user's data
+      for (const [user, userData] of userDataMap.entries()) {
+        try {
+          const updatedMfStats = { ...userData.mfStats };
+
+          // Apply NAV updates
+          Object.keys(updatedNavData).forEach((isin) => {
+            if (updatedMfStats[isin]) {
+              const newNavData = updatedNavData[isin];
+
+              if (newNavData.latest_nav) {
+                updatedMfStats[isin].latest_nav = newNavData.latest_nav;
+              }
+              if (newNavData.latest_nav_date) {
+                updatedMfStats[isin].latest_nav_date =
+                  newNavData.latest_nav_date;
+              }
+
+              if (newNavData.nav_entries && newNavData.nav_entries.length > 0) {
+                const existingHistory = updatedMfStats[isin].nav_history || [];
+
+                if (newNavData.is_full_history) {
+                  updatedMfStats[isin].nav_history = newNavData.nav_entries;
+                } else {
+                  const combined = [
+                    ...newNavData.nav_entries,
+                    ...existingHistory,
+                  ];
+                  const uniqueByDate = Array.from(
+                    new Map(combined.map((item) => [item.date, item])).values()
+                  );
+
+                  uniqueByDate.sort((a, b) => {
+                    const [dayA, monthA, yearA] = a.date.split("-");
+                    const [dayB, monthB, yearB] = b.date.split("-");
+                    const dateA = new Date(`${yearA}-${monthA}-${dayA}`);
+                    const dateB = new Date(`${yearB}-${monthB}-${dayB}`);
+                    return dateB - dateA;
+                  });
+
+                  updatedMfStats[isin].nav_history = uniqueByDate;
+                }
+              }
+
+              if (newNavData.meta) {
+                updatedMfStats[isin].meta = newNavData.meta;
+              }
+            }
+          });
+
+          await storageManager.savePortfolioData(
+            userData.casData,
+            updatedMfStats,
+            false,
+            user
+          );
+
+          storageManager.updateLastNavUpdate(user);
+
+          if (updateType === "manual") {
+            storageManager.markManualNavUpdate(user);
+          }
+
+          console.log(`✅ Updated NAV for user: ${user}`);
+        } catch (err) {
+          console.error(`Error saving NAV data for user ${user}:`, err);
+        }
+      }
+
+      // Refresh current user's view
+      if (currentUser && userDataMap.has(currentUser)) {
+        mfStats = { ...userDataMap.get(currentUser).mfStats };
+
+        // Apply updates to current view
+        Object.keys(updatedNavData).forEach((isin) => {
+          if (mfStats[isin]) {
+            const newNavData = updatedNavData[isin];
+            if (newNavData.latest_nav) {
+              mfStats[isin].latest_nav = newNavData.latest_nav;
+            }
+            if (newNavData.latest_nav_date) {
+              mfStats[isin].latest_nav_date = newNavData.latest_nav_date;
+            }
+            if (newNavData.nav_entries) {
+              const existingHistory = mfStats[isin].nav_history || [];
+              if (newNavData.is_full_history) {
+                mfStats[isin].nav_history = newNavData.nav_entries;
+              } else {
+                const combined = [
+                  ...newNavData.nav_entries,
+                  ...existingHistory,
+                ];
+                const uniqueByDate = Array.from(
+                  new Map(combined.map((item) => [item.date, item])).values()
+                );
+                uniqueByDate.sort((a, b) => {
+                  const [dayA, monthA, yearA] = a.date.split("-");
+                  const [dayB, monthB, yearB] = b.date.split("-");
+                  const dateA = new Date(`${yearA}-${monthA}-${dayA}`);
+                  const dateB = new Date(`${yearB}-${monthB}-${dayB}`);
+                  return dateB - dateA;
+                });
+                mfStats[isin].nav_history = uniqueByDate;
+              }
+            }
+            if (newNavData.meta) {
+              mfStats[isin].meta = newNavData.meta;
+            }
+          }
+        });
+
+        window.fundChartsRendered = false;
+
+        if (isSummaryCAS) {
+          processSummaryCAS();
+          disableSummaryIncompatibleTabs();
+        } else {
+          await processPortfolio();
+          enableSummaryIncompatibleTabs();
+        }
+      }
+
+      console.log(`✅ NAV updated for all ${users.length} users`);
+      invalidateFamilyDashboardCache();
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.error("❌ NAV update failed:", err);
+    return false;
+  }
+}
+
+async function updateNavHistoryOnly() {
+  return await updateAllUsersNav("auto");
+}
+
+async function updateFullMFStats() {
+  return await updateAllUsersStats("auto");
 }
 
 function updateFooterInfo() {
@@ -5634,112 +6543,7 @@ function updatePortfolioDataWithActiveStatus() {
 }
 
 async function updateNavHistoryOnly() {
-  if (!portfolioData) return;
-
-  console.log("📄 Auto-updating NAV history for active holdings...");
-
-  const navUpdateData = {}; // Track scheme_code and last NAV date for each ISIN
-
-  portfolioData.folios.forEach((folio) => {
-    folio.schemes.forEach((scheme) => {
-      // Only update NAV for schemes with current value > 0
-      const hasValue =
-        scheme.isActive ||
-        (scheme.currentValue && parseFloat(scheme.currentValue || 0) > 0);
-
-      if (scheme.isin && hasValue) {
-        const existingStats = mfStats[scheme.isin];
-
-        if (existingStats?.scheme_code) {
-          navUpdateData[scheme.isin] = {
-            scheme_code: existingStats.scheme_code,
-            last_nav_date: existingStats.latest_nav_date || null,
-          };
-        }
-      }
-    });
-  });
-
-  const activeHoldingsCount = Object.keys(navUpdateData).length;
-  console.log(`📊 Updating NAV for ${activeHoldingsCount} active holdings`);
-
-  if (activeHoldingsCount === 0) {
-    console.log("ℹ️ No active holdings to update NAV for.");
-    return true;
-  }
-
-  try {
-    const response = await fetch(BACKEND_SERVER + "/api/update-nav-only", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        navUpdateData,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    if (result.success) {
-      const updatedNavData = result.data;
-
-      Object.keys(updatedNavData).forEach((isin) => {
-        if (mfStats[isin]) {
-          const newNavData = updatedNavData[isin];
-
-          if (newNavData.latest_nav) {
-            mfStats[isin].latest_nav = newNavData.latest_nav;
-          }
-          if (newNavData.latest_nav_date) {
-            mfStats[isin].latest_nav_date = newNavData.latest_nav_date;
-          }
-
-          if (newNavData.nav_entries && newNavData.nav_entries.length > 0) {
-            const existingHistory = mfStats[isin].nav_history || [];
-
-            if (newNavData.is_full_history) {
-              mfStats[isin].nav_history = newNavData.nav_entries;
-            } else {
-              const combined = [...newNavData.nav_entries, ...existingHistory];
-              const uniqueByDate = Array.from(
-                new Map(combined.map((item) => [item.date, item])).values()
-              );
-
-              uniqueByDate.sort((a, b) => {
-                const [dayA, monthA, yearA] = a.date.split("-");
-                const [dayB, monthB, yearB] = b.date.split("-");
-                const dateA = new Date(`${yearA}-${monthA}-${dayA}`);
-                const dateB = new Date(`${yearB}-${monthB}-${dayB}`);
-                return dateB - dateA;
-              });
-
-              mfStats[isin].nav_history = uniqueByDate;
-            }
-          }
-
-          if (newNavData.meta) {
-            mfStats[isin].meta = newNavData.meta;
-          }
-        }
-      });
-
-      await storageManager.idb.saveFile("mf-stats.json", mfStats);
-      storageManager.updateLastNavUpdate();
-      console.log(
-        `✅ NAV history updated for ${activeHoldingsCount} active holdings`
-      );
-      return true;
-    }
-    return false;
-  } catch (err) {
-    console.error("❌ NAV update failed:", err);
-    return false;
-  }
+  return await updateAllUsersNav("auto");
 }
 
 async function fetchOrUpdateMFStats(updateType = "auto") {
@@ -5749,34 +6553,56 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
       return {};
     }
 
-    console.log(`📄 Fetching MF stats (${updateType})...`);
+    console.log(`🔄 Fetching MF stats (${updateType})...`);
 
-    // Step 1: Collect ISINs based on updateType
+    // Step 1: Collect ISINs based on updateType and CAS type
     const targetIsins = new Set();
 
     if (updateType === "initial") {
       // For initial load, fetch ALL funds
-      portfolioData.folios.forEach((folio) => {
-        folio.schemes.forEach((scheme) => {
-          if (scheme.isin) {
-            targetIsins.add(scheme.isin);
+      if (portfolioData.cas_type === "SUMMARY") {
+        portfolioData.folios.forEach((folio) => {
+          if (folio.isin) {
+            targetIsins.add(folio.isin);
           }
         });
-      });
+      } else {
+        portfolioData.folios.forEach((folio) => {
+          if (folio.schemes && Array.isArray(folio.schemes)) {
+            folio.schemes.forEach((scheme) => {
+              if (scheme.isin) {
+                targetIsins.add(scheme.isin);
+              }
+            });
+          }
+        });
+      }
       console.log(`📊 Initial load: Fetching all ${targetIsins.size} funds`);
     } else {
-      // For auto/manual updates, only fetch active holdings
-      portfolioData.folios.forEach((folio) => {
-        folio.schemes.forEach((scheme) => {
+      if (portfolioData.cas_type === "SUMMARY") {
+        portfolioData.folios.forEach((folio) => {
           const hasValue =
-            scheme.isActive ||
-            (scheme.currentValue && parseFloat(scheme.currentValue || 0) > 0);
-
-          if (scheme.isin && hasValue) {
-            targetIsins.add(scheme.isin);
+            folio.current_value && parseFloat(folio.current_value || 0) > 0;
+          if (folio.isin && hasValue) {
+            targetIsins.add(folio.isin);
           }
         });
-      });
+      } else {
+        portfolioData.folios.forEach((folio) => {
+          if (folio.schemes && Array.isArray(folio.schemes)) {
+            folio.schemes.forEach((scheme) => {
+              const hasValue =
+                scheme.isActive ||
+                (scheme.currentValue &&
+                  parseFloat(scheme.currentValue || 0) > 0);
+
+              if (scheme.isin && hasValue) {
+                targetIsins.add(scheme.isin);
+              }
+            });
+          }
+        });
+      }
       console.log(
         `📊 Update mode: Fetching ${targetIsins.size} active holdings`
       );
@@ -5861,27 +6687,7 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
 }
 
 async function updateFullMFStats() {
-  if (!portfolioData) return false;
-
-  console.log("🔄 Auto-updating full MF stats (monthly update)...");
-
-  try {
-    await fetchOrUpdateMFStats("auto");
-
-    await storageManager.idb.saveFile("mf-stats.json", mfStats);
-
-    storageManager.updateLastFullUpdate();
-    storageManager.updateLastNavUpdate();
-    console.log("✅ Full MF stats updated successfully");
-
-    // Refresh entire portfolio
-    await processPortfolio();
-
-    return true;
-  } catch (err) {
-    console.error("❌ Full MF stats update failed:", err);
-    return false;
-  }
+  return await updateAllUsersStats("auto");
 }
 
 function isAfter6AM() {
@@ -5912,18 +6718,26 @@ async function checkAndPerformAutoUpdates() {
     }
   }
 
-  // Check if NAV update is needed (daily)
-  if (storageManager.needsNavUpdate()) {
+  // Check if NAV update is needed (daily, only if not manually updated today)
+  if (
+    storageManager.needsNavUpdate() &&
+    !storageManager.hasManualNavUpdateToday()
+  ) {
     console.log("📅 Daily NAV update required");
     const updated = await updateNavHistoryOnly();
     if (updated) {
       window.fundChartsRendered = false;
 
-      await processPortfolio();
+      if (isSummaryCAS) {
+        processSummaryCAS();
+        disableSummaryIncompatibleTabs();
+      } else {
+        await processPortfolio();
+        enableSummaryIncompatibleTabs();
+      }
 
       showToast("Latest NAV updated!", "success");
       updateFooterInfo();
-      hideProcessingSplash();
     } else {
       showToast("Failed to update NAV", "error");
     }
@@ -5980,24 +6794,1597 @@ function disableAllTabsExceptUpload() {
     });
 }
 
-window.addEventListener("DOMContentLoaded", async () => {
-  document.getElementById("toggleExtendedBtn").classList.add("hidden");
-  document.getElementById("toggleSeeMore").classList.add("hidden");
+function calculateOverlapAnalysis() {
+  const overlapData = {
+    fundPairs: [],
+    topOverlaps: [],
+    commonHoldings: {},
+  };
 
-  const dashboard = document.getElementById("dashboard");
+  const activeFunds = Object.values(fundWiseData).filter(
+    (fund) => fund.advancedMetrics?.currentValue > 0
+  );
 
-  // Load last file info from localStorage
-  const storedFileInfo = localStorage.getItem("lastCASFileInfo");
-  if (storedFileInfo) {
-    lastUploadedFileInfo = storedFileInfo;
+  if (activeFunds.length < 2) {
+    return { error: "Need at least 2 active funds to analyze overlap" };
+  }
+
+  // Calculate pairwise overlap
+  for (let i = 0; i < activeFunds.length; i++) {
+    for (let j = i + 1; j < activeFunds.length; j++) {
+      const fund1 = activeFunds[i];
+      const fund2 = activeFunds[j];
+
+      if (!fund1.holdings || !fund2.holdings) continue;
+
+      const holdings1 = new Map(
+        fund1.holdings.map((h) => [
+          h.company_name,
+          parseFloat(h.corpus_per || 0),
+        ])
+      );
+      const holdings2 = new Map(
+        fund2.holdings.map((h) => [
+          h.company_name,
+          parseFloat(h.corpus_per || 0),
+        ])
+      );
+
+      let overlapPercentage = 0;
+      const commonStocks = [];
+
+      holdings1.forEach((percent1, company) => {
+        if (holdings2.has(company)) {
+          const percent2 = holdings2.get(company);
+          const minPercent = Math.min(percent1, percent2);
+          overlapPercentage += minPercent;
+          commonStocks.push({
+            company,
+            fund1Percent: percent1,
+            fund2Percent: percent2,
+          });
+        }
+      });
+
+      if (overlapPercentage > 0) {
+        overlapData.fundPairs.push({
+          fund1: fund1.schemeDisplay || fund1.scheme,
+          fund2: fund2.schemeDisplay || fund2.scheme,
+          overlapPercent: overlapPercentage.toFixed(2),
+          commonStocks: commonStocks.sort(
+            (a, b) =>
+              Math.min(b.fund1Percent, b.fund2Percent) -
+              Math.min(a.fund1Percent, a.fund2Percent)
+          ),
+        });
+      }
+    }
+  }
+
+  // Sort by overlap percentage
+  overlapData.fundPairs.sort((a, b) => b.overlapPercent - a.overlapPercent);
+  overlapData.topOverlaps = overlapData.fundPairs.slice(0, 10);
+
+  // Find most common holdings across all funds
+  const holdingCounts = new Map();
+  activeFunds.forEach((fund) => {
+    if (!fund.holdings) return;
+    const fundName = fund.schemeDisplay || fund.scheme;
+    const processedCompanies = new Set();
+
+    fund.holdings.forEach((holding) => {
+      const company = holding.company_name;
+
+      if (processedCompanies.has(company)) return;
+      processedCompanies.add(company);
+
+      if (!holdingCounts.has(company)) {
+        holdingCounts.set(company, { count: 0, funds: [], totalWeight: 0 });
+      }
+      const data = holdingCounts.get(company);
+      data.count++;
+      data.funds.push(fundName);
+      data.totalWeight += parseFloat(holding.corpus_per || 0);
+    });
+  });
+
+  // Find stocks in 3+ funds
+  overlapData.commonHoldings = Array.from(holdingCounts.entries())
+    .filter(
+      ([company, data]) =>
+        data.count >= 3 && !company.toUpperCase().includes("GOI")
+    )
+    .map(([company, data]) => ({
+      company,
+      fundCount: data.count,
+      funds: data.funds,
+      avgWeight: (data.totalWeight / data.count).toFixed(2),
+    }))
+    .sort((a, b) => b.fundCount - a.fundCount)
+    .slice(0, 20);
+
+  return overlapData;
+}
+
+function displayOverlapAnalysis() {
+  const container = document.getElementById("overlapContent");
+  const data = calculateOverlapAnalysis();
+
+  if (data.error) {
+    container.innerHTML = `
+      <div class="capital-gains-section">
+        <p class="no-data">${data.error}</p>
+      </div>
+    `;
+    return;
+  }
+
+  let html = `
+    <div class="capital-gains-section">
+      <div class="section-header">
+        <h3>🔍 Fund Overlap Analysis</h3>
+        <p class="section-subtitle">Identify duplicate holdings across your mutual funds</p>
+      </div>
+  `;
+
+  // Top overlapping fund pairs
+  if (data.topOverlaps.length > 0) {
+    html += `
+      <div class="gains-table-wrapper">
+        <h4>Highest Overlapping Fund Pairs</h4>
+        <table class="gains-table">
+          <thead>
+            <tr>
+              <th>Fund 1</th>
+              <th>Fund 2</th>
+              <th>Overlap %</th>
+              <th>Common Stocks</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    data.topOverlaps.forEach((pair) => {
+      const colorClass =
+        pair.overlapPercent > 50
+          ? "loss"
+          : pair.overlapPercent > 25
+          ? "warning"
+          : "gain";
+
+      html += `
+        <tr>
+          <td>${pair.fund1}</td>
+          <td>${pair.fund2}</td>
+          <td class="${colorClass}">${pair.overlapPercent}%</td>
+          <td>${pair.commonStocks.length}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // Common holdings across multiple funds
+  if (data.commonHoldings.length > 0) {
+    html += `
+      <div class="gains-table-wrapper" style="margin-top: 30px;">
+        <h4>Stocks Common Across Multiple Funds</h4>
+        <table class="gains-table">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th># of Funds</th>
+              <th>Avg Weight</th>
+              <th>Funds</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    data.commonHoldings.forEach((holding) => {
+      html += `
+        <tr>
+          <td>${holding.company}</td>
+          <td><strong>${holding.fundCount}</strong></td>
+          <td>${holding.avgWeight}%</td>
+          <td><small>${holding.funds.join(", ")}</small></td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function calculateExpenseImpact() {
+  const result = {
+    totalExpenseRatio: 0,
+    weightedExpenseRatio: 0,
+    annualCost: 0,
+    lifetimeCost: 0,
+    funds: [],
+  };
+
+  let totalValue = 0;
+  let weightedER = 0;
+
+  Object.values(fundWiseData).forEach((fund) => {
+    const value = fund.advancedMetrics?.currentValue || 0;
+    if (value <= 0) return;
+
+    const extendedData = mfStats[fund.isin];
+    const expenseRatio = parseFloat(extendedData?.expense_ratio || 0);
+    const holdingDays = fund.advancedMetrics?.averageHoldingDays || 0;
+    const holdingYears = holdingDays / 365;
+
+    const annualCost = (value * expenseRatio) / 100;
+    const lifetimeCost = annualCost * Math.max(holdingYears, 1);
+
+    result.funds.push({
+      name: fund.schemeDisplay || fund.scheme,
+      value: value,
+      expenseRatio: expenseRatio,
+      annualCost: annualCost,
+      lifetimeCost: lifetimeCost,
+      holdingYears: holdingYears,
+    });
+
+    totalValue += value;
+    weightedER += expenseRatio * (value / 1); // Will normalize later
+    result.annualCost += annualCost;
+    result.lifetimeCost += lifetimeCost;
+  });
+
+  if (totalValue > 0) {
+    result.weightedExpenseRatio = weightedER / totalValue;
+  }
+
+  result.funds.sort((a, b) => b.annualCost - a.annualCost);
+
+  return result;
+}
+
+function displayExpenseImpact() {
+  const container = document.getElementById("expenseContent");
+  const data = calculateExpenseImpact();
+
+  let html = `
+    <div class="capital-gains-section">
+      <div class="section-header">
+        <h3>💰 Expense Ratio Impact</h3>
+        <p class="section-subtitle">See how much you're paying in fund management fees</p>
+      </div>
+
+      <div class="gains-summary-grid">
+        <div class="gains-summary-card">
+          <h4>Weighted Expense Ratio</h4>
+          <div class="summary-row">
+            <span>Your Portfolio</span>
+            <span class="loss">${data.weightedExpenseRatio.toFixed(3)}%</span>
+          </div>
+        </div>
+        <div class="gains-summary-card">
+          <h4>Annual Cost</h4>
+          <div class="summary-row">
+            <span>Total Fees/Year</span>
+            <span class="loss">₹${formatNumber(data.annualCost)}</span>
+          </div>
+        </div>
+        <div class="gains-summary-card">
+          <h4>Lifetime Cost</h4>
+          <div class="summary-row">
+            <span>Total Paid</span>
+            <span class="loss">₹${formatNumber(data.lifetimeCost)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="gains-table-wrapper" style="margin-top: 30px;">
+        <h4>Fund-wise Expense Breakdown</h4>
+        <table class="gains-table">
+          <thead>
+            <tr>
+              <th>Fund Name</th>
+              <th>Current Value</th>
+              <th>Expense Ratio</th>
+              <th>Annual Cost</th>
+              <th>Lifetime Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+  `;
+
+  data.funds.forEach((fund) => {
+    const erClass =
+      fund.expenseRatio > 1.5
+        ? "loss"
+        : fund.expenseRatio > 1
+        ? "warning"
+        : "gain";
+
+    html += `
+      <tr>
+        <td>${fund.name}</td>
+        <td>₹${formatNumber(fund.value)}</td>
+        <td class="${erClass}">${fund.expenseRatio.toFixed(2)}%</td>
+        <td>₹${formatNumber(fund.annualCost)}</td>
+        <td>₹${formatNumber(fund.lifetimeCost)}</td>
+      </tr>
+    `;
+  });
+
+  html += `
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = html;
+}
+
+function calculateHealthScore() {
+  const scores = {
+    diversification: 0,
+    expenseRatio: 0,
+    performance: 0,
+    overlap: 0,
+    overall: 0,
+    details: {},
+  };
+
+  const activeFunds = Object.values(fundWiseData).filter(
+    (f) => f.advancedMetrics?.currentValue > 0
+  );
+
+  if (activeFunds.length === 0) {
+    return { error: "No active funds to analyze" };
+  }
+
+  // 1. Diversification Score (25 points)
+  const fundCount = activeFunds.length;
+  if (fundCount >= 8) scores.diversification = 25;
+  else if (fundCount >= 5) scores.diversification = 20;
+  else if (fundCount >= 3) scores.diversification = 15;
+  else scores.diversification = 10;
+
+  scores.details.diversification = {
+    score: scores.diversification,
+    max: 25,
+    message: `You have ${fundCount} active funds`,
+  };
+
+  // 2. Expense Ratio Score (25 points)
+  let totalValue = 0;
+  let weightedER = 0;
+
+  activeFunds.forEach((fund) => {
+    const value = fund.advancedMetrics.currentValue;
+    const er = parseFloat(mfStats[fund.isin]?.expense_ratio || 0);
+    totalValue += value;
+    weightedER += er * value;
+  });
+
+  const avgER = totalValue > 0 ? weightedER / totalValue : 0;
+
+  if (avgER < 0.6) scores.expenseRatio = 25;
+  else if (avgER < 1.0) scores.expenseRatio = 20;
+  else if (avgER < 1.5) scores.expenseRatio = 15;
+  else if (avgER < 2.0) scores.expenseRatio = 10;
+  else scores.expenseRatio = 5;
+
+  scores.details.expenseRatio = {
+    score: scores.expenseRatio,
+    max: 25,
+    message: `Weighted expense ratio: ${avgER.toFixed(2)}%`,
+  };
+
+  // 3. Performance Score (25 points)
+  let outperformers = 0;
+  let benchmarkComparisons = 0;
+
+  activeFunds.forEach((fund) => {
+    const extended = mfStats[fund.isin];
+    if (!extended?.return_stats) return;
+
+    const fundReturn = extended.return_stats.return3y;
+    const benchmarkReturn = fund?.benchmark_returns?.return3y;
+
+    if (fundReturn != null && benchmarkReturn != null) {
+      benchmarkComparisons++;
+      if (fundReturn > benchmarkReturn) outperformers++;
+    }
+  });
+
+  if (benchmarkComparisons === 0) {
+    activeFunds.forEach((fund) => {
+      const extended = mfStats[fund.isin];
+      if (!extended?.return_stats) return;
+
+      const fundReturn = extended.return_stats.return3y;
+      const categoryReturn = extended.return_stats.cat_return3y;
+
+      if (fundReturn != null && categoryReturn != null) {
+        benchmarkComparisons++;
+        if (fundReturn > categoryReturn) outperformers++;
+      }
+    });
+  }
+
+  const outperformRatio =
+    benchmarkComparisons > 0 ? outperformers / benchmarkComparisons : 0.5; // Default to 50% if no data
+
+  if (outperformRatio >= 0.7) scores.performance = 25;
+  else if (outperformRatio >= 0.5) scores.performance = 20;
+  else if (outperformRatio >= 0.3) scores.performance = 15;
+  else scores.performance = 10;
+
+  scores.details.performance = {
+    score: scores.performance,
+    max: 25,
+    message:
+      benchmarkComparisons > 0
+        ? `${outperformers}/${benchmarkComparisons} funds beating benchmark`
+        : "Insufficient benchmark data available",
+  };
+
+  // 4. Overlap Score (25 points)
+  const overlapData = calculateOverlapAnalysis();
+
+  if (overlapData.error) {
+    scores.overlap = 20;
+    scores.details.overlap = {
+      score: 20,
+      max: 25,
+      message: "Not enough funds to assess overlap",
+    };
+  } else {
+    const highOverlaps = overlapData.fundPairs.filter(
+      (p) => p.overlapPercent > 50
+    ).length;
+    const mediumOverlaps = overlapData.fundPairs.filter(
+      (p) => p.overlapPercent > 25 && p.overlapPercent <= 50
+    ).length;
+
+    if (highOverlaps === 0 && mediumOverlaps === 0) scores.overlap = 25;
+    else if (highOverlaps === 0) scores.overlap = 20;
+    else if (highOverlaps <= 2) scores.overlap = 15;
+    else scores.overlap = 10;
+
+    scores.details.overlap = {
+      score: scores.overlap,
+      max: 25,
+      message: `${highOverlaps} high overlap pairs, ${mediumOverlaps} medium`,
+    };
+  }
+
+  scores.overall =
+    scores.diversification +
+    scores.expenseRatio +
+    scores.performance +
+    scores.overlap;
+
+  return scores;
+}
+
+function displayHealthScore() {
+  const container = document.getElementById("healthScoreContent");
+  const scores = calculateHealthScore();
+
+  if (scores.error) {
+    container.innerHTML = `
+      <div class="capital-gains-section">
+        <p class="no-data">${scores.error}</p>
+      </div>
+    `;
+    return;
+  }
+
+  const getGrade = (score) => {
+    if (score >= 85)
+      return { grade: "A+", color: "#10b981", message: "Excellent" };
+    if (score >= 75) return { grade: "A", color: "#10b981", message: "Great" };
+    if (score >= 65) return { grade: "B+", color: "#3b82f6", message: "Good" };
+    if (score >= 55)
+      return { grade: "B", color: "#3b82f6", message: "Above Average" };
+    if (score >= 45)
+      return { grade: "C", color: "#f59e0b", message: "Average" };
+    return { grade: "D", color: "#ef4444", message: "Needs Improvement" };
+  };
+
+  const result = getGrade(scores.overall);
+
+  let html = `
+    <div class="capital-gains-section">
+      <div class="section-header">
+        <h3>💪 Portfolio Health Score</h3>
+        <p class="section-subtitle">Data-driven assessment of your portfolio quality</p>
+      </div>
+
+      <div style="text-align: center; padding: 40px 20px; background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%); border-radius: 12px; margin-bottom: 30px;">
+        <h1 style="font-size: 72px; margin: 0; color: ${result.color};">${scores.overall}/100</h1>
+        <h2 style="font-size: 36px; margin: 10px 0; color: ${result.color};">Grade: ${result.grade}</h2>
+        <p style="font-size: 18px; color: #6b7280; margin: 0;">${result.message}</p>
+      </div>
+
+      <div class="gains-summary-grid">
+  `;
+
+  Object.entries(scores.details).forEach(([key, detail]) => {
+    const percentage = (detail.score / detail.max) * 100;
+    const color =
+      percentage >= 80
+        ? "#10b981"
+        : percentage >= 60
+        ? "#3b82f6"
+        : percentage >= 40
+        ? "#f59e0b"
+        : "#ef4444";
+
+    html += `
+      <div class="gains-summary-card">
+        <h4>${key.charAt(0).toUpperCase() + key.slice(1)}</h4>
+        <div style="position: relative; height: 8px; background: #e5e7eb; border-radius: 4px; margin: 10px 0;">
+          <div style="position: absolute; height: 100%; width: ${percentage}%; background: ${color}; border-radius: 4px;"></div>
+        </div>
+        <div class="summary-row">
+          <span>Score</span>
+          <span style="color: ${color}; font-weight: bold;">${detail.score}/${
+      detail.max
+    }</span>
+        </div>
+        <div class="summary-row">
+          <span style="font-size: 12px; color: #6b7280; font-style: italic;">${
+            detail.message
+          }</span>
+        </div>
+      </div>
+    `;
+  });
+
+  html += `
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = html;
+}
+
+function initializeUserManagement() {
+  const users = storageManager.getAllUsers();
+  allUsers = users;
+
+  const userSelector = document.getElementById("userSelector");
+  const userSelectorSection = document.getElementById("userSelectorSection");
+
+  const newSelector = userSelector.cloneNode(true);
+  userSelector.parentNode.replaceChild(newSelector, userSelector);
+
+  if (users.length > 0) {
+    userSelectorSection.style.display = "block";
+    populateUserSelector(users);
+
+    const lastUser = localStorage.getItem("lastActiveUser");
+    if (lastUser && users.includes(lastUser)) {
+      currentUser = lastUser;
+    } else {
+      currentUser = users[0];
+    }
+
+    newSelector.value = currentUser;
+    updateCurrentUserDisplay();
+
+    newSelector.addEventListener("change", onUserChange);
+
+    toggleFamilyDashboard();
+    return true;
+  } else {
+    userSelectorSection.style.display = "none";
+    return false;
+  }
+}
+
+function populateUserSelector(users) {
+  const selector = document.getElementById("userSelector");
+
+  users.forEach((user) => {
+    const option = document.createElement("option");
+    option.value = user;
+    option.textContent = user;
+    selector.appendChild(option);
+  });
+}
+
+function updateCurrentUserDisplay() {
+  const display = document.getElementById("currentUserDisplay");
+  if (currentUser) {
+    display.textContent = `Current User: ${currentUser}`;
+    display.style.display = "block";
+  } else {
+    display.style.display = "none";
+  }
+}
+
+async function onUserChange() {
+  const selector = document.getElementById("userSelector");
+  const selectedUser = selector.value;
+
+  if (!selectedUser) return;
+  if (selectedUser === currentUser) return;
+
+  const confirmSwitch = confirm(`Switch to user: ${selectedUser}?`);
+  if (!confirmSwitch) {
+    selector.value = currentUser;
+    return;
+  }
+
+  currentUser = selectedUser;
+  localStorage.setItem("lastActiveUser", currentUser);
+
+  showToast(`Switching to ${currentUser}...`, "success");
+  toggleFamilyDashboard();
+  setTimeout(() => {
+    location.reload();
+  }, 500);
+}
+
+async function deleteCurrentUser() {
+  if (!currentUser) {
+    showToast("No user selected", "warning");
+    return;
+  }
+
+  const confirmDelete = confirm(
+    `Are you sure you want to delete user "${currentUser}" and all their data? This cannot be undone.`
+  );
+
+  if (!confirmDelete) return;
+
+  showProcessingSplash();
+
+  try {
+    await storageManager.deleteUser(currentUser);
+
+    allUsers = storageManager.getAllUsers();
+
+    if (allUsers.length > 0) {
+      currentUser = allUsers[0];
+      localStorage.setItem("lastActiveUser", currentUser);
+    } else {
+      currentUser = null;
+      localStorage.removeItem("lastActiveUser");
+    }
+
+    hideProcessingSplash();
+    showToast("User deleted, reloading...", "success");
+    toggleFamilyDashboard();
+    invalidateFamilyDashboardCache();
+    setTimeout(() => {
+      location.reload();
+    }, 500);
+  } catch (err) {
+    hideProcessingSplash();
+    console.error("Error deleting user:", err);
+    showToast("Failed to delete user", "error");
+  }
+}
+
+async function deleteAllUsers() {
+  if (allUsers.length === 0) {
+    showToast("No users to delete", "info");
+    return;
+  }
+
+  const confirmDelete = confirm(
+    `⚠️ WARNING: This will delete ALL users (${allUsers.length}) and ALL their data permanently.\n\nThis action CANNOT be undone!\n\nAre you absolutely sure?`
+  );
+
+  if (!confirmDelete) return;
+
+  const doubleConfirm = confirm(
+    "This is your last chance!\n\nClick OK to permanently delete all user data."
+  );
+
+  if (!doubleConfirm) return;
+
+  showProcessingSplash();
+
+  try {
+    await storageManager.deleteAllUsers();
+
+    hideProcessingSplash();
+    showToast("All users deleted, reloading...", "success");
+
+    invalidateFamilyDashboardCache();
+
+    setTimeout(() => {
+      location.reload();
+    }, 500);
+  } catch (err) {
+    hideProcessingSplash();
+    console.error("Error deleting all users:", err);
+    showToast("Failed to delete all users: " + err.message, "error");
+  }
+}
+
+// ==================== FAMILY DASHBOARD ====================
+
+function toggleFamilyDashboard() {
+  const users = storageManager.getAllUsers();
+  const familyButtons = document.querySelectorAll(".family-dashboard-button");
+
+  if (users.length >= 2) {
+    // Show and enable Family Dashboard tab
+    familyButtons.forEach((btn) => {
+      btn.classList.remove("hidden");
+      btn.disabled = false;
+      btn.classList.remove("disabled-tab");
+      btn.style.opacity = "1";
+      btn.style.cursor = "pointer";
+      btn.title = "";
+
+      // Restore original onclick handlers
+      if (btn.classList.contains("mobile-menu-item")) {
+        btn.onclick = () => {
+          switchDashboardTab("family-dashboard");
+          closeMobileMenu();
+        };
+      } else {
+        btn.onclick = () => switchDashboardTab("family-dashboard");
+      }
+    });
+  } else {
+    // Show but disable/lock Family Dashboard tab
+    familyButtons.forEach((btn) => {
+      btn.classList.remove("hidden");
+      btn.disabled = true;
+      btn.classList.add("disabled-tab");
+      btn.style.opacity = "0.5";
+      btn.style.cursor = "not-allowed";
+      btn.title = "Requires at least 2 users";
+
+      // Override onclick to show warning
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showToast("Family Dashboard requires at least 2 users", "warning");
+        return false;
+      };
+    });
+  }
+}
+
+async function loadFamilyDashboard() {
+  const users = storageManager.getAllUsers();
+
+  if (users.length < 2) {
+    const container = document.getElementById("familySummaryCards");
+    container.innerHTML = `
+      <div class="card" style="grid-column: 1 / -1; text-align: center;">
+        <div style="font-size: 48px; margin-bottom: 20px;">🔒</div>
+        <h3 style="margin-bottom: 10px; color: #1f2937;">Family Dashboard Locked</h3>
+        <p style="color: #6b7280;">Upload CAS files for at least 2 family members to unlock this feature.</p>
+      </div>
+    `;
+
+    document.getElementById("familyWeightedReturnsContainer").innerHTML = "";
+    document.getElementById("familyUserBreakdown").innerHTML = "";
+
+    const analyticsSection = document.querySelector(
+      "#family-dashboard .portfolio-analytics-section"
+    );
+    if (analyticsSection) analyticsSection.style.display = "none";
+
+    const holdingsSection = document.querySelector(
+      "#family-dashboard .folio-section"
+    );
+    if (holdingsSection) holdingsSection.style.display = "none";
+
+    return;
+  }
+
+  // Show sections immediately to prevent flicker
+  const analyticsSection = document.querySelector(
+    "#family-dashboard .portfolio-analytics-section"
+  );
+  if (analyticsSection) analyticsSection.style.display = "block";
+
+  const holdingsSection = document.querySelector(
+    "#family-dashboard .folio-section"
+  );
+  if (holdingsSection) holdingsSection.style.display = "block";
+
+  // Check if we have cached data and it's still valid
+  if (familyDashboardInitialized && familyDashboardCache) {
+    console.log("📊 Using cached family dashboard data");
+
+    // Use cached data - instant display, no flicker!
+    displayFamilySummaryCards(familyDashboardCache);
+    displayFamilyAnalytics(familyDashboardCache);
+    displayFamilyUserBreakdown(familyDashboardCache.userBreakdown);
+
+    return;
+  }
+
+  // First time load - show minimal loading state
+  if (!familyDashboardInitialized) {
+    console.log("🔄 Loading family dashboard for first time...");
+
+    // Show loading state only on cards that need it
+    const summaryCards = document.getElementById("familySummaryCards");
+    summaryCards.innerHTML = `
+      <div class="card" style="grid-column: 1 / -1; text-align: center;">
+        <div style="font-size: 24px; color: #667eea;">
+          <i class="fa-solid fa-spinner fa-spin"></i> Loading family data...
+        </div>
+      </div>
+    `;
   }
 
   try {
-    const stored = await storageManager.loadPortfolioData();
+    // Load all users' data
+    const allUserData = {};
+    for (const user of users) {
+      const data = await storageManager.loadPortfolioData(user);
+      if (data) {
+        allUserData[user] = data;
+      }
+    }
+
+    // Calculate aggregated metrics
+    const familyMetrics = calculateFamilyMetrics(allUserData);
+    console.log("Family Metrics: ", familyMetrics);
+
+    // Cache the results
+    familyDashboardCache = familyMetrics;
+    familyDashboardCacheTimestamp = Date.now();
+    familyDashboardInitialized = true;
+
+    // Display
+    displayFamilySummaryCards(familyMetrics);
+    displayFamilyAnalytics(familyMetrics);
+    displayFamilyUserBreakdown(familyMetrics.userBreakdown);
+  } catch (err) {
+    console.error("Error loading family dashboard:", err);
+    showToast("Failed to load family dashboard", "error");
+  }
+}
+function calculateFamilyMetrics(allUserData) {
+  const metrics = {
+    totalCurrentValue: 0,
+    totalCost: 0,
+    totalInvested: 0,
+    totalWithdrawn: 0,
+    totalUnrealizedGain: 0,
+    totalHoldings: 0,
+    userBreakdown: {},
+    combinedFundData: {},
+    assetAllocation: {},
+    marketCap: { large: 0, mid: 0, small: 0 },
+    sector: {},
+    amc: {},
+    weightedReturns: { return1y: null, return3y: null, return5y: null },
+  };
+
+  Object.entries(allUserData).forEach(
+    ([userName, { casData, mfStats: userMfStats }]) => {
+      // Build fundWiseData for this user using the SAME logic as individual dashboard
+      const userFundWiseData = {};
+
+      // Process based on CAS type
+      if (casData.cas_type === "SUMMARY") {
+        // Summary CAS processing - exactly like processSummaryCAS
+        casData.folios.forEach((folio) => {
+          const key = folio.scheme.trim().toLowerCase();
+          const extendedData = folio.isin ? userMfStats[folio.isin] : null;
+
+          const units = parseFloat(folio.units || 0);
+          const cost = parseFloat(folio.cost || 0);
+          const latestNav = extendedData?.latest_nav
+            ? parseFloat(extendedData.latest_nav)
+            : parseFloat(folio.nav || 0);
+          const currentValue =
+            units > 0 && latestNav > 0
+              ? units * latestNav
+              : parseFloat(folio.current_value || 0);
+          const unrealizedGain = currentValue - cost;
+
+          userFundWiseData[key] = {
+            scheme: folio.scheme,
+            isin: folio.isin,
+            currentValue: currentValue,
+            cost: cost,
+            unrealizedGain: unrealizedGain,
+            units: units,
+            holdings: extendedData?.holdings || [],
+            advancedMetrics: {
+              currentValue: currentValue,
+              remainingCost: cost,
+              unrealizedGain: unrealizedGain,
+              totalUnitsRemaining: units,
+            },
+          };
+        });
+      } else {
+        // Detailed CAS processing - exactly like aggregateFundWiseData
+        casData.folios.forEach((folio) => {
+          if (!folio.schemes || !Array.isArray(folio.schemes)) return;
+
+          folio.schemes.forEach((scheme) => {
+            const schemeLower = scheme.scheme.toLowerCase();
+            if (
+              !schemeLower.includes("fund") &&
+              !schemeLower.includes("fof") &&
+              !schemeLower.includes("etf")
+            )
+              return;
+
+            // Skip if there are no transactions
+            if (
+              !Array.isArray(scheme.transactions) ||
+              scheme.transactions.length === 0
+            )
+              return;
+
+            const key = scheme.scheme.trim().toLowerCase();
+            const extendedData = scheme.isin ? userMfStats[scheme.isin] : null;
+
+            if (!userFundWiseData[key]) {
+              userFundWiseData[key] = {
+                scheme: scheme.scheme,
+                isin: scheme.isin,
+                holdings: extendedData?.holdings || [],
+                transactions: [],
+              };
+            }
+
+            // Add transactions (normalized)
+            const excludedTypes = [
+              "STAMP_DUTY_TAX",
+              "STT_TAX",
+              "MISC",
+              "OTHER",
+            ];
+            const typeMap = {
+              PURCHASE: "PURCHASE",
+              PURCHASE_SIP: "PURCHASE",
+              SWITCH_IN: "PURCHASE",
+              DIVIDEND_REINVEST: "PURCHASE",
+              REDEMPTION: "REDEMPTION",
+              SWITCH_OUT: "REDEMPTION",
+            };
+
+            const filteredTxns = scheme.transactions
+              .filter((t) => !excludedTypes.includes(t.type))
+              .map(({ description, dividend_rate, ...rest }) => ({
+                ...rest,
+                folio: folio.folio,
+                type: typeMap[rest.type] || rest.type,
+              }));
+
+            userFundWiseData[key].transactions.push(...filteredTxns);
+          });
+        });
+
+        // Calculate advanced metrics from transactions - SAME as calculateadvancedMetrics
+        Object.keys(userFundWiseData).forEach((key) => {
+          const fund = userFundWiseData[key];
+          const extendedData = fund.isin ? userMfStats[fund.isin] : null;
+
+          // Simple FIFO calculation for family dashboard (cost basis)
+          let totalUnits = 0;
+          let totalCost = 0;
+          const unitQueue = [];
+
+          fund.transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+          fund.transactions.forEach((tx) => {
+            const units = parseFloat(tx.units || 0);
+            const nav = parseFloat(tx.nav || 0);
+            const amount = units * nav;
+
+            if (tx.type === "PURCHASE") {
+              totalUnits += units;
+              totalCost += amount;
+              unitQueue.push({ units, nav, amount });
+            } else if (tx.type === "REDEMPTION") {
+              const unitsToSell = Math.abs(units);
+              totalUnits -= unitsToSell;
+
+              // FIFO - reduce cost
+              let remainingToSell = unitsToSell;
+              while (remainingToSell > 0.0001 && unitQueue.length > 0) {
+                const batch = unitQueue[0];
+                if (batch.units <= remainingToSell + 0.0001) {
+                  totalCost -= batch.amount;
+                  remainingToSell -= batch.units;
+                  unitQueue.shift();
+                } else {
+                  const costReduction =
+                    (remainingToSell / batch.units) * batch.amount;
+                  totalCost -= costReduction;
+                  batch.units -= remainingToSell;
+                  batch.amount -= costReduction;
+                  remainingToSell = 0;
+                }
+              }
+            }
+          });
+
+          const latestNav = extendedData?.latest_nav
+            ? parseFloat(extendedData.latest_nav)
+            : 0;
+          const currentValue =
+            totalUnits > 0.001 && latestNav > 0 ? totalUnits * latestNav : 0;
+          const remainingCost = totalUnits > 0.001 ? totalCost : 0;
+          const unrealizedGain = currentValue - remainingCost;
+
+          fund.currentValue = currentValue;
+          fund.cost = remainingCost;
+          fund.unrealizedGain = unrealizedGain;
+          fund.units = totalUnits;
+          fund.advancedMetrics = {
+            currentValue: currentValue,
+            remainingCost: remainingCost,
+            unrealizedGain: unrealizedGain,
+            totalUnitsRemaining: totalUnits,
+          };
+        });
+      }
+
+      // Aggregate user metrics - ONLY ACTIVE HOLDINGS (currentValue > 0)
+      let userCurrentValue = 0;
+      let userCost = 0;
+      let userHoldings = 0;
+
+      Object.entries(userFundWiseData).forEach(([fundKey, fund]) => {
+        // Only count if fund has current value > 0
+        if (fund.currentValue > 0 && fund.units > 0.001) {
+          userCurrentValue += fund.currentValue;
+          userCost += fund.cost;
+          userHoldings++; // Count only active holdings
+
+          // Add to combined fund data
+          if (!metrics.combinedFundData[fundKey]) {
+            metrics.combinedFundData[fundKey] = {
+              scheme: fund.scheme,
+              isin: fund.isin,
+              totalValue: 0,
+              totalCost: 0,
+              totalUnits: 0,
+              holdings: fund.holdings,
+              users: [],
+            };
+          }
+
+          metrics.combinedFundData[fundKey].totalValue += fund.currentValue;
+          metrics.combinedFundData[fundKey].totalCost += fund.cost;
+          metrics.combinedFundData[fundKey].totalUnits += fund.units;
+          metrics.combinedFundData[fundKey].users.push(userName);
+        }
+      });
+
+      // Store user breakdown
+      metrics.userBreakdown[userName] = {
+        currentValue: userCurrentValue,
+        cost: userCost,
+        unrealizedGain: userCurrentValue - userCost,
+        holdings: userHoldings, // This is now correct - only active holdings
+      };
+
+      // Add to totals
+      metrics.totalCurrentValue += userCurrentValue;
+      metrics.totalCost += userCost;
+      metrics.totalHoldings += userHoldings; // Now correctly counting only active holdings
+    }
+  );
+
+  metrics.totalUnrealizedGain = metrics.totalCurrentValue - metrics.totalCost;
+  metrics.totalHoldings = Object.keys(metrics.combinedFundData).length;
+
+  // Calculate portfolio analytics using combined fund data
+  const totalValue = metrics.totalCurrentValue;
+
+  if (totalValue === 0) return metrics; // Avoid division by zero
+
+  Object.entries(metrics.combinedFundData).forEach(([fundKey, fund]) => {
+    const weight = fund.totalValue / totalValue;
+    const extendedData = fund.isin
+      ? Object.values(allUserData)[0].mfStats[fund.isin]
+      : null;
+
+    if (extendedData) {
+      // Asset allocation
+      const fundAsset = extendedData.portfolio_stats?.asset_allocation;
+      if (fundAsset) {
+        Object.entries(fundAsset).forEach(([k, v]) => {
+          if (v == null || isNaN(parseFloat(v)) || parseFloat(v) <= 0) return;
+          const key = k.trim().toLowerCase();
+          let bucket = "other";
+          if (key.includes("equity")) bucket = "equity";
+          else if (key.includes("debt")) bucket = "debt";
+          else if (key.includes("commodities")) {
+            const subcategory =
+              extendedData?.sub_category?.toLowerCase?.() || "";
+            const name = fund?.scheme?.toLowerCase?.() || "";
+            if (subcategory.includes("gold") || name.includes("gold"))
+              bucket = "gold";
+            else if (subcategory.includes("silver") || name.includes("silver"))
+              bucket = "silver";
+            else bucket = "commodities";
+          } else if (key.includes("real estate")) bucket = "real estate";
+          else if (key.includes("cash")) bucket = "cash";
+
+          metrics.assetAllocation[bucket] =
+            (metrics.assetAllocation[bucket] || 0) +
+            (parseFloat(v) / 100) * weight * 100;
+        });
+      } else {
+        // Fallback to category-based classification
+        const category = (extendedData.category || "").toLowerCase();
+        if (category.includes("equity")) {
+          metrics.assetAllocation.equity =
+            (metrics.assetAllocation.equity || 0) + weight * 100;
+        } else if (category.includes("debt") || category.includes("income")) {
+          metrics.assetAllocation.debt =
+            (metrics.assetAllocation.debt || 0) + weight * 100;
+        } else {
+          metrics.assetAllocation.other =
+            (metrics.assetAllocation.other || 0) + weight * 100;
+        }
+      }
+
+      // Market cap
+      const ps = extendedData.portfolio_stats;
+      if (
+        ps?.large_cap !== undefined ||
+        ps?.mid_cap !== undefined ||
+        ps?.small_cap !== undefined
+      ) {
+        const l = parseFloat(ps.large_cap || 0);
+        const m = parseFloat(ps.mid_cap || 0);
+        const s = parseFloat(ps.small_cap || 0);
+        const total = l + m + s || 100;
+
+        metrics.marketCap.large += (l / total) * weight * 100;
+        metrics.marketCap.mid += (m / total) * weight * 100;
+        metrics.marketCap.small += (s / total) * weight * 100;
+      } else if (ps?.market_cap_per) {
+        const mp = ps.market_cap_per;
+        const l = parseFloat(mp.large || 0);
+        const m = parseFloat(mp.mid || 0);
+        const s = parseFloat(mp.small || 0);
+        const total = l + m + s || 100;
+
+        metrics.marketCap.large += (l / total) * weight * 100;
+        metrics.marketCap.mid += (m / total) * weight * 100;
+        metrics.marketCap.small += (s / total) * weight * 100;
+      } else {
+        // Fallback to name-based classification
+        const name = (fund.scheme || "").toLowerCase();
+        if (name.includes("small") || name.includes("smallcap")) {
+          metrics.marketCap.small += weight * 100;
+        } else if (name.includes("mid") || name.includes("midcap")) {
+          metrics.marketCap.mid += weight * 100;
+        } else {
+          metrics.marketCap.large += weight * 100;
+        }
+      }
+
+      // Sector
+      if (
+        ps?.equity_sector_per &&
+        Object.keys(ps.equity_sector_per).length > 0
+      ) {
+        Object.entries(ps.equity_sector_per).forEach(([sectorName, pct]) => {
+          if (pct == null) return;
+          const cleaned = sectorName.trim();
+          metrics.sector[cleaned] =
+            (metrics.sector[cleaned] || 0) +
+            (parseFloat(pct) / 100) * weight * 100;
+        });
+      } else {
+        metrics.sector["Unclassified"] =
+          (metrics.sector["Unclassified"] || 0) + weight * 100;
+      }
+
+      // AMC
+      const amcName = standardizeTitle(extendedData.amc || "Unknown AMC");
+      metrics.amc[amcName] = (metrics.amc[amcName] || 0) + weight * 100;
+
+      // Weighted returns
+      if (extendedData.return_stats) {
+        const rs = extendedData.return_stats;
+        const r1 = rs.return1y ?? rs.cat_return1y ?? null;
+        const r3 = rs.return3y ?? rs.cat_return3y ?? null;
+        const r5 = rs.return5y ?? rs.cat_return5y ?? null;
+
+        if (r1 != null)
+          metrics.weightedReturns.return1y =
+            (metrics.weightedReturns.return1y || 0) + parseFloat(r1) * weight;
+        if (r3 != null)
+          metrics.weightedReturns.return3y =
+            (metrics.weightedReturns.return3y || 0) + parseFloat(r3) * weight;
+        if (r5 != null)
+          metrics.weightedReturns.return5y =
+            (metrics.weightedReturns.return5y || 0) + parseFloat(r5) * weight;
+      }
+    }
+  });
+
+  // Normalize market cap
+  const mcSum =
+    metrics.marketCap.large + metrics.marketCap.mid + metrics.marketCap.small;
+  if (mcSum > 0) {
+    metrics.marketCap.large = (metrics.marketCap.large / mcSum) * 100;
+    metrics.marketCap.mid = (metrics.marketCap.mid / mcSum) * 100;
+    metrics.marketCap.small = (metrics.marketCap.small / mcSum) * 100;
+  }
+
+  // Limit sectors to top 10
+  const sectorEntries = Object.entries(metrics.sector).sort(
+    (a, b) => b[1] - a[1]
+  );
+  const sectorTop = sectorEntries.slice(0, 10);
+  const sectorTopObj = {};
+  let sectorOthers = 0;
+  sectorEntries.slice(10).forEach(([, v]) => (sectorOthers += v));
+  sectorTop.forEach(([k, v]) => (sectorTopObj[k] = v));
+  if (sectorOthers > 0) sectorTopObj["Others"] = sectorOthers;
+  metrics.sector = sectorTopObj;
+
+  // Round values
+  function roundMap(m) {
+    const out = {};
+    Object.entries(m).forEach(([k, v]) => {
+      const rounded = Math.round((v + Number.EPSILON) * 100) / 100;
+      // Only include if value > 0
+      if (rounded > 0) {
+        out[k] = rounded;
+      }
+    });
+    return out;
+  }
+
+  metrics.assetAllocation = roundMap(metrics.assetAllocation);
+  metrics.marketCap = roundMap(metrics.marketCap);
+  metrics.sector = roundMap(metrics.sector);
+  metrics.amc = roundMap(metrics.amc);
+
+  ["return1y", "return3y", "return5y"].forEach((k) => {
+    if (metrics.weightedReturns[k] != null) {
+      metrics.weightedReturns[k] =
+        Math.round((metrics.weightedReturns[k] + Number.EPSILON) * 100) / 100;
+    }
+  });
+
+  return metrics;
+}
+
+function displayFamilySummaryCards(metrics) {
+  const container = document.getElementById("familySummaryCards");
+
+  const unrealizedGainPercent =
+    metrics.totalCost > 0
+      ? ((metrics.totalUnrealizedGain / metrics.totalCost) * 100).toFixed(2)
+      : 0;
+
+  container.innerHTML = `
+    <div class="card">
+      <h3>Total Family Value</h3>
+      <div class="value">₹${formatNumber(metrics.totalCurrentValue)}</div>
+      <div class="subtext">Combined Portfolio Value</div>
+    </div>
+    <div class="card">
+      <h3>Total Cost</h3>
+      <div class="value">₹${formatNumber(metrics.totalCost)}</div>
+      <div class="subtext">Combined Investment</div>
+    </div>
+    <div class="card ${
+      metrics.totalUnrealizedGain >= 0 ? "positive" : "negative"
+    }">
+      <h3>Total P&L</h3>
+      <div class="value">${
+        metrics.totalUnrealizedGain >= 0 ? "₹" : "-₹"
+      }${formatNumber(Math.abs(metrics.totalUnrealizedGain))}</div>
+      <div class="subtext">${
+        metrics.totalUnrealizedGain >= 0 ? "+" : ""
+      }${unrealizedGainPercent}%</div>
+    </div>
+    <div class="card">
+      <h3>Total Unique Holdings</h3>
+      <div class="value">${metrics.totalHoldings}</div>
+      <div class="subtext">Across ${
+        Object.keys(metrics.userBreakdown).length
+      } Family Members</div>
+    </div>
+  `;
+}
+
+function displayFamilyAnalytics(metrics) {
+  if (familyAssetAllocationChart) {
+    familyAssetAllocationChart.destroy();
+    familyAssetAllocationChart = null;
+  }
+  if (familyMarketCapChart) {
+    familyMarketCapChart.destroy();
+    familyMarketCapChart = null;
+  }
+  if (familySectorChart) {
+    familySectorChart.destroy();
+    familySectorChart = null;
+  }
+  if (familyAmcChart) {
+    familyAmcChart.destroy();
+    familyAmcChart = null;
+  }
+
+  const assetLabels = [];
+  const assetData = [];
+  const preferred = [
+    "equity",
+    "debt",
+    "gold",
+    "silver",
+    "commodities",
+    "real estate",
+    "cash",
+    "other",
+  ];
+
+  preferred.forEach((k) => {
+    const val = parseFloat(metrics.assetAllocation[k]);
+    if (!isNaN(val) && val > 0) {
+      assetLabels.push(k.charAt(0).toUpperCase() + k.slice(1));
+      assetData.push(val);
+    }
+  });
+
+  Object.keys(metrics.assetAllocation).forEach((k) => {
+    if (!preferred.includes(k)) {
+      const val = parseFloat(metrics.assetAllocation[k]);
+      if (!isNaN(val) && val > 0) {
+        assetLabels.push(k.charAt(0).toUpperCase() + k.slice(1));
+        assetData.push(val);
+      }
+    }
+  });
+
+  if (assetData.length > 0) {
+    const [sortedLabels, sortedData] = sortData(assetLabels, assetData);
+    setTimeout(() => {
+      familyAssetAllocationChart = buildDoughnutChart(
+        "familyAssetAllocationChart",
+        sortedLabels,
+        sortedData
+      );
+      document
+        .getElementById("familyAssetAllocationCard")
+        ?.classList.remove("loading");
+    }, 50);
+  } else {
+    document.getElementById("familyAssetAllocationCard").innerHTML =
+      '<p style="text-align: center; color: #9ca3af; padding: 20px;">No data available</p>';
+  }
+
+  const mcLabels = [];
+  const mcData = [];
+
+  if (metrics.marketCap.large > 0) {
+    mcLabels.push("Large");
+    mcData.push(metrics.marketCap.large);
+  }
+  if (metrics.marketCap.mid > 0) {
+    mcLabels.push("Mid");
+    mcData.push(metrics.marketCap.mid);
+  }
+  if (metrics.marketCap.small > 0) {
+    mcLabels.push("Small");
+    mcData.push(metrics.marketCap.small);
+  }
+
+  if (mcData.length > 0) {
+    const [sortedLabels, sortedData] = sortData(mcLabels, mcData);
+    setTimeout(() => {
+      familyMarketCapChart = buildDoughnutChart(
+        "familyMarketCapChart",
+        sortedLabels,
+        sortedData
+      );
+      document
+        .getElementById("familyMarketCapCard")
+        ?.classList.remove("loading");
+    }, 100);
+  } else {
+    document.getElementById("familyMarketCapCard").innerHTML =
+      '<p style="text-align: center; color: #9ca3af; padding: 20px;">No data available</p>';
+  }
+
+  const sectorLabels = [];
+  const sectorData = [];
+
+  Object.entries(metrics.sector).forEach(([name, value]) => {
+    if (value > 0) {
+      sectorLabels.push(name);
+      sectorData.push(value);
+    }
+  });
+
+  const nonZeroEntries = Object.entries(metrics.sector).filter(
+    ([_, v]) => v > 0
+  );
+  const onlyUnclassified =
+    nonZeroEntries.length === 1 &&
+    nonZeroEntries[0][0].toLowerCase() === "unclassified";
+
+  const sectorCard = document.getElementById("familySectorCard");
+
+  if (onlyUnclassified || sectorData.length === 0) {
+    sectorCard.classList.add("hidden");
+  } else {
+    sectorCard.classList.remove("hidden");
+    const [sortedLabels, sortedData] = sortData(sectorLabels, sectorData);
+    setTimeout(() => {
+      familySectorChart = buildBarChart(
+        "familySectorChart",
+        sortedLabels,
+        sortedData
+      );
+      sectorCard.classList.remove("loading");
+    }, 200);
+  }
+
+  const amcLabels = [];
+  const amcData = [];
+
+  Object.entries(metrics.amc).forEach(([name, value]) => {
+    if (value > 0) {
+      const shortName = name
+        .replace(/mutual\s*fund/gi, "")
+        .replace(/\bmf\b/gi, "")
+        .trim();
+      amcLabels.push(shortName);
+      amcData.push(value);
+    }
+  });
+
+  if (amcData.length > 0) {
+    const [sortedLabels, sortedData] = sortData(amcLabels, amcData);
+    setTimeout(() => {
+      familyAmcChart = buildBarChart(
+        "familyAmcChart",
+        sortedLabels,
+        sortedData
+      );
+      document.getElementById("familyAmcCard")?.classList.remove("loading");
+    }, 300);
+  } else {
+    document.getElementById("familyAmcCard").innerHTML =
+      '<p style="text-align: center; color: #9ca3af; padding: 20px;">No data available</p>';
+  }
+
+  // Display Weighted Returns
+  const returnsContainer = document.getElementById(
+    "familyWeightedReturnsContainer"
+  );
+  returnsContainer.innerHTML = "";
+
+  const returnCards = [
+    { key: "return1y", title: "1Y Weighted Return" },
+    { key: "return3y", title: "3Y Weighted Return" },
+    { key: "return5y", title: "5Y Weighted Return" },
+  ];
+
+  returnCards.forEach((c) => {
+    const val = metrics.weightedReturns[c.key];
+    const card = document.createElement("div");
+    card.className = "return-card";
+
+    const display = val === null || isNaN(val) ? "--" : `${val}%`;
+    const cls = val === null ? "" : val >= 0 ? "positive" : "negative";
+
+    card.innerHTML = `
+      <h4>${c.title}</h4>
+      <div class="return-value ${cls}">${display}</div>
+    `;
+
+    returnsContainer.appendChild(card);
+  });
+}
+
+function displayFamilyUserBreakdown(userBreakdown) {
+  const container = document.getElementById("familyUserBreakdown");
+  container.innerHTML = "";
+
+  // Sort users by current value (descending)
+  const sortedUsers = Object.entries(userBreakdown).sort(
+    (a, b) => b[1].currentValue - a[1].currentValue
+  );
+
+  sortedUsers.forEach(([userName, data]) => {
+    const gainPercent =
+      data.cost > 0 ? ((data.unrealizedGain / data.cost) * 100).toFixed(2) : 0;
+    const gainClass = data.unrealizedGain >= 0 ? "gain" : "loss";
+
+    const card = document.createElement("div");
+    card.className = "family-user-card";
+
+    card.innerHTML = `
+      <h4>👤 ${userName}</h4>
+      <div class="family-user-stats">
+        <div class="family-stat-row">
+          <span class="label">Current Value:</span>
+          <span class="value">₹${formatNumber(data.currentValue)}</span>
+        </div>
+        <div class="family-stat-row">
+          <span class="label">Cost:</span>
+          <span class="value">₹${formatNumber(data.cost)}</span>
+        </div>
+        <div class="family-stat-row">
+          <span class="label">P&L:</span>
+          <span class="value ${gainClass}">
+            ${data.unrealizedGain >= 0 ? "+" : ""}₹${formatNumber(
+      Math.abs(data.unrealizedGain)
+    )} 
+            (${data.unrealizedGain >= 0 ? "+" : ""}${gainPercent}%)
+          </span>
+        </div>
+        <div class="family-stat-row">
+          <span class="label">Active Holdings:</span>
+          <span class="value">${data.holdings}</span>
+        </div>
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+function invalidateFamilyDashboardCache() {
+  familyDashboardCache = null;
+  familyDashboardCacheTimestamp = null;
+  familyDashboardInitialized = false;
+}
+
+window.addEventListener("DOMContentLoaded", async () => {
+  const dashboard = document.getElementById("dashboard");
+
+  // Initialize user management
+  const hasUsers = initializeUserManagement();
+
+  if (!hasUsers) {
+    console.log("📡 No users found");
+    showUploadSection();
+    return;
+  }
+
+  // Load last file info for current user from localStorage
+  if (currentUser) {
+    const storedFileInfo = localStorage.getItem(
+      `lastCASFileInfo_${currentUser}`
+    );
+    if (storedFileInfo) {
+      lastUploadedFileInfo = storedFileInfo;
+    }
+  }
+
+  try {
+    const stored = await storageManager.loadPortfolioData(currentUser);
 
     if (stored) {
       const showCards = ["clear-cache", "update-stats", "update-nav"];
-
       const hideCard = "instructions-card";
 
       showCards.forEach((e) =>
@@ -6010,29 +8397,47 @@ window.addEventListener("DOMContentLoaded", async () => {
 
       portfolioData = stored.casData;
       mfStats = stored.mfStats;
-      console.log("✅ Loaded from IndexedDB");
 
-      await processPortfolio();
+      isSummaryCAS = portfolioData.cas_type === "SUMMARY";
+
+      console.log(
+        "✅ Loaded from IndexedDB - User:",
+        currentUser,
+        " - CAS Type:",
+        isSummaryCAS ? "SUMMARY" : "DETAILED"
+      );
+
+      if (isSummaryCAS) {
+        processSummaryCAS();
+      } else {
+        await processPortfolio();
+        enableSummaryIncompatibleTabs();
+      }
+
+      toggleFamilyDashboard();
+
       hideProcessingSplash();
-      showToast("Portfolio loaded from cache!", "success");
+      showToast(`Portfolio loaded for ${currentUser}!`, "success");
 
-      // Update footer info
       updateFooterInfo();
-
       enableAllTabs();
+
+      if (isSummaryCAS) {
+        disableSummaryIncompatibleTabs();
+      }
+
       dashboard.classList.add("active");
       switchDashboardTab("main");
 
-      // Perform auto-updates in background
       setTimeout(async () => {
         await checkAndPerformAutoUpdates();
-        updateFooterInfo(); // Update footer after auto-updates
+        updateFooterInfo();
       }, 2000);
 
       return;
     }
 
-    console.log("📡 No data in IndexedDB");
+    console.log(`📡 No data for user: ${currentUser}`);
     showUploadSection();
   } catch (err) {
     console.error("Load error:", err);
