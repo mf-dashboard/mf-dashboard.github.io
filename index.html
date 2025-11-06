@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
-    <link rel="stylesheet" href="styles.css?v=2025113" />
+    <link rel="stylesheet" href="styles.css?v=20251105" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -33,7 +33,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=2025113" />
+    <link rel="manifest" href="/manifest.json?v=20251105" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -435,38 +435,84 @@
             <div class="card">
               <h3>Current Holdings</h3>
               <div class="value" id="totalHoldings">0</div>
-              <div class="subtext">Currently Invested Funds</div>
+              <div class="subtext">
+                With <span id="avgHoldingDays"></span> Avg. holding days
+              </div>
             </div>
-            <div class="card">
+            <div class="card hidden">
               <h3>Avg. Holding Days</h3>
               <div class="value" id="avgHoldingDays">0</div>
               <div class="subtext">Average Holding Period</div>
             </div>
-            <div class="card extra-card hidden">
+            <div class="card hidden">
               <h3>All-Time Invested</h3>
               <div class="value">₹<span id="totalInvested">0</span></div>
               <div class="subtext">Total Investment Till Date</div>
             </div>
-            <div class="card extra-card hidden">
+            <div class="card hidden">
               <h3>All-Time Withdrawn</h3>
               <div class="value">₹<span id="totalWithdrawn">0</span></div>
               <div class="subtext">Total Redemptions Made Till Date</div>
             </div>
-            <div class="card extra-card hidden">
+            <div class="card">
               <h3>All-Time P&L</h3>
               <div class="value" id="overallGain">₹0</div>
               <div class="subtext" id="overallGainPercent">0% | XIRR: --</div>
             </div>
-            <div class="card extra-card hidden">
+            <div class="card hidden">
               <h3>Realized P&L</h3>
               <div class="value" id="realizedGain">₹0</div>
               <div class="subtext" id="realizedGainPercent">0%</div>
             </div>
           </div>
-          <div class="see-more current-holdings-header">
-            <button id="toggleSeeMore" class="see-more-btn">
-              <i class="fa-solid fa-eye"></i> Show Overall Stats
-            </button>
+          <div class="compact-dashboard" id="compactDashboard">
+            <div class="compact-summary-card">
+              <div class="compact-header">
+                <h3>HOLDINGS (<span id="compactHoldingsCount">0</span>)</h3>
+                <h2 class="compact-total-value">
+                  ₹<span id="compactTotalValue">0</span>
+                </h2>
+              </div>
+
+              <div class="compact-stats">
+                <div class="compact-stat-row">
+                  <span class="stat-label">1D Returns</span>
+                  <span class="stat-value positive" id="compact1DReturns"
+                    >+₹0 (0%)</span
+                  >
+                </div>
+
+                <div class="compact-stat-row">
+                  <span class="stat-label">Total Returns</span>
+                  <span class="stat-value positive" id="compactTotalReturns"
+                    >+₹0 (0%)</span
+                  >
+                </div>
+
+                <div class="compact-stat-row">
+                  <span class="stat-label">Invested</span>
+                  <span class="stat-value" id="compactInvested">₹0</span>
+                </div>
+
+                <div class="compact-stat-row">
+                  <span class="stat-label">XIRR</span>
+                  <span class="stat-value" id="compactXIRR">0%</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="compact-controls">
+              <button class="compact-sort-btn" onclick="toggleCompactXIRR()">
+                <span>XIRR %</span>
+                <i class="fa-solid fa-sort"></i>
+              </button>
+              <button class="compact-filter-btn" onclick="toggleCompactSort()">
+                <span>Current Value</span>
+                <i class="fa-solid fa-sort"></i>
+              </button>
+            </div>
+
+            <div class="compact-holdings-list" id="compactHoldingsList"></div>
           </div>
           <div class="portfolio-analytics-section">
             <h3>Portfolio Analytics</h3>
@@ -591,6 +637,7 @@
           <div id="healthScoreContent"></div>
         </section>
         <section id="family-dashboard">
+          <div class="compact-dashboard" id="compactFamilyDashboard"></div>
           <div class="family-header">
             <h2>👨‍👩‍👧‍👦 Family Portfolio Dashboard</h2>
             <p class="family-subtitle">
@@ -660,7 +707,7 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=2025113"></script>
-    <script src="script.js?v=2025113"></script>
+    <script src="indexeddb-helper.js?v=20251105"></script>
+    <script src="script.js?v=20251105"></script>
   </body>
 </html>

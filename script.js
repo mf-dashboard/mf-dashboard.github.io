@@ -46,12 +46,11 @@ let familyAmcChart = null;
 
 function calculateAndDisplayPortfolioAnalytics() {
   try {
-    // Add loading state to all cards
     document.getElementById("assetAllocationCard")?.classList.add("loading");
     document.getElementById("marketCapCard")?.classList.add("loading");
     document.getElementById("sectorCard")?.classList.add("loading");
     document.getElementById("amcCard")?.classList.add("loading");
-    document.getElementById("holdingsCard")?.classList.add("loading"); // Add in loading section
+    document.getElementById("holdingsCard")?.classList.add("loading");
 
     setTimeout(() => {
       const analytics = calculatePortfolioAnalytics();
@@ -80,7 +79,6 @@ function calculateAndDisplayPortfolioAnalytics() {
     }, 100);
   } catch (err) {
     console.error("Portfolio analytics failed:", err);
-    // Remove loading state on error
     document.getElementById("assetAllocationCard")?.classList.remove("loading");
     document.getElementById("marketCapCard")?.classList.remove("loading");
     document.getElementById("sectorCard")?.classList.remove("loading");
@@ -112,9 +110,8 @@ function calculatePortfolioAnalytics() {
     if (!(value > 0)) return;
 
     const weight = value / result.totalValue;
-    const extended = fund.isin ? mfStats[fund.isin] : null; // Cache lookup
+    const extended = fund.isin ? mfStats[fund.isin] : null;
 
-    // Asset allocation
     const fundAsset = extended?.portfolio_stats?.asset_allocation;
     if (fundAsset) {
       Object.entries(fundAsset).forEach(([k, v]) => {
@@ -157,7 +154,6 @@ function calculatePortfolioAnalytics() {
       }
     }
 
-    // Market cap
     const ps = extended?.portfolio_stats;
     if (
       ps?.large_cap !== undefined ||
@@ -193,7 +189,6 @@ function calculatePortfolioAnalytics() {
       }
     }
 
-    // Sector
     if (ps?.equity_sector_per && Object.keys(ps.equity_sector_per).length > 0) {
       Object.entries(ps.equity_sector_per).forEach(([sectorName, pct]) => {
         if (pct == null) return;
@@ -207,26 +202,22 @@ function calculatePortfolioAnalytics() {
         (result.sector["Unclassified"] || 0) + weight * 100;
     }
 
-    // AMC
     const amcName = standardizeTitle(
       extended?.amc ?? fund.amc ?? "Unknown AMC"
     );
     result.amc[amcName] = (result.amc[amcName] || 0) + weight * 100;
 
-    // Holdings Aggregation
     if (
       fund.holdings &&
       Array.isArray(fund.holdings) &&
       fund.holdings.length > 0
     ) {
-      // Calculate total holdings percentage for this fund
       let fundHoldingsTotal = 0;
       fund.holdings.forEach((holding) => {
         const holdingWeight = parseFloat(holding.corpus_per || 0);
         fundHoldingsTotal += holdingWeight;
       });
 
-      // Add actual holdings
       fund.holdings.forEach((holding) => {
         const companyName = holding.company_name || "Unknown";
         const holdingWeight = parseFloat(holding.corpus_per || 0);
@@ -246,7 +237,6 @@ function calculatePortfolioAnalytics() {
         }
       });
 
-      // Add remaining portion as Cash/Debt if holdings don't add up to 100%
       if (fundHoldingsTotal < 100 && fundHoldingsTotal > 0) {
         const remainingPercentage = 100 - fundHoldingsTotal;
         const portfolioWeight = (remainingPercentage / 100) * weight * 100;
@@ -264,7 +254,6 @@ function calculatePortfolioAnalytics() {
       }
     }
 
-    // Weighted returns
     if (extended?.return_stats) {
       const rs = extended.return_stats;
       const r1 = rs.return1y ?? rs.cat_return1y ?? null;
@@ -283,7 +272,6 @@ function calculatePortfolioAnalytics() {
     }
   });
 
-  // Normalization
   result.assetAllocation.equity = result.assetAllocation.equity || 0;
   result.assetAllocation.debt = result.assetAllocation.debt || 0;
   result.assetAllocation.cash = result.assetAllocation.cash || 0;
@@ -369,6 +357,12 @@ function sortData(labels, data) {
 }
 
 function buildDoughnutChart(canvasId, labels, data) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) {
+    console.warn(`Canvas element '${canvasId}' not found`);
+    return null;
+  }
+
   const ctx = document.getElementById(canvasId).getContext("2d");
   return new Chart(ctx, {
     type: "doughnut",
@@ -430,6 +424,12 @@ function buildDoughnutChart(canvasId, labels, data) {
 }
 
 function buildBarChart(canvasId, labels, data) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) {
+    console.warn(`Canvas element '${canvasId}' not found`);
+    return null;
+  }
+
   const ctx = document.getElementById(canvasId).getContext("2d");
   const maxVal = Math.max(...data);
   const suggestedMax = Math.min(100, Math.ceil((maxVal * 1.1) / 10) * 10);
@@ -955,6 +955,10 @@ function downloadFundHoldings(fundKey) {
 
 function displayWeightedReturns(wr) {
   const container = document.getElementById("weightedReturnsContainer");
+  if (!container) {
+    console.warn("weightedReturnsContainer not found");
+    return;
+  }
   container.innerHTML = "";
 
   const cards = [
@@ -1691,6 +1695,7 @@ function processSummaryCAS() {
   requestAnimationFrame(() => {
     updateSummaryFundBreakdown();
     calculateAndDisplayPortfolioAnalytics();
+    updateCompactDashboard();
     switchDashboardTab("main");
   });
 }
@@ -2046,6 +2051,7 @@ async function processPortfolio() {
     calculateAndDisplayPortfolioAnalytics();
     displayCapitalGains();
     initializeTransactionSections();
+    updateCompactDashboard();
     switchDashboardTab("main");
   });
 
@@ -5999,17 +6005,6 @@ document.getElementById("toggleExtendedBtn").addEventListener("click", () => {
   }
 });
 
-document.getElementById("toggleSeeMore").addEventListener("click", () => {
-  const extendedElements = document.querySelectorAll(".extra-card");
-  extendedElements.forEach((el) => el.classList.toggle("hidden"));
-
-  const firstHidden = extendedElements[0].classList.contains("hidden");
-
-  document.getElementById("toggleSeeMore").innerHTML = firstHidden
-    ? `<i class="fa-solid fa-eye"></i> Show Overall Stats`
-    : `<i class="fa-solid fa-eye-slash"></i> Hide Overall Stats`;
-});
-
 let currentWidthCategory;
 
 function getWidthCategory() {
@@ -6746,10 +6741,14 @@ async function checkAndPerformAutoUpdates() {
 
 function showUploadSection() {
   const dashboard = document.getElementById("dashboard");
+  if (!dashboard) {
+    console.warn("Dashboard element not found");
+    return;
+  }
 
   // Show dashboard but in disabled state
   dashboard.classList.add("active");
-  dashboard.classList.remove("disabled"); // Remove disabled class to allow tab switching
+  dashboard.classList.remove("disabled");
 
   // Disable all tabs except CAS upload
   disableAllTabsExceptUpload();
@@ -6758,10 +6757,14 @@ function showUploadSection() {
   const hideCards = ["clear-cache", "update-stats", "update-nav"];
   const showCard = "instructions-card";
 
-  hideCards.forEach((e) =>
-    document.querySelector("." + e).classList.add("hidden")
-  );
-  document.querySelector("." + showCard).classList.remove("hidden");
+  hideCards.forEach((e) => {
+    const element = document.querySelector("." + e);
+    if (element) element.classList.add("hidden");
+  });
+
+  const instructionsCard = document.querySelector("." + showCard);
+  if (instructionsCard) instructionsCard.classList.remove("hidden");
+
   showToast("Please upload CAS to view the Dashboard.", "info");
 }
 
@@ -6780,6 +6783,7 @@ function disableAllTabsExceptUpload() {
   document
     .querySelectorAll(".dashboard-tab-btn, .mobile-menu-item")
     .forEach((btn) => {
+      if (!btn) return;
       if (!btn.classList.contains("cas-upload-tab-button")) {
         btn.disabled = true;
         btn.style.opacity = "0.5";
@@ -7519,14 +7523,11 @@ async function deleteAllUsers() {
   }
 }
 
-// ==================== FAMILY DASHBOARD ====================
-
 function toggleFamilyDashboard() {
   const users = storageManager.getAllUsers();
   const familyButtons = document.querySelectorAll(".family-dashboard-button");
 
   if (users.length >= 2) {
-    // Show and enable Family Dashboard tab
     familyButtons.forEach((btn) => {
       btn.classList.remove("hidden");
       btn.disabled = false;
@@ -7535,7 +7536,6 @@ function toggleFamilyDashboard() {
       btn.style.cursor = "pointer";
       btn.title = "";
 
-      // Restore original onclick handlers
       if (btn.classList.contains("mobile-menu-item")) {
         btn.onclick = () => {
           switchDashboardTab("family-dashboard");
@@ -7546,7 +7546,6 @@ function toggleFamilyDashboard() {
       }
     });
   } else {
-    // Show but disable/lock Family Dashboard tab
     familyButtons.forEach((btn) => {
       btn.classList.remove("hidden");
       btn.disabled = true;
@@ -7555,7 +7554,6 @@ function toggleFamilyDashboard() {
       btn.style.cursor = "not-allowed";
       btn.title = "Requires at least 2 users";
 
-      // Override onclick to show warning
       btn.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -7595,7 +7593,6 @@ async function loadFamilyDashboard() {
     return;
   }
 
-  // Show sections immediately to prevent flicker
   const analyticsSection = document.querySelector(
     "#family-dashboard .portfolio-analytics-section"
   );
@@ -7606,23 +7603,17 @@ async function loadFamilyDashboard() {
   );
   if (holdingsSection) holdingsSection.style.display = "block";
 
-  // Check if we have cached data and it's still valid
   if (familyDashboardInitialized && familyDashboardCache) {
     console.log("📊 Using cached family dashboard data");
 
-    // Use cached data - instant display, no flicker!
     displayFamilySummaryCards(familyDashboardCache);
     displayFamilyAnalytics(familyDashboardCache);
     displayFamilyUserBreakdown(familyDashboardCache.userBreakdown);
-
+    updateCompactFamilyDashboard(familyDashboardCache);
     return;
   }
 
-  // First time load - show minimal loading state
   if (!familyDashboardInitialized) {
-    console.log("🔄 Loading family dashboard for first time...");
-
-    // Show loading state only on cards that need it
     const summaryCards = document.getElementById("familySummaryCards");
     summaryCards.innerHTML = `
       <div class="card" style="grid-column: 1 / -1; text-align: center;">
@@ -7634,7 +7625,6 @@ async function loadFamilyDashboard() {
   }
 
   try {
-    // Load all users' data
     const allUserData = {};
     for (const user of users) {
       const data = await storageManager.loadPortfolioData(user);
@@ -7643,19 +7633,17 @@ async function loadFamilyDashboard() {
       }
     }
 
-    // Calculate aggregated metrics
     const familyMetrics = calculateFamilyMetrics(allUserData);
     console.log("Family Metrics: ", familyMetrics);
 
-    // Cache the results
     familyDashboardCache = familyMetrics;
     familyDashboardCacheTimestamp = Date.now();
     familyDashboardInitialized = true;
 
-    // Display
     displayFamilySummaryCards(familyMetrics);
     displayFamilyAnalytics(familyMetrics);
     displayFamilyUserBreakdown(familyMetrics.userBreakdown);
+    updateCompactFamilyDashboard(familyMetrics);
   } catch (err) {
     console.error("Error loading family dashboard:", err);
     showToast("Failed to load family dashboard", "error");
@@ -7680,12 +7668,9 @@ function calculateFamilyMetrics(allUserData) {
 
   Object.entries(allUserData).forEach(
     ([userName, { casData, mfStats: userMfStats }]) => {
-      // Build fundWiseData for this user using the SAME logic as individual dashboard
       const userFundWiseData = {};
 
-      // Process based on CAS type
       if (casData.cas_type === "SUMMARY") {
-        // Summary CAS processing - exactly like processSummaryCAS
         casData.folios.forEach((folio) => {
           const key = folio.scheme.trim().toLowerCase();
           const extendedData = folio.isin ? userMfStats[folio.isin] : null;
@@ -7718,7 +7703,6 @@ function calculateFamilyMetrics(allUserData) {
           };
         });
       } else {
-        // Detailed CAS processing - exactly like aggregateFundWiseData
         casData.folios.forEach((folio) => {
           if (!folio.schemes || !Array.isArray(folio.schemes)) return;
 
@@ -7731,7 +7715,6 @@ function calculateFamilyMetrics(allUserData) {
             )
               return;
 
-            // Skip if there are no transactions
             if (
               !Array.isArray(scheme.transactions) ||
               scheme.transactions.length === 0
@@ -7750,7 +7733,6 @@ function calculateFamilyMetrics(allUserData) {
               };
             }
 
-            // Add transactions (normalized)
             const excludedTypes = [
               "STAMP_DUTY_TAX",
               "STT_TAX",
@@ -7778,12 +7760,10 @@ function calculateFamilyMetrics(allUserData) {
           });
         });
 
-        // Calculate advanced metrics from transactions - SAME as calculateadvancedMetrics
         Object.keys(userFundWiseData).forEach((key) => {
           const fund = userFundWiseData[key];
           const extendedData = fund.isin ? userMfStats[fund.isin] : null;
 
-          // Simple FIFO calculation for family dashboard (cost basis)
           let totalUnits = 0;
           let totalCost = 0;
           const unitQueue = [];
@@ -7803,7 +7783,6 @@ function calculateFamilyMetrics(allUserData) {
               const unitsToSell = Math.abs(units);
               totalUnits -= unitsToSell;
 
-              // FIFO - reduce cost
               let remainingToSell = unitsToSell;
               while (remainingToSell > 0.0001 && unitQueue.length > 0) {
                 const batch = unitQueue[0];
@@ -7844,19 +7823,16 @@ function calculateFamilyMetrics(allUserData) {
         });
       }
 
-      // Aggregate user metrics - ONLY ACTIVE HOLDINGS (currentValue > 0)
       let userCurrentValue = 0;
       let userCost = 0;
       let userHoldings = 0;
 
       Object.entries(userFundWiseData).forEach(([fundKey, fund]) => {
-        // Only count if fund has current value > 0
         if (fund.currentValue > 0 && fund.units > 0.001) {
           userCurrentValue += fund.currentValue;
           userCost += fund.cost;
-          userHoldings++; // Count only active holdings
+          userHoldings++;
 
-          // Add to combined fund data
           if (!metrics.combinedFundData[fundKey]) {
             metrics.combinedFundData[fundKey] = {
               scheme: fund.scheme,
@@ -7876,28 +7852,25 @@ function calculateFamilyMetrics(allUserData) {
         }
       });
 
-      // Store user breakdown
       metrics.userBreakdown[userName] = {
         currentValue: userCurrentValue,
         cost: userCost,
         unrealizedGain: userCurrentValue - userCost,
-        holdings: userHoldings, // This is now correct - only active holdings
+        holdings: userHoldings,
       };
 
-      // Add to totals
       metrics.totalCurrentValue += userCurrentValue;
       metrics.totalCost += userCost;
-      metrics.totalHoldings += userHoldings; // Now correctly counting only active holdings
+      metrics.totalHoldings += userHoldings;
     }
   );
 
   metrics.totalUnrealizedGain = metrics.totalCurrentValue - metrics.totalCost;
   metrics.totalHoldings = Object.keys(metrics.combinedFundData).length;
 
-  // Calculate portfolio analytics using combined fund data
   const totalValue = metrics.totalCurrentValue;
 
-  if (totalValue === 0) return metrics; // Avoid division by zero
+  if (totalValue === 0) return metrics;
 
   Object.entries(metrics.combinedFundData).forEach(([fundKey, fund]) => {
     const weight = fund.totalValue / totalValue;
@@ -7906,7 +7879,6 @@ function calculateFamilyMetrics(allUserData) {
       : null;
 
     if (extendedData) {
-      // Asset allocation
       const fundAsset = extendedData.portfolio_stats?.asset_allocation;
       if (fundAsset) {
         Object.entries(fundAsset).forEach(([k, v]) => {
@@ -7932,7 +7904,6 @@ function calculateFamilyMetrics(allUserData) {
             (parseFloat(v) / 100) * weight * 100;
         });
       } else {
-        // Fallback to category-based classification
         const category = (extendedData.category || "").toLowerCase();
         if (category.includes("equity")) {
           metrics.assetAllocation.equity =
@@ -7946,7 +7917,6 @@ function calculateFamilyMetrics(allUserData) {
         }
       }
 
-      // Market cap
       const ps = extendedData.portfolio_stats;
       if (
         ps?.large_cap !== undefined ||
@@ -7972,7 +7942,6 @@ function calculateFamilyMetrics(allUserData) {
         metrics.marketCap.mid += (m / total) * weight * 100;
         metrics.marketCap.small += (s / total) * weight * 100;
       } else {
-        // Fallback to name-based classification
         const name = (fund.scheme || "").toLowerCase();
         if (name.includes("small") || name.includes("smallcap")) {
           metrics.marketCap.small += weight * 100;
@@ -7983,7 +7952,6 @@ function calculateFamilyMetrics(allUserData) {
         }
       }
 
-      // Sector
       if (
         ps?.equity_sector_per &&
         Object.keys(ps.equity_sector_per).length > 0
@@ -8000,11 +7968,9 @@ function calculateFamilyMetrics(allUserData) {
           (metrics.sector["Unclassified"] || 0) + weight * 100;
       }
 
-      // AMC
       const amcName = standardizeTitle(extendedData.amc || "Unknown AMC");
       metrics.amc[amcName] = (metrics.amc[amcName] || 0) + weight * 100;
 
-      // Weighted returns
       if (extendedData.return_stats) {
         const rs = extendedData.return_stats;
         const r1 = rs.return1y ?? rs.cat_return1y ?? null;
@@ -8024,7 +7990,6 @@ function calculateFamilyMetrics(allUserData) {
     }
   });
 
-  // Normalize market cap
   const mcSum =
     metrics.marketCap.large + metrics.marketCap.mid + metrics.marketCap.small;
   if (mcSum > 0) {
@@ -8033,7 +7998,6 @@ function calculateFamilyMetrics(allUserData) {
     metrics.marketCap.small = (metrics.marketCap.small / mcSum) * 100;
   }
 
-  // Limit sectors to top 10
   const sectorEntries = Object.entries(metrics.sector).sort(
     (a, b) => b[1] - a[1]
   );
@@ -8045,12 +8009,10 @@ function calculateFamilyMetrics(allUserData) {
   if (sectorOthers > 0) sectorTopObj["Others"] = sectorOthers;
   metrics.sector = sectorTopObj;
 
-  // Round values
   function roundMap(m) {
     const out = {};
     Object.entries(m).forEach(([k, v]) => {
       const rounded = Math.round((v + Number.EPSILON) * 100) / 100;
-      // Only include if value > 0
       if (rounded > 0) {
         out[k] = rounded;
       }
@@ -8099,7 +8061,7 @@ function displayFamilySummaryCards(metrics) {
       <div class="value">${
         metrics.totalUnrealizedGain >= 0 ? "₹" : "-₹"
       }${formatNumber(Math.abs(metrics.totalUnrealizedGain))}</div>
-      <div class="subtext">${
+      <div class="subtext">Absolute: ${
         metrics.totalUnrealizedGain >= 0 ? "+" : ""
       }${unrealizedGainPercent}%</div>
     </div>
@@ -8111,6 +8073,94 @@ function displayFamilySummaryCards(metrics) {
       } Family Members</div>
     </div>
   `;
+}
+
+function updateCompactFamilyDashboard(metrics) {
+  if (!metrics || window.innerWidth > 500) return;
+
+  const container = document.getElementById("compactFamilyDashboard");
+  if (!container) return;
+
+  const unrealizedGainPercent =
+    metrics.totalCost > 0
+      ? ((metrics.totalUnrealizedGain / metrics.totalCost) * 100).toFixed(2)
+      : 0;
+
+  container.innerHTML = `
+    <div class="compact-summary-card">
+      <div class="compact-header">
+        <h3>FAMILY PORTFOLIO (<span>${
+          Object.keys(metrics.userBreakdown).length
+        }</span> MEMBERS)</h3>
+        <h2 class="compact-total-value">₹${formatNumber(
+          metrics.totalCurrentValue
+        )}</h2>
+      </div>
+
+      <div class="compact-stats">
+        <div class="compact-stat-row">
+          <span class="stat-label">Total Unique Holdings</span>
+          <span class="stat-value">${metrics.totalHoldings}</span>
+        </div>
+
+        <div class="compact-stat-row">
+          <span class="stat-label">Total Returns</span>
+          <span class="stat-value ${
+            metrics.totalUnrealizedGain >= 0 ? "positive" : "negative"
+          }">
+            ${metrics.totalUnrealizedGain >= 0 ? "+" : ""}₹${formatNumber(
+    Math.abs(metrics.totalUnrealizedGain)
+  )} 
+            (${
+              metrics.totalUnrealizedGain >= 0 ? "+" : ""
+            }${unrealizedGainPercent}%)
+          </span>
+        </div>
+
+        <div class="compact-stat-row">
+          <span class="stat-label">Total Invested</span>
+          <span class="stat-value">₹${formatNumber(metrics.totalCost)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="compact-family-breakdown" id="compactFamilyBreakdown"></div>
+  `;
+
+  const breakdownContainer = document.getElementById("compactFamilyBreakdown");
+  const sortedUsers = Object.entries(metrics.userBreakdown).sort(
+    (a, b) => b[1].currentValue - a[1].currentValue
+  );
+
+  sortedUsers.forEach(([userName, data]) => {
+    const gainPercent =
+      data.cost > 0 ? ((data.unrealizedGain / data.cost) * 100).toFixed(2) : 0;
+
+    const item = document.createElement("div");
+    item.className = "compact-holding-item";
+
+    item.innerHTML = `
+      <div class="compact-holding-info">
+        <div class="compact-holding-name">👤 ${userName}</div>
+        <div class="compact-holding-meta">${data.holdings} Active Holdings</div>
+      </div>
+      <div class="compact-holding-values">
+        <div class="compact-holding-current ${
+          data.currentValue <= data.cost ? "red" : ""
+        }">
+          ₹${formatNumber(data.currentValue)}
+        </div>
+        <div class="compact-holding-invested">₹${formatNumber(data.cost)}</div>
+        <div class="compact-holding-xirr">
+          <span class="${data.unrealizedGain >= 0 ? "green" : "red"}">
+            ${data.unrealizedGain >= 0 ? "+" : ""}${gainPercent}%
+          </span>
+        </div>
+      </div>
+    `;
+
+    breakdownContainer.appendChild(item);
+  });
 }
 
 function displayFamilyAnalytics(metrics) {
@@ -8275,7 +8325,6 @@ function displayFamilyAnalytics(metrics) {
       '<p style="text-align: center; color: #9ca3af; padding: 20px;">No data available</p>';
   }
 
-  // Display Weighted Returns
   const returnsContainer = document.getElementById(
     "familyWeightedReturnsContainer"
   );
@@ -8308,7 +8357,6 @@ function displayFamilyUserBreakdown(userBreakdown) {
   const container = document.getElementById("familyUserBreakdown");
   container.innerHTML = "";
 
-  // Sort users by current value (descending)
   const sortedUsers = Object.entries(userBreakdown).sort(
     (a, b) => b[1].currentValue - a[1].currentValue
   );
@@ -8358,10 +8406,385 @@ function invalidateFamilyDashboardCache() {
   familyDashboardInitialized = false;
 }
 
+function updateCompactDashboard() {
+  if (!portfolioData || !fundWiseData) return;
+
+  const summary = calculateSummary();
+  const activeFunds = Object.values(fundWiseData).filter(
+    (f) => f.advancedMetrics?.currentValue > 0
+  );
+
+  const elements = {
+    compactHoldingsCount: document.getElementById("compactHoldingsCount"),
+    compactTotalValue: document.getElementById("compactTotalValue"),
+    compactInvested: document.getElementById("compactInvested"),
+    compactXIRR: document.getElementById("compactXIRR"),
+    compactTotalReturns: document.getElementById("compactTotalReturns"),
+    compact1DReturns: document.getElementById("compact1DReturns"),
+  };
+
+  if (!Object.values(elements).every((el) => el !== null)) {
+    console.warn("Some compact dashboard elements not found");
+    return;
+  }
+
+  elements.compactHoldingsCount.textContent = activeFunds.length;
+  elements.compactTotalValue.textContent = formatNumber(summary.currentValue);
+  elements.compactInvested.textContent = "₹" + formatNumber(summary.costPrice);
+  elements.compactXIRR.textContent =
+    summary.activeXirr !== null ? summary.activeXirr.toFixed(2) + "%" : "--";
+
+  const totalReturnPercent =
+    summary.totalInvested > 0
+      ? ((summary.unrealizedGain / summary.costPrice) * 100).toFixed(2)
+      : 0;
+
+  elements.compactTotalReturns.textContent = `${
+    summary.unrealizedGain >= 0 ? "+" : ""
+  }₹${formatNumber(Math.abs(summary.unrealizedGain))} (${totalReturnPercent}%)`;
+  elements.compactTotalReturns.className =
+    "stat-value " + (summary.unrealizedGain >= 0 ? "positive" : "negative");
+
+  const oneDayReturns = calculateOneDayReturns();
+  elements.compact1DReturns.textContent = oneDayReturns.text;
+  elements.compact1DReturns.className =
+    "stat-value " + (oneDayReturns.value >= 0 ? "positive" : "negative");
+
+  populateCompactHoldings(activeFunds);
+}
+
+function calculateOneDayReturns() {
+  let totalOneDayChange = 0;
+  let totalPreviousDayValue = 0;
+  let fundsWithData = 0;
+
+  Object.values(fundWiseData).forEach((fund) => {
+    const currentValue = fund.advancedMetrics?.currentValue || 0;
+    if (currentValue <= 0) return;
+
+    const oneDayReturn = calculate1DayReturn(fund);
+    if (oneDayReturn && oneDayReturn.rupees) {
+      totalOneDayChange += oneDayReturn.rupees;
+      const previousValue = currentValue - oneDayReturn.rupees;
+      totalPreviousDayValue += previousValue;
+      fundsWithData++;
+    }
+  });
+
+  if (fundsWithData === 0 || totalPreviousDayValue === 0) {
+    return { text: "₹0 (0%)", value: 0 };
+  }
+
+  const percentChange = (totalOneDayChange / totalPreviousDayValue) * 100;
+  const sign = totalOneDayChange >= 0 ? "+" : "";
+
+  return {
+    text: `${sign}₹${formatNumber(
+      Math.abs(Math.round(totalOneDayChange))
+    )} (${sign}${percentChange.toFixed(2)}%)`,
+    value: totalOneDayChange,
+  };
+}
+
+let compactDisplayMode = "xirr"; // xirr, abs, 1day
+
+function toggleCompactXIRR(displayMode) {
+  const xirrElements = document.querySelectorAll(".compact-holding-xirr");
+  const absElements = document.querySelectorAll(".compact-holding-abs");
+  const oneDayElements = document.querySelectorAll(".compact-holding-1day");
+
+  if (displayMode === undefined) {
+    if (compactDisplayMode === "xirr") {
+      compactDisplayMode = "abs";
+    } else if (compactDisplayMode === "abs") {
+      compactDisplayMode = "1day";
+    } else {
+      compactDisplayMode = "xirr";
+    }
+  } else {
+    compactDisplayMode = displayMode;
+  }
+
+  xirrElements.forEach((el) => el.classList.add("hidden"));
+  absElements.forEach((el) => el.classList.add("hidden"));
+  oneDayElements.forEach((el) => el.classList.add("hidden"));
+
+  switch (compactDisplayMode) {
+    case "xirr":
+      xirrElements.forEach((el) => el.classList.remove("hidden"));
+      break;
+    case "abs":
+      absElements.forEach((el) => el.classList.remove("hidden"));
+      break;
+    case "1day":
+      oneDayElements.forEach((el) => el.classList.remove("hidden"));
+      break;
+  }
+
+  const toggleBtn = document.querySelector(".compact-sort-btn span");
+  if (toggleBtn) {
+    switch (compactDisplayMode) {
+      case "xirr":
+        toggleBtn.textContent = "XIRR %";
+        break;
+      case "abs":
+        toggleBtn.textContent = "Returns %";
+        break;
+      case "1day":
+        toggleBtn.textContent = "1D Returns %";
+        break;
+    }
+  }
+}
+
+let compactSortMode = "currentValue"; // default, xirr, abs
+
+function toggleCompactSort() {
+  let display;
+  if (compactSortMode === "currentValue") {
+    compactSortMode = "xirr";
+    display = "xirr";
+  } else if (compactSortMode === "xirr") {
+    compactSortMode = "abs";
+    display = "abs";
+  } else if (compactSortMode === "abs") {
+    compactSortMode = "1day";
+    display = "1day";
+  } else {
+    compactSortMode = "currentValue";
+    display = "xirr";
+  }
+
+  const sortBtn = document.querySelector(".compact-filter-btn");
+  if (sortBtn) {
+    const btnText = sortBtn.querySelector("span");
+    if (btnText) {
+      switch (compactSortMode) {
+        case "currentValue":
+          btnText.textContent = "Current Value";
+          break;
+        case "xirr":
+          btnText.textContent = "XIRR %";
+          break;
+        case "abs":
+          btnText.textContent = "Returns %";
+          break;
+        case "1day":
+          btnText.textContent = "1D Returns %";
+          break;
+      }
+    }
+  }
+
+  const activeFunds = Object.values(fundWiseData).filter(
+    (f) => f.advancedMetrics?.currentValue > 0
+  );
+  populateCompactHoldings(activeFunds);
+  toggleCompactXIRR(display);
+}
+
+function populateCompactHoldings(funds) {
+  const list = document.getElementById("compactHoldingsList");
+  list.innerHTML = "";
+
+  const fundsWithMetrics = funds.map((fund) => {
+    const currentValue = fund.advancedMetrics?.currentValue || 0;
+    let xirr = null;
+
+    try {
+      const calc = new XIRRCalculator();
+
+      if (fund.advancedMetrics?.folioSummaries) {
+        Object.values(fund.advancedMetrics.folioSummaries).forEach(
+          (folioSummary) => {
+            folioSummary.cashflows.forEach((cf) => {
+              calc.addTransaction(cf.type, cf.date, Math.abs(cf.amount));
+            });
+          }
+        );
+      }
+
+      if (currentValue > 0) {
+        calc.addTransaction(
+          "Sell",
+          new Date().toISOString().split("T")[0] + "T00:00:00.000Z",
+          currentValue
+        );
+      }
+
+      xirr = calc.calculateXIRR();
+    } catch (e) {
+      console.debug("XIRR calculation failed for", fund.scheme, e);
+    }
+
+    const oneDayReturn = calculate1DayReturn(fund);
+    return {
+      ...fund,
+      calculatedXIRR: xirr,
+      oneDayReturn: oneDayReturn,
+    };
+  });
+
+  let sortedFunds;
+  switch (compactSortMode) {
+    case "xirr":
+      sortedFunds = [...fundsWithMetrics].sort((a, b) => {
+        const xirrA = a.calculatedXIRR ?? -Infinity;
+        const xirrB = b.calculatedXIRR ?? -Infinity;
+        return xirrB - xirrA;
+      });
+      break;
+
+    case "abs":
+      sortedFunds = [...fundsWithMetrics].sort((a, b) => {
+        const absA = a.advancedMetrics?.unrealizedGainPercentage || -Infinity;
+        const absB = b.advancedMetrics?.unrealizedGainPercentage || -Infinity;
+        return absB - absA;
+      });
+      break;
+
+    case "1day":
+      sortedFunds = [...fundsWithMetrics].sort((a, b) => {
+        const returnA = a.oneDayReturn?.percent ?? -Infinity;
+        const returnB = b.oneDayReturn?.percent ?? -Infinity;
+        return returnB - returnA;
+      });
+      break;
+
+    case "currentValue":
+    default:
+      sortedFunds = [...fundsWithMetrics].sort((a, b) => {
+        const valueA = a.advancedMetrics?.currentValue || 0;
+        const valueB = b.advancedMetrics?.currentValue || 0;
+        return valueB - valueA;
+      });
+      break;
+  }
+
+  sortedFunds.forEach((fund) => {
+    const currentValue = fund.advancedMetrics?.currentValue || 0;
+    const invested = fund.advancedMetrics?.remainingCost || 0;
+    const returns = fund.advancedMetrics?.unrealizedGain || 0;
+    const returnsPercent = fund.advancedMetrics?.unrealizedGainPercentage || 0;
+
+    const xirr = fund.calculatedXIRR;
+    const xirrVal = xirr == null || isNaN(xirr) ? 0 : xirr;
+    const xirrText = xirrVal == 0 ? "--" : `${parseFloat(xirr.toFixed(2))}%`;
+    const returnsPercentText =
+      returnsPercent == 0 ? "--" : `${parseFloat(returnsPercent.toFixed(2))}%`;
+
+    const oneDayReturn = fund.oneDayReturn;
+    const oneDayText = oneDayReturn
+      ? `${oneDayReturn.percent >= 0 ? "+" : ""}${oneDayReturn.percent.toFixed(
+          2
+        )}%`
+      : "--";
+
+    const item = document.createElement("div");
+    item.className = "compact-holding-item";
+    const fundKey = fund.scheme.trim().toLowerCase();
+    const chartIdVal = `fundChart_${fundKey.replace(/\s+/g, "_")}`;
+    item.onclick = () => {
+      switchDashboardTab("current-holding");
+      scrollToFolioCard(chartIdVal);
+    };
+
+    item.innerHTML = `
+      <div class="compact-holding-info">
+        <div class="compact-holding-name">${
+          fund.schemeDisplay || fund.scheme
+        }</div>
+        <div class="compact-holding-meta">${standardizeTitle(fund.amc)}</div>
+      </div>
+      <div class="compact-holding-values">
+        <div class="compact-holding-current ${
+          currentValue <= invested ? "red" : ""
+        }">₹${formatNumber(currentValue)}</div>
+        <div class="compact-holding-invested">₹${formatNumber(invested)}</div>
+        <div class="compact-holding-xirr"><span>XIRR: </span><span class="${
+          xirrVal < 0 ? "red" : "green"
+        }">${xirrText}</span></div>
+        <div class="compact-holding-abs hidden"><span>Returns: </span><span class="${
+          returns < 0 ? "red" : "green"
+        }">${returnsPercentText}</span></div>
+        <div class="compact-holding-1day hidden"><span>1D Returns: </span><span class=" ${
+          oneDayReturn && oneDayReturn.percent >= 0 ? "green" : "red"
+        }">${oneDayText}</span></div>
+      </div>
+    `;
+
+    list.appendChild(item);
+  });
+}
+
+function scrollToFolioCard(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) {
+    return;
+  }
+
+  const folioCard = canvas.closest(".folio-card");
+  if (!folioCard) {
+    return;
+  }
+
+  const scrollContainer = folioCard.closest(
+    ".modal-content, .transaction-modal, .transaction-modal-overlay, body"
+  );
+
+  const offset = 80;
+
+  if (scrollContainer && scrollContainer !== document.body) {
+    const targetTop = folioCard.offsetTop - offset;
+    scrollContainer.scrollTo({
+      top: targetTop,
+      behavior: "smooth",
+    });
+  } else {
+    const top = folioCard.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top, behavior: "smooth" });
+  }
+}
+
+function calculate1DayReturn(fund) {
+  const navHistory = fund.navHistory || [];
+  const totalUnits = fund.advancedMetrics?.totalUnitsRemaining || 0;
+
+  if (!navHistory || navHistory.length < 2 || totalUnits <= 0) {
+    return null;
+  }
+
+  const latestNavEntry = navHistory[0];
+  const previousNavEntry = navHistory[1];
+
+  if (!latestNavEntry || !previousNavEntry) {
+    return null;
+  }
+
+  const latestNav = parseFloat(latestNavEntry.nav);
+  const previousNav = parseFloat(previousNavEntry.nav);
+
+  if (isNaN(latestNav) || isNaN(previousNav) || previousNav === 0) {
+    return null;
+  }
+
+  const oneDayReturnPercent = ((latestNav - previousNav) / previousNav) * 100;
+
+  const oneDayReturnRupees = (latestNav - previousNav) * totalUnits;
+
+  return {
+    percent: oneDayReturnPercent,
+    rupees: oneDayReturnRupees,
+    latestNav: latestNav,
+    previousNav: previousNav,
+    latestDate: latestNavEntry.date,
+    previousDate: previousNavEntry.date,
+  };
+}
+
 window.addEventListener("DOMContentLoaded", async () => {
   const dashboard = document.getElementById("dashboard");
 
-  // Initialize user management
   const hasUsers = initializeUserManagement();
 
   if (!hasUsers) {
@@ -8370,7 +8793,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // Load last file info for current user from localStorage
   if (currentUser) {
     const storedFileInfo = localStorage.getItem(
       `lastCASFileInfo_${currentUser}`
@@ -8449,3 +8871,30 @@ window.addEventListener("DOMContentLoaded", async () => {
     behavior: "smooth",
   });
 });
+
+let lastActiveTab = "main";
+
+const originalSwitchDashboardTab = window.switchDashboardTab;
+window.switchDashboardTab = function (tabId) {
+  const previousTab = document.querySelector(
+    ".dashboard section.active-tab"
+  )?.id;
+  if (previousTab && previousTab !== tabId) {
+    lastActiveTab = previousTab;
+  }
+  originalSwitchDashboardTab(tabId);
+};
+
+window.addEventListener("popstate", function (event) {
+  const currentTab = document.querySelector(
+    ".dashboard section.active-tab"
+  )?.id;
+
+  if (currentTab && currentTab !== "main") {
+    event.preventDefault();
+    switchDashboardTab("main");
+    window.history.pushState({ tab: "main" }, "", window.location.pathname);
+  }
+});
+
+window.history.pushState({ tab: "main" }, "", window.location.pathname);
