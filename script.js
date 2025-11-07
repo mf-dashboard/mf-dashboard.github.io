@@ -719,6 +719,11 @@ function showAllPortfolioHoldings() {
   `;
 
   document.body.appendChild(modal);
+  window.history.pushState(
+    { modal: "portfolioHoldings" },
+    "",
+    window.location.pathname
+  );
 
   const content = document.getElementById("portfolioHoldingsContent");
   content.appendChild(createHoldingsTable(top200, othersPercentage));
@@ -831,6 +836,11 @@ function showFundHoldings(fundKey) {
   `;
 
   document.body.appendChild(modal);
+  window.history.pushState(
+    { modal: "fundHoldings" },
+    "",
+    window.location.pathname
+  );
 
   const content = document.getElementById("fundHoldingsContent");
   content.appendChild(createFundHoldingsTable(holdingsWithCash));
@@ -4407,6 +4417,7 @@ function showAllTimeTransactions() {
   `;
 
   document.body.appendChild(modal);
+  window.history.pushState({ modal: "allTime" }, "", window.location.pathname);
 
   const allTimeContent = document.getElementById("allTimeTxContent");
   allTimeContent.appendChild(
@@ -4451,7 +4462,7 @@ function showActiveTransactions() {
   `;
 
   document.body.appendChild(modal);
-
+  window.history.pushState({ modal: "active" }, "", window.location.pathname);
   const activeContent = document.getElementById("activeTxContent");
   activeContent.appendChild(createTransactionTable(activeFlows, "activeTable"));
 
@@ -4535,6 +4546,7 @@ function showFundTransactions(fundKey, folioNumbersStr) {
   `;
 
   document.body.appendChild(modal);
+  window.history.pushState({ modal: "fundTx" }, "", window.location.pathname);
   document
     .getElementById("fundTxContent")
     .appendChild(createFundTransactionTable(transactions));
@@ -8997,27 +9009,71 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
 });
 
-let lastActiveTab = "main";
+let tabHistory = ["main"];
+let historyPointer = 0;
 
 const originalSwitchDashboardTab = window.switchDashboardTab;
 window.switchDashboardTab = function (tabId) {
   const previousTab = document.querySelector(
     ".dashboard section.active-tab"
   )?.id;
-  if (previousTab && previousTab !== tabId) {
-    lastActiveTab = previousTab;
+
+  if (previousTab && previousTab !== tabId && !window.isPopStateNavigation) {
+    tabHistory = tabHistory.slice(0, historyPointer + 1);
+    tabHistory.push(tabId);
+    historyPointer = tabHistory.length - 1;
+
+    window.history.pushState(
+      { tab: tabId, pointer: historyPointer },
+      "",
+      window.location.pathname
+    );
   }
+
   originalSwitchDashboardTab(tabId);
 };
 
 window.addEventListener("popstate", function (event) {
-  const currentTab = document.querySelector(
-    ".dashboard section.active-tab"
-  )?.id;
+  const allTimeModal = document.getElementById("allTimeTransactionsModal");
+  const activeModal = document.getElementById("activeTransactionsModal");
+  const fundTxModal = document.getElementById("fundTransactionModal");
+  const fundHoldingsModal = document.getElementById("fundHoldingsModal");
+  const portfolioHoldingsModal = document.getElementById(
+    "portfolioHoldingsModal"
+  );
 
-  if (currentTab && currentTab !== "main") {
-    event.preventDefault();
-    switchDashboardTab("main");
+  if (allTimeModal) {
+    closeAllTimeTransactions();
+    return;
+  }
+
+  if (activeModal) {
+    closeActiveTransactions();
+    return;
+  }
+
+  if (fundTxModal) {
+    closeFundTransactionModal();
+    return;
+  }
+
+  if (fundHoldingsModal) {
+    closeFundHoldingsModal();
+    return;
+  }
+
+  if (portfolioHoldingsModal) {
+    closePortfolioHoldingsModal();
+    return;
+  }
+
+  if (event.state && event.state.pointer !== undefined) {
+    historyPointer = event.state.pointer;
+    const targetTab = tabHistory[historyPointer] || "main";
+
+    window.isPopStateNavigation = true;
+    switchDashboardTab(targetTab);
+    window.isPopStateNavigation = false;
 
     requestAnimationFrame(() => {
       window.scrollTo({
@@ -9025,9 +9081,27 @@ window.addEventListener("popstate", function (event) {
         behavior: "smooth",
       });
     });
+  } else {
+    const currentTab = document.querySelector(
+      ".dashboard section.active-tab"
+    )?.id;
+    if (currentTab && currentTab !== "main") {
+      window.isPopStateNavigation = true;
+      switchDashboardTab("main");
+      window.isPopStateNavigation = false;
 
-    window.history.pushState({ tab: "main" }, "", window.location.pathname);
+      requestAnimationFrame(() => {
+        window.scrollTo({
+          top: 0,
+          behavior: "smooth",
+        });
+      });
+    }
   }
 });
 
-window.history.pushState({ tab: "main" }, "", window.location.pathname);
+window.history.replaceState(
+  { tab: "main", pointer: 0 },
+  "",
+  window.location.pathname
+);
