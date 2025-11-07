@@ -119,14 +119,12 @@
 
 :root[data-theme="dark"] input,
 :root[data-theme="dark"] select {
-  background: rgba(34, 37, 47, 0.9);
   color: var(--text-primary);
   border-color: rgba(102, 126, 234, 0.5);
 }
 
 :root[data-theme="dark"] input:hover,
 :root[data-theme="dark"] select:hover {
-  background: rgba(34, 37, 47, 1);
   border-color: #764ba2;
 }
 
@@ -213,6 +211,15 @@
 
 :root[data-theme="dark"] .card .subtext {
   color: var(--text-tertiary);
+}
+
+:root[data-theme="dark"] .dashboard-title {
+  background: var(--text-primary);
+  background-clip: text;
+}
+
+:root[data-theme="dark"] .hamburger-menu span {
+  background: var(--text-primary);
 }
 
 * {
@@ -556,16 +563,15 @@ button:disabled {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 15px;
-  margin-top: 20px;
+  margin-top: 12px;
 }
 
 .stat-item {
   background: var(--bg-offwhite);
-  padding: 14px;
+  padding: 12px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
   border-left: 3px solid #667eea;
   backdrop-filter: blur(5px);
 }
@@ -580,9 +586,7 @@ button:disabled {
 }
 
 .stat-item .value {
-  font-size: 18px;
   font-weight: 700;
-  color: var(--text-primary);
 }
 
 .section-title {
@@ -967,7 +971,7 @@ button:disabled {
 }
 
 .transaction-table th {
-  padding: 12px 16px;
+  padding: 12px;
   text-align: left;
   color: var(--text-primary);
   font-weight: 600;
@@ -977,7 +981,7 @@ button:disabled {
 }
 
 .transaction-table td {
-  padding: 12px 16px;
+  padding: 12px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   color: var(--text-secondary);
   font-size: 13px;
@@ -2598,22 +2602,16 @@ button.theme-toggle i {
 }
 
 @media (max-width: 768px) {
-  .chart-container {
-    height: 350px;
-  }
-
   .upload-icon {
     font-size: 36px;
   }
+
   .chart-container {
-    height: 300px;
+    height: 250px;
   }
 
   .upload-section h2 {
     font-size: 16px;
-  }
-  .transaction-modal {
-    padding-bottom: 60px;
   }
 
   .modal-header h2 {
@@ -2622,7 +2620,7 @@ button.theme-toggle i {
 
   .transaction-table th,
   .transaction-table td {
-    padding: 8px 12px;
+    padding: 8px;
     font-size: 11px;
   }
 

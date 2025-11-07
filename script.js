@@ -4636,7 +4636,7 @@ function updateStatsForGrowth(data) {
       <div class="value">₹${formatNumber(latest.cost)}</div>
     </div>
     <div class="stat-item">
-      <h4>Unrealized Gain</h4>
+      <h4>Current P&L</h4>
       <div class="value ${
         latest.unrealizedGain >= 0 ? "green" : "red"
       }">₹${formatNumber(Math.abs(latest.unrealizedGain))}</div>
