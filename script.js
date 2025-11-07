@@ -28,6 +28,28 @@ const BACKEND_SERVER =
 
 console.log("🔧 Backend Server:", BACKEND_SERVER);
 
+const DEBUG_MODE = false;
+
+async function loadLocalDebugData() {
+  try {
+    const casResponse = await fetch("./debug/parsed-cas.json");
+    const statsResponse = await fetch("./debug/mf-stats.json");
+
+    if (!casResponse.ok || !statsResponse.ok) {
+      throw new Error("Failed to load debug files");
+    }
+
+    const casData = await casResponse.json();
+    const statsData = await statsResponse.json();
+
+    return { casData, statsData };
+  } catch (err) {
+    console.error("❌ Debug mode error:", err);
+    showToast("Failed to load debug files from ./debug/ folder", "error");
+    return null;
+  }
+}
+
 if (window.location.pathname === "/index.html") {
   window.location.replace(
     window.location.origin + window.location.search + window.location.hash
@@ -1393,6 +1415,109 @@ function getStoredInvestorName(userName) {
 }
 
 async function loadFileFromTab() {
+  if (DEBUG_MODE) {
+    console.log("🐛 DEBUG MODE: Loading from local JSON files...");
+    showProcessingSplash();
+
+    const debugData = await loadLocalDebugData();
+    if (!debugData) {
+      hideProcessingSplash();
+      return;
+    }
+
+    portfolioData = debugData.casData;
+    mfStats = debugData.statsData;
+
+    isSummaryCAS = portfolioData.cas_type === "SUMMARY";
+
+    console.log(
+      "CAS Type:",
+      isSummaryCAS ? "SUMMARY" : "DETAILED",
+      " - Folios Fetched: ",
+      portfolioData.folios?.length
+    );
+
+    if (isSummaryCAS) {
+      processSummaryCAS();
+    } else {
+      await processPortfolio();
+      enableSummaryIncompatibleTabs();
+    }
+
+    const fullInvestorName =
+      portfolioData.investor_info?.name?.trim() || "DebugUser";
+    const firstNameFromCAS =
+      fullInvestorName.split(" ")[0]?.trim() || "DebugUser";
+
+    const existingUserWithSameName = allUsers.find((user) => {
+      const storedName = getStoredInvestorName(user);
+      return storedName.toLowerCase() === fullInvestorName.toLowerCase();
+    });
+
+    if (existingUserWithSameName) {
+      currentUser = existingUserWithSameName;
+      console.log(`♻️ Overwriting existing user: ${currentUser}`);
+    } else {
+      const existingUsersWithFirstName = allUsers.filter((user) => {
+        const storedName = getStoredInvestorName(user);
+        const storedFirstName = storedName.split(" ")[0]?.trim() || storedName;
+        return storedFirstName.toLowerCase() === firstNameFromCAS.toLowerCase();
+      });
+
+      if (existingUsersWithFirstName.length > 0) {
+        let counter = 1;
+        let newUserName = `${firstNameFromCAS}_${counter}`;
+        while (allUsers.includes(newUserName)) {
+          counter++;
+          newUserName = `${firstNameFromCAS}_${counter}`;
+        }
+        currentUser = newUserName;
+        console.log(`✨ Creating new user with increment: ${currentUser}`);
+      } else {
+        currentUser = firstNameFromCAS;
+        console.log(`✨ Creating new user: ${currentUser}`);
+      }
+    }
+
+    localStorage.setItem("lastActiveUser", currentUser);
+
+    await storageManager.savePortfolioData(
+      portfolioData,
+      mfStats,
+      true,
+      currentUser
+    );
+
+    localStorage.setItem(`investorName_${currentUser}`, fullInvestorName);
+    console.log(`💾 Debug data saved for user: ${currentUser}`);
+
+    allUsers = storageManager.getAllUsers();
+    const userSelector = document.getElementById("userSelector");
+    userSelector.innerHTML = "";
+    initializeUserManagement();
+
+    const dashboard = document.getElementById("dashboard");
+    dashboard.classList.remove("disabled");
+
+    enableAllTabs();
+
+    hideProcessingSplash();
+
+    const showCards = ["clear-cache", "update-stats", "update-nav"];
+    const hideCard = "instructions-card";
+
+    showCards.forEach((e) =>
+      document.querySelector("." + e).classList.remove("hidden")
+    );
+    document.querySelector("." + hideCard).classList.add("hidden");
+
+    showToast(`Debug data loaded successfully for ${currentUser}!`, "success");
+    updateFooterInfo();
+    invalidateFamilyDashboardCache();
+    switchDashboardTab("main");
+    return;
+  }
+
   const fileInput = document.getElementById("fileInputTab");
   const passwordInput = document.getElementById("filePasswordTab");
   const password = passwordInput.value;
@@ -1408,7 +1533,7 @@ async function loadFileFromTab() {
 
   try {
     const fileSignature = await getFileSignature(file);
-    console.log("🔍 File signature:", fileSignature);
+    console.log("🔒 File signature:", fileSignature);
 
     // Check if THIS EXACT FILE was already uploaded for ANY user
     let fileAlreadyUploadedForUser = null;
@@ -8893,6 +9018,14 @@ window.addEventListener("popstate", function (event) {
   if (currentTab && currentTab !== "main") {
     event.preventDefault();
     switchDashboardTab("main");
+
+    requestAnimationFrame(() => {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    });
+
     window.history.pushState({ tab: "main" }, "", window.location.pathname);
   }
 });
