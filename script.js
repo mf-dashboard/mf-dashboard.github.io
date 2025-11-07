@@ -361,6 +361,19 @@ const themeColors = [
   "#93c5fd",
 ];
 
+function getChartColors() {
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  return {
+    textColor: isDark ? "#e5e7eb" : "#374151",
+    gridColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)",
+    borderColor: isDark ? "rgba(255, 255, 255, 0.2)" : "#e5e7eb",
+    tooltipBg: isDark ? "rgba(34, 37, 47, 0.95)" : "rgba(0, 0, 0, 0.8)",
+    tooltipBorder: isDark ? "rgba(102, 126, 234, 0.5)" : "#3b82f6",
+    growthValuation: isDark ? "#e5e7eb" : "#52528c",
+    growthCost: isDark ? "#9ca3af" : "#9ca3af",
+  };
+}
+
 function destroyIfExists(chartRef) {
   if (chartRef && chartRef.destroy) {
     chartRef.destroy();
@@ -385,6 +398,7 @@ function buildDoughnutChart(canvasId, labels, data) {
     return null;
   }
 
+  const colors = getChartColors();
   const ctx = document.getElementById(canvasId).getContext("2d");
   return new Chart(ctx, {
     type: "doughnut",
@@ -394,7 +408,7 @@ function buildDoughnutChart(canvasId, labels, data) {
         {
           data,
           backgroundColor: themeColors.slice(0, data.length),
-          borderColor: "#fff",
+          borderColor: colors.borderColor,
           borderWidth: 2,
           hoverOffset: 8,
         },
@@ -413,13 +427,14 @@ function buildDoughnutChart(canvasId, labels, data) {
             boxWidth: 12,
             font: { size: 11, weight: "500" },
             usePointStyle: true,
+            color: colors.textColor,
             generateLabels: (chart) =>
               chart.data.labels.map((label, i) => ({
                 text: `${truncateLabel(label)}: ${chart.data.datasets[0].data[
                   i
                 ].toFixed(2)}%`,
                 fillStyle: chart.data.datasets[0].backgroundColor[i],
-                strokeStyle: "#fff",
+                strokeStyle: colors.borderColor,
                 lineWidth: 1,
                 hidden: false,
                 index: i,
@@ -427,6 +442,11 @@ function buildDoughnutChart(canvasId, labels, data) {
           },
         },
         tooltip: {
+          backgroundColor: colors.tooltipBg,
+          borderColor: colors.tooltipBorder,
+          borderWidth: 2,
+          titleColor: "#fff",
+          bodyColor: "#fff",
           callbacks: {
             label: (ctx) => {
               const val = ctx.parsed ?? 0;
@@ -452,6 +472,7 @@ function buildBarChart(canvasId, labels, data) {
     return null;
   }
 
+  const colors = getChartColors();
   const ctx = document.getElementById(canvasId).getContext("2d");
   const maxVal = Math.max(...data);
   const suggestedMax = Math.min(100, Math.ceil((maxVal * 1.1) / 10) * 10);
@@ -479,6 +500,11 @@ function buildBarChart(canvasId, labels, data) {
       plugins: {
         legend: { display: false },
         tooltip: {
+          backgroundColor: colors.tooltipBg,
+          borderColor: colors.tooltipBorder,
+          borderWidth: 2,
+          titleColor: "#fff",
+          bodyColor: "#fff",
           callbacks: {
             label: (ctx) => `${ctx.label}: ${ctx.parsed.x.toFixed(2)}%`,
           },
@@ -490,14 +516,17 @@ function buildBarChart(canvasId, labels, data) {
           suggestedMax,
           ticks: {
             callback: (v) => v + "%",
-            color: "#6b7280",
+            color: colors.textColor,
             font: { size: 11 },
           },
-          grid: { drawBorder: false, color: "rgba(0,0,0,0.05)" },
+          grid: {
+            drawBorder: false,
+            color: colors.gridColor,
+          },
         },
         y: {
           ticks: {
-            color: "#374151",
+            color: colors.textColor,
             font: { size: 11 },
             callback: function (value, index, ticks) {
               const label = this.chart.data.labels[index];
@@ -4693,6 +4722,262 @@ function createFundPerformanceChart(
   `;
 }
 
+// function renderFundValuationChart(fundKey, canvasId) {
+//   const fund = fundWiseData[fundKey];
+//   const dailyValuation = fund.advancedMetrics?.dailyValuation;
+
+//   if (!dailyValuation || dailyValuation.length === 0) return;
+
+//   const canvas = document.getElementById(canvasId);
+//   if (!canvas) return;
+
+//   const containerId = `fundChartContainer_${fundKey.replace(/\s+/g, "_")}`;
+//   const container = document.getElementById(containerId);
+
+//   const ctx = canvas.getContext("2d");
+
+//   const allData = dailyValuation;
+//   const labels = allData.map((d) => {
+//     const date = new Date(d.date);
+//     return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+//   });
+
+//   const values = allData.map((d) => d.value);
+//   const costs = allData.map((d) => d.cost);
+
+//   const chart = new Chart(ctx, {
+//     type: "line",
+//     data: {
+//       labels: labels,
+//       datasets: [
+//         {
+//           label: "Value",
+//           data: values,
+//           borderColor: "#667eea",
+//           backgroundColor: "rgba(102, 126, 234, 0.1)",
+//           fill: true,
+//           tension: 0.4,
+//           pointRadius: 0,
+//           borderWidth: 2,
+//         },
+//         {
+//           label: "Cost",
+//           data: costs,
+//           borderColor: "#ef4444",
+//           backgroundColor: "rgba(239, 68, 68, 0.05)",
+//           fill: false,
+//           tension: 0.4,
+//           pointRadius: 0,
+//           borderWidth: 1,
+//           borderDash: [3, 3],
+//         },
+//       ],
+//     },
+//     options: {
+//       responsive: true,
+//       maintainAspectRatio: false,
+//       interaction: { intersect: false, mode: "index", axis: "x" },
+//       events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
+//       onClick: (evt, activeEls, chart) => {
+//         if (!activeEls.length) {
+//           chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+//           chart.update();
+//         }
+//       },
+//       plugins: {
+//         legend: { display: false },
+//         tooltip: {
+//           backgroundColor: "rgba(0, 0, 0, 0.8)",
+//           padding: 8,
+//           titleFont: { size: 10 },
+//           bodyFont: { size: 10 },
+//           callbacks: {
+//             title: (items) => {
+//               const idx = items[0].dataIndex;
+//               const date = new Date(allData[idx].date);
+//               return date.toLocaleDateString("en-IN", {
+//                 day: "2-digit",
+//                 month: "short",
+//                 year: "numeric",
+//               });
+//             },
+//             label: (ctx) =>
+//               ctx.datasetIndex === 0
+//                 ? `Value: ₹${ctx.parsed.y.toLocaleString("en-IN")}`
+//                 : `Cost: ₹${ctx.parsed.y.toLocaleString("en-IN")}`,
+//           },
+//         },
+//       },
+//       scales: {
+//         x: {
+//           display: false,
+//           grid: { display: false },
+//           ticks: { maxTicksLimit: 5, font: { size: 9 }, color: "#9ca3af" },
+//         },
+//         y: {
+//           display: true,
+//           grid: { display: false },
+//           ticks: {
+//             font: { size: 9 },
+//             color: "#9ca3af",
+//             callback: (value) => {
+//               if (value >= 100000)
+//                 return "₹" + (value / 100000).toFixed(1) + "L";
+//               if (value >= 1000) return "₹" + (value / 1000).toFixed(0) + "K";
+//               return "₹" + value;
+//             },
+//           },
+//         },
+//       },
+//       animation: {
+//         duration: 0,
+//         onComplete: () => {
+//           canvas.classList.add("chart-ready");
+//           if (container) container.classList.remove("loading");
+//         },
+//       },
+//     },
+//   });
+
+//   if (window.innerWidth <= 1024) {
+//     canvas.addEventListener("touchend", function () {
+//       setTimeout(() => {
+//         if (chart && chart.tooltip) {
+//           chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+//           chart.update("none");
+//         }
+//       }, 100);
+//     });
+//   }
+// }
+
+// function renderFundPerformanceChart(canvasId, extendedData) {
+//   const ctx = document.getElementById(canvasId);
+//   if (!ctx) return;
+
+//   const fundKey = canvasId.replace("fundPerfChart_", "");
+//   const containerId = `fundPerfChartContainer_${fundKey}`;
+//   const container = document.getElementById(containerId);
+
+//   const labels = ["1Y", "3Y", "5Y"];
+//   const safeRound = (val) =>
+//     typeof val === "number" && !isNaN(val) ? Math.round(val * 100) / 100 : null;
+
+//   const stats = extendedData.return_stats || {};
+//   const fundData = [stats.return1y, stats.return3y, stats.return5y].map(
+//     safeRound
+//   );
+//   const categoryData = [
+//     stats.cat_return1y,
+//     stats.cat_return3y,
+//     stats.cat_return5y,
+//   ].map(safeRound);
+//   const benchmarkData = [
+//     stats.index_return1y,
+//     stats.index_return3y,
+//     stats.index_return5y,
+//   ].map(safeRound);
+
+//   const datasets = [];
+
+//   if (fundData.some((v) => v !== null))
+//     datasets.push({
+//       label: "Fund",
+//       data: fundData,
+//       backgroundColor: "#3b82f6",
+//       borderRadius: 6,
+//       barThickness: 14,
+//     });
+
+//   if (categoryData.some((v) => v !== null))
+//     datasets.push({
+//       label: "Category",
+//       data: categoryData,
+//       backgroundColor: "#10b981",
+//       borderRadius: 6,
+//       barThickness: 14,
+//     });
+
+//   if (benchmarkData.some((v) => v !== null))
+//     datasets.push({
+//       label: "Benchmark",
+//       data: benchmarkData,
+//       backgroundColor: "#f59e0b",
+//       borderRadius: 6,
+//       barThickness: 14,
+//     });
+
+//   if (datasets.length === 0) {
+//     ctx.parentElement.innerHTML =
+//       '<div style="padding:10px;text-align:center;color:#9ca3af;font-size:11px;">No performance data available</div>';
+//     if (container) container.classList.remove("loading");
+//     return;
+//   }
+
+//   const chart = new Chart(ctx, {
+//     type: "bar",
+//     data: { labels, datasets },
+//     options: {
+//       responsive: true,
+//       maintainAspectRatio: false,
+//       interaction: { intersect: false, mode: "index", axis: "x" },
+//       events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
+//       onClick: (evt, activeEls, chart) => {
+//         if (!activeEls.length) {
+//           chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+//           chart.update();
+//         }
+//       },
+//       plugins: {
+//         legend: {
+//           display: true,
+//           position: "bottom",
+//           labels: { boxWidth: 10, font: { size: 9 } },
+//         },
+//         tooltip: {
+//           callbacks: {
+//             label: (ctx) =>
+//               `${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2)}%`,
+//           },
+//         },
+//       },
+//       scales: {
+//         x: {
+//           grid: { display: false },
+//           ticks: { font: { size: 10 }, color: "var(text-secondary)" },
+//         },
+//         y: {
+//           beginAtZero: true,
+//           grid: { display: false },
+//           ticks: {
+//             font: { size: 10 },
+//             color: "var(text-secondary)",
+//             callback: (val) => `${val}%`,
+//           },
+//         },
+//       },
+//       animation: {
+//         duration: 0,
+//         onComplete: () => {
+//           ctx.classList.add("chart-ready");
+//           if (container) container.classList.remove("loading");
+//         },
+//       },
+//     },
+//   });
+
+//   if (window.innerWidth <= 1024) {
+//     ctx.addEventListener("touchend", function () {
+//       setTimeout(() => {
+//         if (chart && chart.tooltip) {
+//           chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+//           chart.update("none");
+//         }
+//       }, 100);
+//     });
+//   }
+// }
+
 function renderFundValuationChart(fundKey, canvasId) {
   const fund = fundWiseData[fundKey];
   const dailyValuation = fund.advancedMetrics?.dailyValuation;
@@ -4705,6 +4990,7 @@ function renderFundValuationChart(fundKey, canvasId) {
   const containerId = `fundChartContainer_${fundKey.replace(/\s+/g, "_")}`;
   const container = document.getElementById(containerId);
 
+  const colors = getChartColors();
   const ctx = canvas.getContext("2d");
 
   const allData = dailyValuation;
@@ -4758,7 +5044,11 @@ function renderFundValuationChart(fundKey, canvasId) {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: "rgba(0, 0, 0, 0.8)",
+          backgroundColor: colors.tooltipBg,
+          borderColor: colors.tooltipBorder,
+          borderWidth: 2,
+          titleColor: "#fff",
+          bodyColor: "#fff",
           padding: 8,
           titleFont: { size: 10 },
           bodyFont: { size: 10 },
@@ -4783,14 +5073,18 @@ function renderFundValuationChart(fundKey, canvasId) {
         x: {
           display: false,
           grid: { display: false },
-          ticks: { maxTicksLimit: 5, font: { size: 9 }, color: "#9ca3af" },
+          ticks: {
+            maxTicksLimit: 5,
+            font: { size: 9 },
+            color: colors.textColor,
+          },
         },
         y: {
           display: true,
           grid: { display: false },
           ticks: {
             font: { size: 9 },
-            color: "#9ca3af",
+            color: colors.textColor,
             callback: (value) => {
               if (value >= 100000)
                 return "₹" + (value / 100000).toFixed(1) + "L";
@@ -4830,6 +5124,7 @@ function renderFundPerformanceChart(canvasId, extendedData) {
   const containerId = `fundPerfChartContainer_${fundKey}`;
   const container = document.getElementById(containerId);
 
+  const colors = getChartColors();
   const labels = ["1Y", "3Y", "5Y"];
   const safeRound = (val) =>
     typeof val === "number" && !isNaN(val) ? Math.round(val * 100) / 100 : null;
@@ -4903,9 +5198,18 @@ function renderFundPerformanceChart(canvasId, extendedData) {
         legend: {
           display: true,
           position: "bottom",
-          labels: { boxWidth: 10, font: { size: 9 } },
+          labels: {
+            boxWidth: 10,
+            font: { size: 9 },
+            color: colors.textColor,
+          },
         },
         tooltip: {
+          backgroundColor: colors.tooltipBg,
+          borderColor: colors.tooltipBorder,
+          borderWidth: 2,
+          titleColor: "#fff",
+          bodyColor: "#fff",
           callbacks: {
             label: (ctx) =>
               `${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2)}%`,
@@ -4915,14 +5219,17 @@ function renderFundPerformanceChart(canvasId, extendedData) {
       scales: {
         x: {
           grid: { display: false },
-          ticks: { font: { size: 10 }, color: "#6b7280" },
+          ticks: {
+            font: { size: 10 },
+            color: colors.textColor,
+          },
         },
         y: {
           beginAtZero: true,
           grid: { display: false },
           ticks: {
             font: { size: 10 },
-            color: "#6b7280",
+            color: colors.textColor,
             callback: (val) => `${val}%`,
           },
         },
@@ -5854,27 +6161,27 @@ function updateChart() {
           {
             label: "Portfolio Value",
             data: data.values,
-            borderColor: "#52528c",
+            borderColor: getChartColors().growthValuation,
             fill: false,
             tension: 0.3,
             borderWidth: window.innerWidth <= 768 ? 1.5 : 2,
             pointRadius: 0,
             pointHoverRadius: window.innerWidth <= 768 ? 4 : 6,
-            pointHoverBackgroundColor: "#52528c",
+            pointHoverBackgroundColor: getChartColors().growthValuation,
             pointHoverBorderColor: "#fff",
             pointHoverBorderWidth: window.innerWidth <= 768 ? 1 : 1.5,
           },
           {
             label: "Total Invested",
             data: data.costs,
-            borderColor: "#9ca3af",
+            borderColor: getChartColors().growthCost,
             borderDash: [6, 4],
             fill: false,
             tension: 0.3,
             borderWidth: window.innerWidth <= 768 ? 1.5 : 2,
             pointRadius: 0,
             pointHoverRadius: window.innerWidth <= 768 ? 4 : 6,
-            pointHoverBackgroundColor: "#9ca3af",
+            pointHoverBackgroundColor: getChartColors().growthCost,
             pointHoverBorderColor: "#fff",
             pointHoverBorderWidth: window.innerWidth <= 768 ? 1 : 1.5,
           },
@@ -5903,17 +6210,19 @@ function updateChart() {
               usePointStyle: true,
               pointStyle: "circle",
               font: { size: 13, weight: "600" },
-              color: "#374151",
+              color: getChartColors().textColor,
             },
           },
           tooltip: {
             enabled: true,
-            backgroundColor: "rgba(0,0,0,0.85)",
-            borderColor: "#3b82f6",
+            backgroundColor: getChartColors().tooltipBg,
+            borderColor: getChartColors().tooltipBorder,
             borderWidth: 2,
             cornerRadius: 8,
             titleFont: { size: 13, weight: "bold" },
             bodyFont: { size: 12 },
+            titleColor: "#fff",
+            bodyColor: "#fff",
             displayColors: false,
             mode: "index",
             intersect: false,
@@ -5957,7 +6266,7 @@ function updateChart() {
             grid: {
               display: false,
               drawBorder: true,
-              borderColor: "#e5e7eb",
+              borderColor: getChartColors().borderColor,
               borderWidth: 2,
             },
             ticks: { display: false },
@@ -6029,7 +6338,7 @@ function updateChart() {
         datalabels: {
           anchor: "end",
           align: "end",
-          color: "#000",
+          color: getChartColors().textColor,
           font: { weight: "bold", size: 10 },
           padding: { top: 6, bottom: 0 },
           display: function (context) {
@@ -6049,6 +6358,11 @@ function updateChart() {
         },
         tooltip: {
           enabled: true,
+          backgroundColor: getChartColors().tooltipBg,
+          borderColor: getChartColors().tooltipBorder,
+          borderWidth: 2,
+          titleColor: "#fff",
+          bodyColor: "#fff",
           callbacks: {
             label: (ctx) =>
               `${ctx.dataset.label}: ₹${ctx.parsed.y.toLocaleString("en-IN")}`,
@@ -6069,6 +6383,7 @@ function updateChart() {
             maxTicksLimit: 15,
             maxRotation: 0,
             minRotation: 0,
+            color: getChartColors().textColor,
           },
           grid: { drawTicks: false, drawBorder: false, display: false },
         },
@@ -7454,10 +7769,10 @@ function displayHealthScore() {
         <p class="section-subtitle">Data-driven assessment of your portfolio quality</p>
       </div>
 
-      <div style="text-align: center; padding: 40px 20px; background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%); border-radius: 12px; margin-bottom: 30px;">
+      <div style="text-align: center; padding: 40px 20px; background: var(--bg-gradiant); border-radius: 12px; margin-bottom: 30px;">
         <h1 style="font-size: 72px; margin: 0; color: ${result.color};">${scores.overall}/100</h1>
         <h2 style="font-size: 36px; margin: 10px 0; color: ${result.color};">Grade: ${result.grade}</h2>
-        <p style="font-size: 18px; color: #6b7280; margin: 0;">${result.message}</p>
+        <p style="font-size: 18px; color: var(text-secondary); margin: 0;">${result.message}</p>
       </div>
 
       <div class="gains-summary-grid">
@@ -7487,7 +7802,7 @@ function displayHealthScore() {
     }</span>
         </div>
         <div class="summary-row">
-          <span style="font-size: 12px; color: #6b7280; font-style: italic;">${
+          <span style="font-size: 12px; font-style: italic;">${
             detail.message
           }</span>
         </div>
@@ -7710,7 +8025,7 @@ async function loadFamilyDashboard() {
       <div class="card" style="grid-column: 1 / -1; text-align: center;">
         <div style="font-size: 48px; margin-bottom: 20px;">🔒</div>
         <h3 style="margin-bottom: 10px; color: #1f2937;">Family Dashboard Locked</h3>
-        <p style="color: #6b7280;">Upload CAS files for at least 2 family members to unlock this feature.</p>
+        <p style="color: var(text-secondary);">Upload CAS files for at least 2 family members to unlock this feature.</p>
       </div>
     `;
 
@@ -8919,7 +9234,55 @@ function calculate1DayReturn(fund) {
   };
 }
 
+function initializeTheme() {
+  const savedTheme = localStorage.getItem("theme") || "light";
+  document.documentElement.setAttribute("data-theme", savedTheme);
+  updateThemeUI(savedTheme);
+}
+
+function toggleTheme() {
+  const currentTheme = document.documentElement.getAttribute("data-theme");
+  const newTheme = currentTheme === "dark" ? "light" : "dark";
+
+  document.documentElement.setAttribute("data-theme", newTheme);
+  localStorage.setItem("theme", newTheme);
+  updateThemeUI(newTheme);
+
+  if (window.fundChartsRendered) {
+    window.fundChartsRendered = false;
+  }
+
+  if (portfolioData && fundWiseData) {
+    calculateAndDisplayPortfolioAnalytics();
+  }
+
+  if (currentTab && chart) {
+    updateChart();
+  }
+
+  if (familyDashboardCache) {
+    displayFamilyAnalytics(familyDashboardCache);
+  }
+}
+
+function updateThemeUI(theme) {
+  const isDark = theme === "dark";
+
+  const themeIcon = document.getElementById("themeIconDesktop");
+
+  if (themeIcon) {
+    themeIcon.className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
+  }
+
+  const themeIconMobile = document.getElementById("themeIconMobile");
+
+  if (themeIconMobile) {
+    themeIconMobile.className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
+  }
+}
+
 window.addEventListener("DOMContentLoaded", async () => {
+  initializeTheme();
   const dashboard = document.getElementById("dashboard");
 
   const hasUsers = initializeUserManagement();

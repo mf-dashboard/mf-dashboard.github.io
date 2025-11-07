@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
-    <link rel="stylesheet" href="styles.css?v=20251106" />
+    <link rel="stylesheet" href="styles.css?v=2025117" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -33,7 +33,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20251106" />
+    <link rel="manifest" href="/manifest.json?v=2025117" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -57,18 +57,29 @@
       <div class="dashboard" id="dashboard">
         <div class="dashboard-tabs">
           <div class="mobile-header">
-            <button
-              class="hamburger-menu"
-              name="hamburgerMenu"
-              title="Menu Options"
-              id="hamburgerMenu"
-              onclick="toggleMobileMenu()"
-            >
-              <span></span>
-              <span></span>
-              <span></span>
-            </button>
-            <h1 class="dashboard-title">My MF Dashboard</h1>
+            <div>
+              <button
+                class="hamburger-menu"
+                name="hamburgerMenu"
+                title="Menu Options"
+                id="hamburgerMenu"
+                onclick="toggleMobileMenu()"
+              >
+                <span></span>
+                <span></span>
+                <span></span>
+              </button>
+              <h1 class="dashboard-title">My MF Dashboard</h1>
+            </div>
+            <div>
+              <button
+                class="theme-toggle"
+                onclick="toggleTheme()"
+                title="Toggle Dark Mode"
+              >
+                <i class="fa-solid fa-moon" id="themeIconMobile"></i>
+              </button>
+            </div>
           </div>
 
           <div
@@ -166,83 +177,94 @@
             </div>
           </div>
           <div class="tab-container">
+            <div>
+              <button
+                class="dashboard-tab-btn cas-upload-tab-button"
+                onclick="switchDashboardTab('cas-upload-tab')"
+              >
+                <i class="fa-solid fa-upload"></i>
+                <span>Manage CAS</span>
+              </button>
+              <button
+                class="dashboard-tab-btn main-button active"
+                onclick="switchDashboardTab('main')"
+              >
+                <i class="fa-solid fa-house"></i>
+                <span>Dashboard</span>
+              </button>
+              <button
+                class="dashboard-tab-btn current-holding-button"
+                onclick="switchDashboardTab('current-holding')"
+              >
+                <i class="fa-solid fa-briefcase"></i>
+                <span>Current Holdings</span>
+              </button>
+              <button
+                class="dashboard-tab-btn past-holding-button"
+                id="show-past"
+                onclick="switchDashboardTab('past-holding')"
+              >
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>Past Holdings</span>
+              </button>
+              <button
+                class="dashboard-tab-btn charts-button"
+                onclick="switchDashboardTab('charts')"
+              >
+                <i class="fa-solid fa-chart-line"></i>
+                <span>Analysis</span>
+              </button>
+              <button
+                class="dashboard-tab-btn transactions-button"
+                onclick="switchDashboardTab('transactions')"
+              >
+                <i class="fa-solid fa-exchange-alt"></i>
+                <span>Transactions</span>
+              </button>
+              <button
+                class="dashboard-tab-btn capital-gains-button"
+                onclick="switchDashboardTab('capital-gains')"
+              >
+                <i class="fa-solid fa-coins"></i>
+                <span>Capital Gains</span>
+              </button>
+              <button
+                class="dashboard-tab-btn overlap-analysis-button"
+                onclick="switchDashboardTab('overlap-analysis')"
+              >
+                <i class="fa-solid fa-layer-group"></i>
+                <span>Overlap Analysis</span>
+              </button>
+              <button
+                class="dashboard-tab-btn expense-impact-button"
+                onclick="switchDashboardTab('expense-impact')"
+              >
+                <i class="fa-solid fa-receipt"></i>
+                <span>Expense Impact</span>
+              </button>
+              <button
+                class="dashboard-tab-btn health-score-button"
+                onclick="switchDashboardTab('health-score')"
+              >
+                <i class="fa-solid fa-heart-pulse"></i>
+                <span>Portfolio Health</span>
+              </button>
+              <button
+                class="dashboard-tab-btn family-dashboard-button"
+                onclick="switchDashboardTab('family-dashboard')"
+              >
+                <i class="fa-solid fa-users"></i>
+                <span>Family Dashboard</span>
+              </button>
+            </div>
+          </div>
+          <div class="theme-container">
             <button
-              class="dashboard-tab-btn cas-upload-tab-button"
-              onclick="switchDashboardTab('cas-upload-tab')"
+              class="theme-toggle"
+              onclick="toggleTheme()"
+              title="Toggle Dark Mode"
             >
-              <i class="fa-solid fa-upload"></i>
-              <span>Manage CAS</span>
-            </button>
-            <button
-              class="dashboard-tab-btn main-button active"
-              onclick="switchDashboardTab('main')"
-            >
-              <i class="fa-solid fa-house"></i>
-              <span>Dashboard</span>
-            </button>
-            <button
-              class="dashboard-tab-btn current-holding-button"
-              onclick="switchDashboardTab('current-holding')"
-            >
-              <i class="fa-solid fa-briefcase"></i>
-              <span>Current Holdings</span>
-            </button>
-            <button
-              class="dashboard-tab-btn past-holding-button"
-              id="show-past"
-              onclick="switchDashboardTab('past-holding')"
-            >
-              <i class="fa-solid fa-clock-rotate-left"></i>
-              <span>Past Holdings</span>
-            </button>
-            <button
-              class="dashboard-tab-btn charts-button"
-              onclick="switchDashboardTab('charts')"
-            >
-              <i class="fa-solid fa-chart-line"></i>
-              <span>Analysis</span>
-            </button>
-            <button
-              class="dashboard-tab-btn transactions-button"
-              onclick="switchDashboardTab('transactions')"
-            >
-              <i class="fa-solid fa-exchange-alt"></i>
-              <span>Transactions</span>
-            </button>
-            <button
-              class="dashboard-tab-btn capital-gains-button"
-              onclick="switchDashboardTab('capital-gains')"
-            >
-              <i class="fa-solid fa-coins"></i>
-              <span>Capital Gains</span>
-            </button>
-            <button
-              class="dashboard-tab-btn overlap-analysis-button"
-              onclick="switchDashboardTab('overlap-analysis')"
-            >
-              <i class="fa-solid fa-layer-group"></i>
-              <span>Overlap Analysis</span>
-            </button>
-            <button
-              class="dashboard-tab-btn expense-impact-button"
-              onclick="switchDashboardTab('expense-impact')"
-            >
-              <i class="fa-solid fa-receipt"></i>
-              <span>Expense Impact</span>
-            </button>
-            <button
-              class="dashboard-tab-btn health-score-button"
-              onclick="switchDashboardTab('health-score')"
-            >
-              <i class="fa-solid fa-heart-pulse"></i>
-              <span>Portfolio Health</span>
-            </button>
-            <button
-              class="dashboard-tab-btn family-dashboard-button"
-              onclick="switchDashboardTab('family-dashboard')"
-            >
-              <i class="fa-solid fa-users"></i>
-              <span>Family Dashboard</span>
+              <i class="fa-solid fa-moon" id="themeIconDesktop"></i>
             </button>
           </div>
         </div>
@@ -265,10 +287,12 @@
                 class="danger-btn"
                 onclick="deleteCurrentUser()"
               >
-                <i class="fas fa-trash-alt"></i> Delete User
+                <i class="fas fa-trash-alt"></i>
               </button>
               <button class="danger-btn" onclick="deleteAllUsers()">
-                <i class="fa-solid fa-trash"></i> Delete All Users
+                <i class="fa-solid fa-trash"></i>
+                <i class="fa-solid fa-trash"></i>
+                <i class="fa-solid fa-trash"></i>
               </button>
             </div>
           </div>
@@ -707,7 +731,7 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20251106"></script>
-    <script src="script.js?v=20251107"></script>
+    <script src="indexeddb-helper.js?v=2025117"></script>
+    <script src="script.js?v=2025117"></script>
   </body>
 </html>
