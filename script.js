@@ -8,7 +8,7 @@ let portfolioData = null;
 let lastUploadedFileInfo = null;
 let chart = null;
 let currentTab = "growth";
-let currentPeriod = "1Y";
+let currentPeriod = "6M";
 let fundWiseData = {};
 const allTimeFlows = [];
 const activeFlows = [];
@@ -375,10 +375,16 @@ function getChartColors() {
 }
 
 function destroyIfExists(chartRef) {
-  if (chartRef && chartRef.destroy) {
-    chartRef.destroy();
-    chartRef = null;
+  if (chartRef) {
+    try {
+      if (typeof chartRef.destroy === "function") {
+        chartRef.destroy();
+      }
+    } catch (e) {
+      console.warn("Error destroying chart:", e);
+    }
   }
+  return null;
 }
 
 function truncateLabel(label, maxLength = 12) {
@@ -573,7 +579,12 @@ function displayAssetAllocation(assetAllocation) {
     }
   });
 
-  destroyIfExists(assetAllocationChart);
+  // Destroy existing chart properly
+  if (assetAllocationChart) {
+    assetAllocationChart.destroy();
+    assetAllocationChart = null;
+  }
+
   const [sortedLabels, sortedData] = sortData(labels, data);
 
   setTimeout(() => {
@@ -596,7 +607,13 @@ function displayMarketCapSplit(marketCap) {
     (k) => marketCap[k.toLowerCase()] !== undefined
   );
   const data = labels.map((l) => marketCap[l.toLowerCase()]);
-  destroyIfExists(marketCapChart);
+
+  // Destroy existing chart properly
+  if (marketCapChart) {
+    marketCapChart.destroy();
+    marketCapChart = null;
+  }
+
   const [sortedLabels, sortedData] = sortData(labels, data);
 
   setTimeout(() => {
@@ -622,7 +639,12 @@ function displaySectorSplit(sectorObj) {
   const labels = top.map(([name]) => name);
   const data = top.map(([_, val]) => val);
 
-  destroyIfExists(sectorChart);
+  // Destroy existing chart properly
+  if (sectorChart) {
+    sectorChart.destroy();
+    sectorChart = null;
+  }
+
   const [sortedLabels, sortedData] = sortData(labels, data);
 
   setTimeout(() => {
@@ -668,7 +690,12 @@ function displayAMCSplit(amcObj) {
   const labels = cleaned.map(([n]) => n);
   const data = cleaned.map(([_, v]) => v);
 
-  destroyIfExists(amcChart);
+  // Destroy existing chart properly
+  if (amcChart) {
+    amcChart.destroy();
+    amcChart = null;
+  }
+
   const [sortedLabels, sortedData] = sortData(labels, data);
 
   setTimeout(() => {
@@ -692,7 +719,12 @@ function displayHoldingsSplit(holdingsObj) {
   const labels = top.map(([name]) => name);
   const data = top.map(([_, val]) => val);
 
-  destroyIfExists(holdingsChart);
+  // Destroy existing chart properly
+  if (holdingsChart) {
+    holdingsChart.destroy();
+    holdingsChart = null;
+  }
+
   const [sortedLabels, sortedData] = sortData(labels, data);
 
   setTimeout(() => {
@@ -748,6 +780,9 @@ function showAllPortfolioHoldings() {
   `;
 
   document.body.appendChild(modal);
+  if (window.innerWidth <= 1024) {
+    initializeModalSwipe(modal);
+  }
   window.history.pushState(
     { modal: "portfolioHoldings" },
     "",
@@ -865,6 +900,9 @@ function showFundHoldings(fundKey) {
   `;
 
   document.body.appendChild(modal);
+  if (window.innerWidth <= 1024) {
+    initializeModalSwipe(modal);
+  }
   window.history.pushState(
     { modal: "fundHoldings" },
     "",
@@ -3929,7 +3967,7 @@ function showYearGainsWithTransactions(fy) {
     html += `
     <div style="margin-top: 30px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h4 style="margin: 0; color: #1f2937;">Detailed Transactions for ${fy}</h4>
+        <h4>Detailed Transactions for ${fy}</h4>
         <button class="secondary-btn" onclick="downloadFYCapitalGainsReport('${fy}')">
           📥 Download ${fy} Report
         </button>
@@ -4446,6 +4484,9 @@ function showAllTimeTransactions() {
   `;
 
   document.body.appendChild(modal);
+  if (window.innerWidth <= 1024) {
+    initializeModalSwipe(modal);
+  }
   window.history.pushState({ modal: "allTime" }, "", window.location.pathname);
 
   const allTimeContent = document.getElementById("allTimeTxContent");
@@ -4491,6 +4532,9 @@ function showActiveTransactions() {
   `;
 
   document.body.appendChild(modal);
+  if (window.innerWidth <= 1024) {
+    initializeModalSwipe(modal);
+  }
   window.history.pushState({ modal: "active" }, "", window.location.pathname);
   const activeContent = document.getElementById("activeTxContent");
   activeContent.appendChild(createTransactionTable(activeFlows, "activeTable"));
@@ -4575,6 +4619,9 @@ function showFundTransactions(fundKey, folioNumbersStr) {
   `;
 
   document.body.appendChild(modal);
+  if (window.innerWidth <= 1024) {
+    initializeModalSwipe(modal);
+  }
   window.history.pushState({ modal: "fundTx" }, "", window.location.pathname);
   document
     .getElementById("fundTxContent")
@@ -4721,262 +4768,6 @@ function createFundPerformanceChart(
     </div>
   `;
 }
-
-// function renderFundValuationChart(fundKey, canvasId) {
-//   const fund = fundWiseData[fundKey];
-//   const dailyValuation = fund.advancedMetrics?.dailyValuation;
-
-//   if (!dailyValuation || dailyValuation.length === 0) return;
-
-//   const canvas = document.getElementById(canvasId);
-//   if (!canvas) return;
-
-//   const containerId = `fundChartContainer_${fundKey.replace(/\s+/g, "_")}`;
-//   const container = document.getElementById(containerId);
-
-//   const ctx = canvas.getContext("2d");
-
-//   const allData = dailyValuation;
-//   const labels = allData.map((d) => {
-//     const date = new Date(d.date);
-//     return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
-//   });
-
-//   const values = allData.map((d) => d.value);
-//   const costs = allData.map((d) => d.cost);
-
-//   const chart = new Chart(ctx, {
-//     type: "line",
-//     data: {
-//       labels: labels,
-//       datasets: [
-//         {
-//           label: "Value",
-//           data: values,
-//           borderColor: "#667eea",
-//           backgroundColor: "rgba(102, 126, 234, 0.1)",
-//           fill: true,
-//           tension: 0.4,
-//           pointRadius: 0,
-//           borderWidth: 2,
-//         },
-//         {
-//           label: "Cost",
-//           data: costs,
-//           borderColor: "#ef4444",
-//           backgroundColor: "rgba(239, 68, 68, 0.05)",
-//           fill: false,
-//           tension: 0.4,
-//           pointRadius: 0,
-//           borderWidth: 1,
-//           borderDash: [3, 3],
-//         },
-//       ],
-//     },
-//     options: {
-//       responsive: true,
-//       maintainAspectRatio: false,
-//       interaction: { intersect: false, mode: "index", axis: "x" },
-//       events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
-//       onClick: (evt, activeEls, chart) => {
-//         if (!activeEls.length) {
-//           chart.tooltip.setActiveElements([], { x: 0, y: 0 });
-//           chart.update();
-//         }
-//       },
-//       plugins: {
-//         legend: { display: false },
-//         tooltip: {
-//           backgroundColor: "rgba(0, 0, 0, 0.8)",
-//           padding: 8,
-//           titleFont: { size: 10 },
-//           bodyFont: { size: 10 },
-//           callbacks: {
-//             title: (items) => {
-//               const idx = items[0].dataIndex;
-//               const date = new Date(allData[idx].date);
-//               return date.toLocaleDateString("en-IN", {
-//                 day: "2-digit",
-//                 month: "short",
-//                 year: "numeric",
-//               });
-//             },
-//             label: (ctx) =>
-//               ctx.datasetIndex === 0
-//                 ? `Value: ₹${ctx.parsed.y.toLocaleString("en-IN")}`
-//                 : `Cost: ₹${ctx.parsed.y.toLocaleString("en-IN")}`,
-//           },
-//         },
-//       },
-//       scales: {
-//         x: {
-//           display: false,
-//           grid: { display: false },
-//           ticks: { maxTicksLimit: 5, font: { size: 9 }, color: "#9ca3af" },
-//         },
-//         y: {
-//           display: true,
-//           grid: { display: false },
-//           ticks: {
-//             font: { size: 9 },
-//             color: "#9ca3af",
-//             callback: (value) => {
-//               if (value >= 100000)
-//                 return "₹" + (value / 100000).toFixed(1) + "L";
-//               if (value >= 1000) return "₹" + (value / 1000).toFixed(0) + "K";
-//               return "₹" + value;
-//             },
-//           },
-//         },
-//       },
-//       animation: {
-//         duration: 0,
-//         onComplete: () => {
-//           canvas.classList.add("chart-ready");
-//           if (container) container.classList.remove("loading");
-//         },
-//       },
-//     },
-//   });
-
-//   if (window.innerWidth <= 1024) {
-//     canvas.addEventListener("touchend", function () {
-//       setTimeout(() => {
-//         if (chart && chart.tooltip) {
-//           chart.tooltip.setActiveElements([], { x: 0, y: 0 });
-//           chart.update("none");
-//         }
-//       }, 100);
-//     });
-//   }
-// }
-
-// function renderFundPerformanceChart(canvasId, extendedData) {
-//   const ctx = document.getElementById(canvasId);
-//   if (!ctx) return;
-
-//   const fundKey = canvasId.replace("fundPerfChart_", "");
-//   const containerId = `fundPerfChartContainer_${fundKey}`;
-//   const container = document.getElementById(containerId);
-
-//   const labels = ["1Y", "3Y", "5Y"];
-//   const safeRound = (val) =>
-//     typeof val === "number" && !isNaN(val) ? Math.round(val * 100) / 100 : null;
-
-//   const stats = extendedData.return_stats || {};
-//   const fundData = [stats.return1y, stats.return3y, stats.return5y].map(
-//     safeRound
-//   );
-//   const categoryData = [
-//     stats.cat_return1y,
-//     stats.cat_return3y,
-//     stats.cat_return5y,
-//   ].map(safeRound);
-//   const benchmarkData = [
-//     stats.index_return1y,
-//     stats.index_return3y,
-//     stats.index_return5y,
-//   ].map(safeRound);
-
-//   const datasets = [];
-
-//   if (fundData.some((v) => v !== null))
-//     datasets.push({
-//       label: "Fund",
-//       data: fundData,
-//       backgroundColor: "#3b82f6",
-//       borderRadius: 6,
-//       barThickness: 14,
-//     });
-
-//   if (categoryData.some((v) => v !== null))
-//     datasets.push({
-//       label: "Category",
-//       data: categoryData,
-//       backgroundColor: "#10b981",
-//       borderRadius: 6,
-//       barThickness: 14,
-//     });
-
-//   if (benchmarkData.some((v) => v !== null))
-//     datasets.push({
-//       label: "Benchmark",
-//       data: benchmarkData,
-//       backgroundColor: "#f59e0b",
-//       borderRadius: 6,
-//       barThickness: 14,
-//     });
-
-//   if (datasets.length === 0) {
-//     ctx.parentElement.innerHTML =
-//       '<div style="padding:10px;text-align:center;color:#9ca3af;font-size:11px;">No performance data available</div>';
-//     if (container) container.classList.remove("loading");
-//     return;
-//   }
-
-//   const chart = new Chart(ctx, {
-//     type: "bar",
-//     data: { labels, datasets },
-//     options: {
-//       responsive: true,
-//       maintainAspectRatio: false,
-//       interaction: { intersect: false, mode: "index", axis: "x" },
-//       events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
-//       onClick: (evt, activeEls, chart) => {
-//         if (!activeEls.length) {
-//           chart.tooltip.setActiveElements([], { x: 0, y: 0 });
-//           chart.update();
-//         }
-//       },
-//       plugins: {
-//         legend: {
-//           display: true,
-//           position: "bottom",
-//           labels: { boxWidth: 10, font: { size: 9 } },
-//         },
-//         tooltip: {
-//           callbacks: {
-//             label: (ctx) =>
-//               `${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2)}%`,
-//           },
-//         },
-//       },
-//       scales: {
-//         x: {
-//           grid: { display: false },
-//           ticks: { font: { size: 10 }, color: "var(text-secondary)" },
-//         },
-//         y: {
-//           beginAtZero: true,
-//           grid: { display: false },
-//           ticks: {
-//             font: { size: 10 },
-//             color: "var(text-secondary)",
-//             callback: (val) => `${val}%`,
-//           },
-//         },
-//       },
-//       animation: {
-//         duration: 0,
-//         onComplete: () => {
-//           ctx.classList.add("chart-ready");
-//           if (container) container.classList.remove("loading");
-//         },
-//       },
-//     },
-//   });
-
-//   if (window.innerWidth <= 1024) {
-//     ctx.addEventListener("touchend", function () {
-//       setTimeout(() => {
-//         if (chart && chart.tooltip) {
-//           chart.tooltip.setActiveElements([], { x: 0, y: 0 });
-//           chart.update("none");
-//         }
-//       }, 100);
-//     });
-//   }
-// }
 
 function renderFundValuationChart(fundKey, canvasId) {
   const fund = fundWiseData[fundKey];
@@ -5803,7 +5594,7 @@ function initializeCharts() {
 
   periods.forEach((p) => {
     const btn = document.createElement("button");
-    btn.className = "time-btn" + (p === "1Y" ? " active" : "");
+    btn.className = "time-btn" + (p === "6M" ? " active" : "");
     btn.textContent = p;
 
     // Add data attribute to identify 1M button
@@ -6208,7 +5999,7 @@ function updateChart() {
             position: "top",
             labels: {
               usePointStyle: true,
-              pointStyle: "circle",
+              pointStyle: "line",
               font: { size: 13, weight: "600" },
               color: getChartColors().textColor,
             },
@@ -6265,7 +6056,7 @@ function updateChart() {
             display: true,
             grid: {
               display: false,
-              drawBorder: true,
+              drawBorder: false,
               borderColor: getChartColors().borderColor,
               borderWidth: 2,
             },
@@ -6944,7 +6735,6 @@ function updateFooterInfo() {
           year: "numeric",
         })
       : "--";
-    document.getElementById("footerCASDate").textContent = casDate;
 
     // Stats update date
     const statsDate = manifest.lastFullUpdate
@@ -6954,7 +6744,6 @@ function updateFooterInfo() {
           year: "numeric",
         })
       : "--";
-    document.getElementById("footerStatsDate").textContent = statsDate;
 
     // NAV update date
     const navDate = manifest.lastNavUpdate
@@ -6964,7 +6753,6 @@ function updateFooterInfo() {
           year: "numeric",
         })
       : "--";
-    document.getElementById("footerNavDate").textContent = navDate;
 
     // Update upload tab dates
     document.getElementById("lastNavUpdateDate").textContent = navDate;
@@ -8593,7 +8381,7 @@ function updateCompactFamilyDashboard(metrics) {
 
     item.innerHTML = `
       <div class="compact-holding-info">
-        <div class="compact-holding-name">👤 ${userName}</div>
+        <div class="compact-holding-name"><i class="fa-solid fa-user"></i> ${userName}</div>
         <div class="compact-holding-meta">${data.holdings} Active Holdings</div>
       </div>
       <div class="compact-holding-values">
@@ -8822,7 +8610,7 @@ function displayFamilyUserBreakdown(userBreakdown) {
     card.className = "family-user-card";
 
     card.innerHTML = `
-      <h4>👤 ${userName}</h4>
+      <h4><i class="fa-solid fa-user"></i> ${userName}</h4>
       <div class="family-user-stats">
         <div class="family-stat-row">
           <span class="label">Current Value:</span>
@@ -9279,6 +9067,80 @@ function updateThemeUI(theme) {
   if (themeIconMobile) {
     themeIconMobile.className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
   }
+}
+// Modal swipe-down to close
+function initializeModalSwipe(modalElement) {
+  if (!modalElement) return;
+
+  const modalContent = modalElement.querySelector(".transaction-modal");
+  if (!modalContent) return;
+
+  let startY = 0;
+  let currentY = 0;
+  let isDragging = false;
+
+  modalContent.addEventListener(
+    "touchstart",
+    (e) => {
+      const modalHeader = modalElement.querySelector(".modal-header");
+      if (modalHeader && modalHeader.contains(e.target)) {
+        startY = e.touches[0].clientY;
+        isDragging = true;
+        modalContent.style.transition = "none";
+      }
+    },
+    { passive: true }
+  );
+
+  modalContent.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!isDragging) return;
+
+      currentY = e.touches[0].clientY;
+      const deltaY = currentY - startY;
+
+      if (deltaY > 0) {
+        modalContent.style.transform = `translateY(${deltaY}px)`;
+      }
+    },
+    { passive: true }
+  );
+
+  modalContent.addEventListener("touchend", () => {
+    if (!isDragging) return;
+
+    isDragging = false;
+    const deltaY = currentY - startY;
+
+    modalContent.style.transition = "transform 0.3s ease";
+
+    if (deltaY > 100) {
+      modalContent.style.transform = "translateY(100%)";
+      setTimeout(() => {
+        closeActiveModal();
+      }, 300);
+    } else {
+      modalContent.style.transform = "translateY(0)";
+    }
+  });
+}
+
+// Helper to close any active modal
+function closeActiveModal() {
+  const allTimeModal = document.getElementById("allTimeTransactionsModal");
+  const activeModal = document.getElementById("activeTransactionsModal");
+  const fundTxModal = document.getElementById("fundTransactionModal");
+  const fundHoldingsModal = document.getElementById("fundHoldingsModal");
+  const portfolioHoldingsModal = document.getElementById(
+    "portfolioHoldingsModal"
+  );
+
+  if (allTimeModal) closeAllTimeTransactions();
+  if (activeModal) closeActiveTransactions();
+  if (fundTxModal) closeFundTransactionModal();
+  if (fundHoldingsModal) closeFundHoldingsModal();
+  if (portfolioHoldingsModal) closePortfolioHoldingsModal();
 }
 
 window.addEventListener("DOMContentLoaded", async () => {

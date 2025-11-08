@@ -234,6 +234,11 @@
 
 ::-webkit-scrollbar {
   width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 ::-webkit-scrollbar-track {
@@ -926,6 +931,7 @@ button:disabled {
 
 .transaction-section-content::-webkit-scrollbar,
 .gains-trans::-webkit-scrollbar {
+  height: 8px;
   width: 8px;
 }
 
@@ -1630,6 +1636,9 @@ button:disabled {
   overflow-x: auto;
   height: 450px;
   position: relative;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-light);
 }
 
 #portfolioChart {
@@ -2141,7 +2150,7 @@ p.instructions-note {
   justify-content: space-between;
 }
 
-.mobile-header div:first-child {
+.mobile-header div {
   display: flex;
   flex-direction: row;
   gap: 15px;
@@ -2299,6 +2308,9 @@ button.mobile-menu-item {
   margin: 0 0 15px 0;
   padding-bottom: 10px;
   border-bottom: 2px solid rgba(102, 126, 234, 0.2);
+  display: flex;
+  gap: 5px;
+  align-items: center;
 }
 
 .family-user-stats {
@@ -2488,8 +2500,6 @@ button.theme-toggle i {
 
 .compact-sort-btn:hover,
 .compact-filter-btn:hover {
-  /* background: rgba(102, 126, 234, 0.1);
-  color: var(--primary-gradient-start); */
   transform: translateY(-1px);
   box-shadow: none;
 }
@@ -2522,6 +2532,9 @@ button.theme-toggle i {
   color: var(--text-primary);
   margin-bottom: 4px;
   line-height: 1.4;
+  display: flex;
+  gap: 5px;
+  align-items: center;
 }
 
 .compact-holding-meta {
@@ -2556,6 +2569,10 @@ button.theme-toggle i {
   border-top: 1px solid var(--border-light);
   margin-top: 10px;
   padding-top: 10px;
+}
+
+.transaction-modal {
+  touch-action: pan-y;
 }
 
 @media (max-width: 1024px) {
