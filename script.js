@@ -479,10 +479,19 @@ function buildDoughnutChart(canvasId, labels, data) {
             title: (items) => items[0].label,
             label: (ctx) => {
               const val = ctx.parsed ?? 0;
-              const totalValue = Object.values(fundWiseData).reduce(
-                (sum, fund) => sum + (fund.advancedMetrics?.currentValue || 0),
-                0
-              );
+              const isFamilyChart = ctx.chart.canvas.id.startsWith("family");
+
+              let totalValue;
+              if (isFamilyChart && familyDashboardCache) {
+                totalValue = familyDashboardCache.totalCurrentValue;
+              } else {
+                totalValue = Object.values(fundWiseData).reduce(
+                  (sum, fund) =>
+                    sum + (fund.advancedMetrics?.currentValue || 0),
+                  0
+                );
+              }
+
               const rupeeValue = (totalValue * val) / 100;
               return `₹${formatNumber(Math.round(rupeeValue))} (${val.toFixed(
                 2
@@ -554,10 +563,19 @@ function buildBarChart(canvasId, labels, data) {
             title: (items) => items[0].label,
             label: (ctx) => {
               const percent = ctx.parsed.x;
-              const totalValue = Object.values(fundWiseData).reduce(
-                (sum, fund) => sum + (fund.advancedMetrics?.currentValue || 0),
-                0
-              );
+              const isFamilyChart = ctx.chart.canvas.id.startsWith("family");
+
+              let totalValue;
+              if (isFamilyChart && familyDashboardCache) {
+                totalValue = familyDashboardCache.totalCurrentValue;
+              } else {
+                totalValue = Object.values(fundWiseData).reduce(
+                  (sum, fund) =>
+                    sum + (fund.advancedMetrics?.currentValue || 0),
+                  0
+                );
+              }
+
               const rupeeValue = (totalValue * percent) / 100;
               return `₹${formatNumber(
                 Math.round(rupeeValue)
@@ -8536,6 +8554,8 @@ function updateCompactFamilyDashboard(metrics) {
 }
 
 function displayFamilyAnalytics(metrics) {
+  window.familyDashboardCache = metrics;
+
   if (familyAssetAllocationChart) {
     familyAssetAllocationChart.destroy();
     familyAssetAllocationChart = null;
