@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
-    <link rel="stylesheet" href="styles.css?v=20251109" />
+    <link rel="stylesheet" href="styles.css?v=20251110" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -33,7 +33,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20251109" />
+    <link rel="manifest" href="/manifest.json?v=20251110" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -486,14 +486,14 @@
                 <div class="compact-stat-row">
                   <span class="stat-label">1D Returns</span>
                   <span class="stat-value positive" id="compact1DReturns"
-                    >+₹0 (0%)</span
+                    >₹0 (0%)</span
                   >
                 </div>
 
                 <div class="compact-stat-row">
-                  <span class="stat-label">Total Returns</span>
+                  <span class="stat-label">P&L</span>
                   <span class="stat-value positive" id="compactTotalReturns"
-                    >+₹0 (0%)</span
+                    >₹0 (0%)</span
                   >
                 </div>
 
@@ -511,7 +511,7 @@
 
             <div class="compact-controls">
               <button class="compact-sort-btn" onclick="toggleCompactXIRR()">
-                <span>XIRR %</span>
+                <span>1D Returns %</span>
                 <i class="fa-solid fa-sort"></i>
               </button>
               <button class="compact-filter-btn" onclick="toggleCompactSort()">
@@ -588,11 +588,6 @@
         </section>
         <section id="current-holding">
           <div class="folio-section">
-            <div class="see-more current-holdings-header">
-              <button id="toggleExtendedBtn" class="see-more-btn">
-                <i class="fa-solid fa-eye"></i> Show Fund Stats
-              </button>
-            </div>
             <div class="folio-grid" id="currentFolioGrid"></div>
           </div>
         </section>
@@ -600,6 +595,7 @@
           <div id="pastSection" class="past-section folio-section">
             <div id="pastFolioGrid" class="folio-grid"></div>
           </div>
+          <div class="compact-dashboard" id="compactPastDashboard"></div>
         </section>
         <section id="charts">
           <div class="chart-section">
@@ -715,7 +711,7 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20251109"></script>
-    <script src="script.js?v=20251109"></script>
+    <script src="indexeddb-helper.js?v=20251110"></script>
+    <script src="script.js?v=20251110"></script>
   </body>
 </html>

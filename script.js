@@ -139,24 +139,6 @@ function calculatePortfolioAnalytics() {
       Object.entries(fundAsset).forEach(([k, v]) => {
         if (v == null || isNaN(parseFloat(v)) || parseFloat(v) <= 0) return;
         const key = k.trim().toLowerCase();
-        // let bucket = "other";
-        // if (key.includes("equity")) bucket = "equity";
-        // else if (key.includes("debt")) bucket = "debt";
-        // else if (key.includes("commodities")) {
-        //   const subcategory = extended?.sub_category?.toLowerCase?.() || "";
-        //   const name = fund?.scheme?.toLowerCase?.() || "";
-        //   if (subcategory.includes("gold") || name.includes("gold"))
-        //     bucket = "gold";
-        //   else if (subcategory.includes("silver") || name.includes("silver"))
-        //     bucket = "silver";
-        //   else {
-        //     bucket = "commodities";
-        //   }
-        // } else if (key.includes("real estate")) bucket = "real estate";
-        // else if (key.includes("cash")) bucket = "cash";
-        // else {
-        //   bucket = "other";
-        // }
 
         let bucket = "debt";
         if (key.includes("equity")) bucket = "equity";
@@ -930,11 +912,16 @@ function showFundHoldings(fundKey) {
     return;
   }
 
+  // Check if fund details modal is open
+  const fundDetailsModal = document.getElementById("fundDetailsModal");
+  const hasPreviousModal = fundDetailsModal !== null;
+
   lockBodyScroll();
 
   const modal = document.createElement("div");
   modal.className = "transaction-modal-overlay";
   modal.id = "fundHoldingsModal";
+  modal.dataset.hasPreviousModal = hasPreviousModal;
 
   // Calculate total holdings percentage
   let totalHoldingsPercentage = 0;
@@ -961,7 +948,9 @@ function showFundHoldings(fundKey) {
   modal.innerHTML = `
     <div class="transaction-modal">
       <div class="modal-header">
-        <h2>${fund.scheme} - Holdings (${holdingsWithCash.length})</h2>
+        <h2>${fund.schemeDisplay || fund.scheme} - Holdings (${
+    holdingsWithCash.length
+  })</h2>
         <button class="modal-close" onclick="closeFundHoldingsModal()">✕</button>
       </div>
       <div class="modal-content" id="fundHoldingsContent"></div>
@@ -991,7 +980,29 @@ function showFundHoldings(fundKey) {
 
 function closeFundHoldingsModal() {
   const modal = document.getElementById("fundHoldingsModal");
-  if (modal) modal.remove();
+  if (modal) {
+    const hasPreviousModal = modal.dataset.hasPreviousModal === "true";
+    modal.remove();
+
+    if (!hasPreviousModal) {
+      unlockBodyScroll();
+    }
+  }
+}
+
+function closeFundDetailsModal() {
+  const modal = document.getElementById("fundDetailsModal");
+  if (modal) {
+    // Destroy all charts in the modal to prevent memory leaks
+    const charts = modal.querySelectorAll("canvas");
+    charts.forEach((canvas) => {
+      const chartInstance = Chart.getChart(canvas);
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+    });
+    modal.remove();
+  }
   unlockBodyScroll();
 }
 
@@ -1970,6 +1981,7 @@ function processSummaryCAS() {
     updateSummaryFundBreakdown();
     calculateAndDisplayPortfolioAnalytics();
     updateCompactDashboard();
+    updateCompactPastDashboard();
     switchDashboardTab("main");
   });
 }
@@ -2064,64 +2076,29 @@ function createSummaryFundCard(fund, fundKey) {
     <div class="folio-stat"><span class="label">Current Cost:</span><span class="value">₹${formatNumber(
       cost
     )}</span></div>
-    <div class="folio-stat"><span class="label">Units:</span><span class="value">${roundValue(
-      units
-    )}</span></div>
-    <div class="folio-stat"><span class="label">Avg NAV:</span><span class="value">${roundValue(
-      avgNav
-    )}</span></div>
-    <div class="folio-stat"><span class="label">P&L:</span><span class="value ${
+    <div class="folio-stat fund-card-separator-space"><span class="label">P&L:</span><span class="value ${
       unrealizedGain >= 0 ? "gain" : "loss"
-    }">
-      ${unrealizedGain >= 0 ? "+" : ""}₹${formatNumber(
+    }">₹${formatNumber(
     Math.abs(unrealizedGain)
   )} (${unrealizedGainPercentage}%)</span></div>
     ${
-      extendedData
-        ? `<div class="extended-stats hidden">
-        <div class="folio-stat fund-card-separator-header"><span class="label">Fund Stats: </span><span></span></div>
-        <div class="folio-stat fund-card-separator"><span class="label">Alpha:</span><span class="value">${roundValue(
-          extendedData.return_stats?.alpha
-        )}</span></div>
-        <div class="folio-stat"><span class="label">Beta:</span><span class="value">${roundValue(
-          extendedData.return_stats?.beta
-        )}</span></div>
-        <div class="folio-stat"><span class="label">Sharpe Ratio:</span><span class="value">${roundValue(
-          extendedData.return_stats?.sharpe_ratio
-        )}</span></div>
-        <div class="folio-stat"><span class="label">Sortino Ratio:</span><span class="value">${roundValue(
-          extendedData.return_stats?.sortino_ratio
-        )}</span></div>
-        <div class="folio-stat"><span class="label">Information Ratio:</span><span class="value">${roundValue(
-          extendedData.return_stats?.information_ratio
-        )}</span></div>
-        <div class="folio-stat"><span class="label">Standard Deviation:</span><span class="value">${roundValue(
-          extendedData.return_stats?.standard_deviation
-        )}</span></div>
-        <div class="folio-stat"><span class="label">Expense Ratio:</span><span class="value">${roundValue(
-          extendedData.expense_ratio
-        )}%</span></div>
-        <div class="folio-stat"><span class="label">1Y Return:</span><span class="value">${roundValue(
-          extendedData.return_stats?.return1y
-        )}%</span></div>
-        <div class="folio-stat"><span class="label">3Y Return:</span><span class="value">${roundValue(
-          extendedData.return_stats?.return3y
-        )}%</span></div>
-        <div class="folio-stat"><span class="label">5Y Return:</span><span class="value">${roundValue(
-          extendedData.return_stats?.return5y
-        )}%</span></div>
-        <div class="folio-stat"><span class="label">Rating:</span><span class="value">${roundValue(
-          extendedData.groww_rating
-        )}</span></div>
-        <div class="folio-stat"><span class="label">AUM:</span><span class="value">₹${formatNumber(
-          roundValue(extendedData.aum)
-        )}CR</span></div>
-        <div class="folio-stat fund-card-separator-space"><span class="label">Holdings:</span><span class="value"><button class="holdings-eye-btn" title="View Holdings" onclick="event.stopPropagation(); showFundHoldings('${fundKey}')"><i class="fa-solid fa-eye"></i></button><span>${
-            fund.holdings.length
-          }</span></span></div>
-      </div>`
+      currentValue > 0
+        ? `<div class="fund-card-actions">
+      <button class="fund-action-btn primary" onclick="showFundDetailsModal('${fundKey}')">
+        <i class="fa-solid fa-chart-line"></i> View Details
+      </button>
+      ${
+        extendedData && fund.holdings && fund.holdings.length > 0
+          ? `
+      <button class="fund-action-btn secondary" onclick="event.stopPropagation(); showFundHoldings('${fundKey}')">
+        <i class="fa-solid fa-eye"></i> Holdings (${fund.holdings.length})
+      </button>
+      `
+          : ""
+      }`
         : ""
     }
+    </div>
   `;
 
   return card;
@@ -2312,7 +2289,6 @@ function hideProcessingSplash() {
 }
 
 async function processPortfolio() {
-  window.fundChartsRendered = false;
   document.getElementById("dashboard").classList.add("active");
 
   aggregateFundWiseData();
@@ -2326,6 +2302,7 @@ async function processPortfolio() {
     displayCapitalGains();
     initializeTransactionSections();
     updateCompactDashboard();
+    updateCompactPastDashboard();
     switchDashboardTab("main");
   });
 
@@ -2385,11 +2362,7 @@ function switchDashboardTab(tabId) {
   const activeButtons = document.querySelectorAll(buttonClass);
   activeButtons.forEach((btn) => btn.classList.add("active"));
 
-  if (tabId === "current-holding") {
-    if (!isSummaryCAS) {
-      renderAllFundCharts();
-    }
-  } else if (tabId === "charts") {
+  if (tabId === "charts") {
     if (!isSummaryCAS) {
       updateChart();
     }
@@ -2434,26 +2407,6 @@ function closeMobileMenu() {
   overlay.classList.remove("active");
   hamburger.classList.remove("active");
   unlockBodyScroll();
-}
-
-function renderAllFundCharts() {
-  // Check if charts have already been rendered
-  if (window.fundChartsRendered) {
-    return;
-  }
-
-  // Mark as rendered to prevent duplicate rendering
-  window.fundChartsRendered = true;
-
-  // Delay to ensure smooth tab transition
-  Object.entries(fundWiseData).forEach(([fundKey, fund]) => {
-    const chartIdVal = `fundChart_${fundKey.replace(/\s+/g, "_")}`;
-    renderFundValuationChart(fundKey, chartIdVal);
-
-    const perfChartId = `fundPerfChart_${fundKey.replace(/\s+/g, "_")}`;
-    const extendedData = mfStats[fund.isin];
-    if (extendedData) renderFundPerformanceChart(perfChartId, extendedData);
-  });
 }
 
 function normalizeBenchmarkName(name) {
@@ -4647,8 +4600,14 @@ function toggleTransactionSection(sectionId) {
 
 function closeFundTransactionModal() {
   const modal = document.getElementById("fundTransactionModal");
-  if (modal) modal.remove();
-  unlockBodyScroll();
+  if (modal) {
+    const hasPreviousModal = modal.dataset.hasPreviousModal === "true";
+    modal.remove();
+
+    if (!hasPreviousModal) {
+      unlockBodyScroll();
+    }
+  }
 }
 
 function showFundTransactions(fundKey, folioNumbersStr) {
@@ -4660,14 +4619,22 @@ function showFundTransactions(fundKey, folioNumbersStr) {
 
   const targetFolios = folioNumbersStr.split(",").map((f) => f.trim());
 
-  const existingModals = document.querySelectorAll(".transaction-modal");
-  existingModals.forEach((e) => e.remove());
+  // Check if fund details modal is open
+  const fundDetailsModal = document.getElementById("fundDetailsModal");
+  const hasPreviousModal = fundDetailsModal !== null;
+
+  // Don't remove existing modals, just hide them temporarily
+  if (!hasPreviousModal) {
+    const existingModals = document.querySelectorAll(".transaction-modal");
+    existingModals.forEach((e) => e.remove());
+  }
 
   lockBodyScroll();
 
   const modal = document.createElement("div");
   modal.className = "transaction-modal-overlay";
   modal.id = "fundTransactionModal";
+  modal.dataset.hasPreviousModal = hasPreviousModal;
 
   // Use cashflows from advancedMetrics
   const transactions = [];
@@ -5131,6 +5098,799 @@ function renderFundPerformanceChart(canvasId, extendedData) {
   }
 }
 
+function showFundDetailsModal(
+  fundKey,
+  isPastHolding = false,
+  specificFolios = null
+) {
+  const fund = fundWiseData[fundKey];
+  if (!fund) return;
+
+  lockBodyScroll();
+
+  const modal = document.createElement("div");
+  modal.className = "transaction-modal-overlay";
+  modal.id = "fundDetailsModal";
+
+  const extendedData = mfStats[fund.isin];
+  const displayName = fund.schemeDisplay || fund.scheme;
+
+  // Determine which folios to display and calculate metrics for
+  let targetFolios = specificFolios || fund.folios;
+  let displayFolios,
+    cost,
+    unrealizedGain,
+    unrealizedGainPercentage,
+    units,
+    avgNav,
+    avgHoldingDays,
+    current;
+
+  if (isPastHolding && !specificFolios) {
+    // For past holdings, only show inactive folios
+    displayFolios = fund.folios.filter((folioNum) => {
+      const folioData = portfolioData.folios.find((f) => f.folio === folioNum);
+      if (!folioData) return false;
+      const schemeInFolio = folioData.schemes.find(
+        (s) => s.scheme.trim().toLowerCase() === fund.scheme.toLowerCase()
+      );
+      return (
+        schemeInFolio && parseFloat(schemeInFolio.valuation?.value || 0) === 0
+      );
+    });
+    targetFolios = displayFolios;
+  } else if (specificFolios) {
+    displayFolios = specificFolios;
+  } else {
+    // For current holdings, only show active folios
+    displayFolios = fund.folios.filter((folioNum) => {
+      const folioData = portfolioData.folios.find((f) => f.folio === folioNum);
+      if (!folioData) return false;
+      return folioData.schemes.some(
+        (s) =>
+          s.scheme.trim().toLowerCase() === fund.scheme.toLowerCase() &&
+          s.valuation &&
+          parseFloat(s.valuation.value || 0) > 0
+      );
+    });
+  }
+
+  // Calculate metrics for target folios only
+  if (isPastHolding) {
+    // For past holdings, use folio summaries
+    cost = 0;
+    unrealizedGain = 0;
+    units = 0;
+    let totalHoldingDays = 0;
+    let totalCostTimesUnits = 0;
+    current = 0;
+
+    targetFolios.forEach((folioNum) => {
+      const folioSummary = fund.advancedMetrics?.folioSummaries?.[folioNum];
+      if (folioSummary) {
+        cost += folioSummary.invested || 0;
+        unrealizedGain += folioSummary.realizedGain || 0; // For past holdings, show realized gain
+        units += folioSummary.totalUnitsPurchased || 0;
+        totalHoldingDays +=
+          (folioSummary.averageHoldingDays || 0) *
+          (folioSummary.remainingUnits || 0);
+        totalCostTimesUnits += folioSummary.remainingCost || 0;
+      }
+    });
+
+    avgNav = units > 0 ? (cost / units).toFixed(3) : 0;
+    avgHoldingDays = units > 0 ? (totalHoldingDays / units).toFixed(1) : 0;
+    unrealizedGainPercentage =
+      cost > 0 ? ((unrealizedGain / cost) * 100).toFixed(2) : 0;
+  } else {
+    // For current holdings, calculate from folio summaries of active folios
+    cost = 0;
+    unrealizedGain = 0;
+    units = 0;
+    current = 0;
+    let totalHoldingDays = 0;
+    let totalCostTimesUnits = 0;
+
+    targetFolios.forEach((folioNum) => {
+      const folioSummary = fund.advancedMetrics?.folioSummaries?.[folioNum];
+      if (folioSummary) {
+        cost += folioSummary.remainingCost || 0;
+        unrealizedGain += folioSummary.unrealizedGain || 0;
+        units += folioSummary.remainingUnits || 0;
+        current += folioSummary.currentValue || 0;
+        totalHoldingDays +=
+          (folioSummary.averageHoldingDays || 0) *
+          (folioSummary.remainingUnits || 0);
+        totalCostTimesUnits += folioSummary.remainingCost || 0;
+      }
+    });
+
+    avgNav = units > 0 ? (cost / units).toFixed(3) : 0;
+    avgHoldingDays = units > 0 ? (totalHoldingDays / units).toFixed(1) : 0;
+    unrealizedGainPercentage =
+      cost > 0 ? ((unrealizedGain / cost) * 100).toFixed(2) : 0;
+  }
+
+  // Calculate XIRR
+  let xirr = null;
+  try {
+    const calc = new XIRRCalculator();
+    if (fund.advancedMetrics?.folioSummaries) {
+      Object.values(fund.advancedMetrics.folioSummaries).forEach(
+        (folioSummary) => {
+          folioSummary.cashflows.forEach((cf) => {
+            calc.addTransaction(cf.type, cf.date, Math.abs(cf.amount));
+          });
+        }
+      );
+    }
+    if (current > 0) {
+      calc.addTransaction(
+        "Sell",
+        new Date().toISOString().split("T")[0] + "T00:00:00.000Z",
+        current
+      );
+    }
+    xirr = calc.calculateXIRR();
+  } catch (e) {
+    console.debug("XIRR calculation failed for", fund.scheme, e);
+  }
+
+  const xirrText =
+    xirr == null || isNaN(xirr) ? "--" : `${parseFloat(xirr.toFixed(2))}%`;
+
+  function roundValue(val) {
+    if (val === null || val === undefined) return "--";
+    if (typeof val === "number") return Math.round(val * 100) / 100;
+    return val;
+  }
+
+  modal.innerHTML = `
+    <div class="transaction-modal fund-details-modal">
+      <div class="modal-header">
+        <h2>${displayName}</h2>
+        <button class="modal-close" onclick="closeFundDetailsModal()">✕</button>
+      </div>
+      <div class="modal-content fund-details-content">
+        
+        <!-- Summary Stats Section -->
+        <div class="fund-details-section">
+          <h3>📊 Summary</h3>
+          <div class="fund-details-stats-grid">
+            <div class="fund-detail-stat">
+              <span class="stat-label">AMC</span>
+              <span class="stat-value">${standardizeTitle(fund.amc)}</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">Folios</span>
+              <span class="stat-value">${displayFolios
+                .map((f) => f.split("/")[0].trim())
+                .join(", ")}</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">${
+                isPastHolding ? "Total Withdrawn" : "Current Value"
+              }</span>
+              <span class="stat-value">₹${formatNumber(
+                isPastHolding ? cost + unrealizedGain : current
+              )}</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">${
+                isPastHolding ? "Total Invested" : "Current Cost"
+              }</span>
+              <span class="stat-value">₹${formatNumber(cost)}</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">Units</span>
+              <span class="stat-value">${roundValue(units)}</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">Avg NAV</span>
+              <span class="stat-value">${roundValue(avgNav)}</span>
+            </div>
+            ${
+              !isPastHolding
+                ? `<div class="fund-detail-stat">
+                  <span class="stat-label">Avg. Holding Days</span>
+                  <span class="stat-value">${roundValue(avgHoldingDays)}</span>
+                </div>`
+                : ""
+            }
+            <div class="fund-detail-stat">
+              <span class="stat-label">P&L</span>
+              <span class="stat-value ${unrealizedGain >= 0 ? "gain" : "loss"}">
+                ₹${formatNumber(
+                  Math.abs(unrealizedGain)
+                )} (${unrealizedGainPercentage}%)
+              </span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">XIRR</span>
+              <span class="stat-value">${xirrText}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Row - Side by side on desktop, stacked on mobile -->
+        <div class="fund-details-charts-row">
+          <div class="fund-details-section">
+            <h3>📈 Valuation History</h3>
+            <div class="fund-detail-chart-wrapper">
+              <canvas id="modalFundValuationChart"></canvas>
+            </div>
+          </div>
+
+          ${
+            extendedData
+              ? `
+          <div class="fund-details-section">
+            <h3>📊 Performance Comparison</h3>
+            <div class="fund-detail-chart-wrapper">
+              <canvas id="modalFundPerformanceChart"></canvas>
+            </div>
+          </div>
+          `
+              : ""
+          }
+        </div>
+
+        <!-- Composition Charts Section -->
+        ${
+          extendedData
+            ? `
+        <div class="fund-details-section">
+          <h3>🧩 Fund Composition</h3>
+          <div class="composition-charts-grid">
+            <div>
+              <h4>Asset Allocation</h4>
+              <div class="fund-detail-chart-wrapper">
+                <canvas id="modalAssetAllocationChart"></canvas>
+              </div>
+            </div>
+            <div>
+              <h4>Market Cap Split</h4>
+              <div class="fund-detail-chart-wrapper">
+                <canvas id="modalMarketCapChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+        `
+            : ""
+        }
+
+        <!-- Extended Stats Section -->
+        ${
+          extendedData
+            ? `
+        <div class="fund-details-section">
+          <h3>📉 Fund Statistics</h3>
+          <div class="fund-details-stats-grid">
+            <div class="fund-detail-stat">
+              <span class="stat-label">Alpha</span>
+              <span class="stat-value">${roundValue(
+                extendedData.return_stats?.alpha
+              )}</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">Beta</span>
+              <span class="stat-value">${roundValue(
+                extendedData.return_stats?.beta
+              )}</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">Sharpe Ratio</span>
+              <span class="stat-value">${roundValue(
+                extendedData.return_stats?.sharpe_ratio
+              )}</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">Sortino Ratio</span>
+              <span class="stat-value">${roundValue(
+                extendedData.return_stats?.sortino_ratio
+              )}</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">Information Ratio</span>
+              <span class="stat-value">${roundValue(
+                extendedData.return_stats?.information_ratio
+              )}</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">Standard Deviation</span>
+              <span class="stat-value">${roundValue(
+                extendedData.return_stats?.standard_deviation
+              )}</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">Expense Ratio</span>
+              <span class="stat-value">${roundValue(
+                extendedData.expense_ratio
+              )}%</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">1Y Return</span>
+              <span class="stat-value">${roundValue(
+                extendedData.return_stats?.return1y
+              )}%</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">3Y Return</span>
+              <span class="stat-value">${roundValue(
+                extendedData.return_stats?.return3y
+              )}%</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">5Y Return</span>
+              <span class="stat-value">${roundValue(
+                extendedData.return_stats?.return5y
+              )}%</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">Rating</span>
+              <span class="stat-value">${roundValue(
+                extendedData.groww_rating
+              )}</span>
+            </div>
+            <div class="fund-detail-stat">
+              <span class="stat-label">AUM</span>
+              <span class="stat-value">₹${formatNumber(
+                roundValue(extendedData.aum)
+              )}CR</span>
+            </div>
+          </div>
+        </div>
+        `
+            : ""
+        }
+
+        <!-- Quick Actions Section -->
+        <div class="fund-details-section">
+          <h3>⚡ Quick Actions</h3>
+          <div class="fund-details-actions">
+            <button class="primary-btn" onclick="showFundHoldings('${fundKey}')">
+              <i class="fa-solid fa-eye"></i> View Holdings (${
+                fund.holdings?.length || 0
+              })
+            </button>
+            <button class="primary-btn" onclick="showFundTransactions('${fundKey}', '${fund.folios.join(
+    ","
+  )}')">
+              <i class="fa-solid fa-exchange-alt"></i> View Transactions
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  if (window.innerWidth <= 1024) {
+    initializeModalSwipe(modal);
+  }
+  window.history.pushState(
+    { modal: "fundDetails" },
+    "",
+    window.location.pathname
+  );
+
+  // Render charts after modal is in DOM
+  setTimeout(() => {
+    renderModalFundValuationChart(fundKey);
+    if (extendedData) {
+      renderModalFundPerformanceChart(
+        fundKey,
+        extendedData,
+        fund.benchmark_returns
+      );
+      renderModalCompositionCharts(fundKey, extendedData);
+    }
+  }, 50);
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeFundDetailsModal();
+  });
+}
+
+function renderModalFundValuationChart(fundKey) {
+  const fund = fundWiseData[fundKey];
+  const dailyValuation = fund.advancedMetrics?.dailyValuation;
+
+  if (!dailyValuation || dailyValuation.length === 0) return;
+
+  const canvas = document.getElementById("modalFundValuationChart");
+  if (!canvas) return;
+
+  const colors = getChartColors();
+  const ctx = canvas.getContext("2d");
+
+  const allData = dailyValuation;
+  const labels = allData.map((d) => {
+    const date = new Date(d.date);
+    return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+  });
+
+  const values = allData.map((d) => d.value);
+  const costs = allData.map((d) => d.cost);
+
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: "Value",
+          data: values,
+          borderColor: "#667eea",
+          backgroundColor: "rgba(102, 126, 234, 0.1)",
+          fill: true,
+          tension: 0.4,
+          pointRadius: 0,
+          borderWidth: 2,
+        },
+        {
+          label: "Cost",
+          data: costs,
+          borderColor: "#ef4444",
+          backgroundColor: "rgba(239, 68, 68, 0.05)",
+          fill: false,
+          tension: 0.4,
+          pointRadius: 0,
+          borderWidth: 1,
+          borderDash: [3, 3],
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: 2,
+      interaction: { intersect: false, mode: "index", axis: "x" },
+      plugins: {
+        legend: { display: true, position: "bottom" },
+        tooltip: {
+          backgroundColor: colors.tooltipBg,
+          borderColor: colors.tooltipBorder,
+          borderWidth: 2,
+          titleColor: "#fff",
+          bodyColor: "#fff",
+          padding: 8,
+          titleFont: { size: 12 },
+          bodyFont: { size: 11 },
+          callbacks: {
+            title: (items) => {
+              const idx = items[0].dataIndex;
+              const date = new Date(allData[idx].date);
+              return date.toLocaleDateString("en-IN", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              });
+            },
+            label: (ctx) =>
+              ctx.datasetIndex === 0
+                ? `Value: ₹${ctx.parsed.y.toLocaleString("en-IN")}`
+                : `Cost: ₹${ctx.parsed.y.toLocaleString("en-IN")}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          display: true,
+          grid: { display: false },
+          ticks: {
+            maxTicksLimit: 8,
+            font: { size: 10 },
+            color: colors.textColor,
+          },
+        },
+        y: {
+          display: true,
+          grid: { display: true, color: colors.gridColor },
+          ticks: {
+            font: { size: 10 },
+            color: colors.textColor,
+            callback: (value) => {
+              if (value >= 100000)
+                return "₹" + (value / 100000).toFixed(1) + "L";
+              if (value >= 1000) return "₹" + (value / 1000).toFixed(0) + "K";
+              return "₹" + value;
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+function renderModalFundPerformanceChart(
+  fundKey,
+  extendedData,
+  benchmark_returns
+) {
+  const ctx = document.getElementById("modalFundPerformanceChart");
+  if (!ctx) return;
+
+  const colors = getChartColors();
+  const labels = ["1Y", "3Y", "5Y"];
+  const safeRound = (val) =>
+    typeof val === "number" && !isNaN(val) ? Math.round(val * 100) / 100 : null;
+
+  const stats = extendedData.return_stats || {};
+  const fundData = [stats.return1y, stats.return3y, stats.return5y].map(
+    safeRound
+  );
+  const categoryData = [
+    stats.cat_return1y,
+    stats.cat_return3y,
+    stats.cat_return5y,
+  ].map(safeRound);
+  const benchmarkData = [
+    benchmark_returns?.return1y,
+    benchmark_returns?.return3y,
+    benchmark_returns?.return5y,
+  ].map(safeRound);
+
+  const datasets = [];
+
+  if (fundData.some((v) => v !== null))
+    datasets.push({
+      label: "Fund",
+      data: fundData,
+      backgroundColor: "#3b82f6",
+      borderRadius: 6,
+      barThickness: 20,
+    });
+
+  if (categoryData.some((v) => v !== null))
+    datasets.push({
+      label: "Category",
+      data: categoryData,
+      backgroundColor: "#10b981",
+      borderRadius: 6,
+      barThickness: 20,
+    });
+
+  if (benchmarkData.some((v) => v !== null))
+    datasets.push({
+      label: "Benchmark",
+      data: benchmarkData,
+      backgroundColor: "#f59e0b",
+      borderRadius: 6,
+      barThickness: 20,
+    });
+
+  new Chart(ctx, {
+    type: "bar",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: 2,
+      plugins: {
+        legend: {
+          display: true,
+          position: "bottom",
+          labels: {
+            boxWidth: 12,
+            font: { size: 11 },
+            color: colors.textColor,
+          },
+        },
+        tooltip: {
+          backgroundColor: colors.tooltipBg,
+          borderColor: colors.tooltipBorder,
+          borderWidth: 2,
+          titleColor: "#fff",
+          bodyColor: "#fff",
+          callbacks: {
+            label: (ctx) =>
+              `${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2)}%`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            font: { size: 11 },
+            color: colors.textColor,
+          },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { display: true, color: colors.gridColor },
+          ticks: {
+            font: { size: 11 },
+            color: colors.textColor,
+            callback: (val) => `${val}%`,
+          },
+        },
+      },
+    },
+  });
+}
+
+function renderModalCompositionCharts(fundKey, extendedData) {
+  const ps = extendedData?.portfolio_stats;
+  if (!ps) return;
+
+  // Asset Allocation Chart
+  const assetContainer = document.getElementById("modalAssetAllocationChart");
+  if (assetContainer) {
+    const rawAsset = ps.asset_allocation || {};
+    let equity = 0,
+      debt = 0,
+      gold = 0,
+      silver = 0;
+
+    Object.entries(rawAsset).forEach(([key, value]) => {
+      const val = parseFloat(value);
+      if (isNaN(val) || val <= 0) return;
+
+      const k = key.toLowerCase();
+      let bucket = "debt";
+
+      if (k.includes("equity")) {
+        bucket = "equity";
+      } else if (k.includes("commodities")) {
+        const subcategory = extendedData?.sub_category?.toLowerCase?.() || "";
+        const name = fundKey?.toLowerCase?.() || "";
+
+        if (subcategory.includes("gold") || name.includes("gold")) {
+          bucket = "gold";
+        } else if (subcategory.includes("silver") || name.includes("silver")) {
+          bucket = "silver";
+        } else {
+          bucket = "debt";
+        }
+      } else {
+        bucket = "debt";
+      }
+
+      switch (bucket) {
+        case "equity":
+          equity += val;
+          break;
+        case "gold":
+          gold += val;
+          break;
+        case "silver":
+          silver += val;
+          break;
+        default:
+          debt += val;
+      }
+    });
+
+    const segments = [];
+    if (equity > 0)
+      segments.push({ key: "equity", label: "Equity", value: equity });
+    if (debt > 0) segments.push({ key: "debt", label: "Debt", value: debt });
+    if (gold > 0) segments.push({ key: "other", label: "Gold", value: gold });
+    if (silver > 0)
+      segments.push({ key: "other", label: "Silver", value: silver });
+
+    // Sort by value descending
+    segments.sort((a, b) => b.value - a.value);
+
+    if (segments.length > 0) {
+      const total = segments.reduce((sum, s) => sum + s.value, 0);
+      const normalizedSegments = segments.map((s) => ({
+        ...s,
+        value: (s.value / total) * 100,
+      }));
+
+      const barHTML = normalizedSegments
+        .map(
+          (s) => `
+          <div class="composition-segment ${s.key}"
+               style="width: ${s.value}%"
+               title="${s.label}: ${s.value.toFixed(1)}%">
+          </div>
+        `
+        )
+        .join("");
+
+      const legendHTML = normalizedSegments
+        .map(
+          (s) => `
+          <span class="legend-item">
+            <span class="legend-color ${s.key}"></span>${
+            s.label
+          }: ${s.value.toFixed(1)}%
+          </span>
+        `
+        )
+        .join("");
+
+      assetContainer.parentElement.innerHTML = `
+        <div class="fund-composition-chart">
+          <div class="composition-bar">${barHTML}</div>
+          <div class="composition-legend">${legendHTML}</div>
+        </div>
+      `;
+    } else {
+      assetContainer.parentElement.innerHTML =
+        '<div class="fund-composition-chart empty-composition">No data available</div>';
+    }
+  }
+
+  // Market Cap Chart
+  const mcapContainer = document.getElementById("modalMarketCapChart");
+  if (mcapContainer) {
+    let large = 0,
+      mid = 0,
+      small = 0;
+
+    if (
+      ps.large_cap !== undefined ||
+      ps.mid_cap !== undefined ||
+      ps.small_cap !== undefined
+    ) {
+      large = parseFloat(ps.large_cap || 0);
+      mid = parseFloat(ps.mid_cap || 0);
+      small = parseFloat(ps.small_cap || 0);
+    } else if (ps.market_cap_per) {
+      large = parseFloat(ps.market_cap_per.large || 0);
+      mid = parseFloat(ps.market_cap_per.mid || 0);
+      small = parseFloat(ps.market_cap_per.small || 0);
+    }
+
+    const total = large + mid + small;
+    if (total > 0) {
+      large = (large / total) * 100;
+      mid = (mid / total) * 100;
+      small = (small / total) * 100;
+
+      const segments = [];
+      if (large > 0)
+        segments.push({ key: "large-cap", label: "Large", value: large });
+      if (mid > 0) segments.push({ key: "mid-cap", label: "Mid", value: mid });
+      if (small > 0)
+        segments.push({ key: "small-cap", label: "Small", value: small });
+
+      // Sort by value descending
+      segments.sort((a, b) => b.value - a.value);
+
+      const barHTML = segments
+        .map(
+          (s) => `
+          <div class="composition-segment ${s.key}"
+               style="width: ${s.value}%"
+               title="${s.label}: ${s.value.toFixed(1)}%">
+          </div>
+        `
+        )
+        .join("");
+
+      const legendHTML = segments
+        .map(
+          (s) => `
+          <span class="legend-item">
+            <span class="legend-color ${s.key}"></span>${
+            s.label
+          }: ${s.value.toFixed(1)}%
+          </span>
+        `
+        )
+        .join("");
+
+      mcapContainer.parentElement.innerHTML = `
+        <div class="fund-composition-chart">
+          <div class="composition-bar">${barHTML}</div>
+          <div class="composition-legend">${legendHTML}</div>
+        </div>
+      `;
+    } else {
+      mcapContainer.parentElement.innerHTML =
+        '<div class="fund-composition-chart empty-composition">No data available</div>';
+    }
+  }
+}
+
 function createFundCardForFolios(fund, fundKey, folios, isActive) {
   const folioNumbers = folios.map((f) => f.folioNum);
 
@@ -5328,6 +6088,172 @@ function updateFundBreakdown() {
   }
 }
 
+function createFundCompositionCharts(extendedData, fundKey) {
+  const ps = extendedData?.portfolio_stats;
+  if (!ps) return "";
+
+  let html = "";
+
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  const buildChartHTML = (title, segments) => {
+    const hasData = segments.some((s) => s.value > 0);
+
+    if (!hasData) {
+      return `
+        <div class="folio-stat fund-card-separator-header"><span class="label">${title}:</span></div>
+        <div class="fund-composition-chart empty-composition">No Data</div>
+      `;
+    }
+
+    const barHTML = segments
+      .filter((s) => s.value > 0)
+      .map(
+        (s) => `
+        <div class="composition-segment ${s.key}"
+             style="width: ${s.value}%"
+             title="${cap(s.label)}: ${s.value.toFixed(1)}%">
+        </div>`
+      )
+      .join("");
+
+    const legendHTML = segments
+      .filter((s) => s.value > 0)
+      .map(
+        (s) => `
+        <span class="legend-item">
+          <span class="legend-color ${s.key}"></span>${cap(
+          s.label
+        )}: ${s.value.toFixed(1)}%
+        </span>`
+      )
+      .join("");
+
+    return `
+      <div class="folio-stat fund-card-separator-header"><span class="label">${title}:</span></div>
+      <div class="fund-composition-chart">
+        <div class="composition-bar">${barHTML}</div>
+        <div class="composition-legend">${legendHTML}</div>
+      </div>
+    `;
+  };
+
+  const normalizeAndSort = (segments) => {
+    const total = segments.reduce((sum, s) => sum + s.value, 0);
+    if (total <= 0) {
+      return segments.map((s) => ({ ...s, value: 0 }));
+    }
+
+    const normalized = segments.map((s) => ({
+      ...s,
+      value: (s.value / total) * 100,
+    }));
+
+    normalized.sort((a, b) => b.value - a.value);
+
+    return normalized;
+  };
+
+  // ---------- ASSET ALLOCATION ----------
+
+  const rawAsset = ps.asset_allocation || {};
+
+  let equity = 0,
+    debt = 0,
+    gold = 0,
+    silver = 0;
+
+  Object.entries(rawAsset).forEach(([key, value]) => {
+    const val = parseFloat(value);
+    if (isNaN(val) || val <= 0) return;
+
+    const k = key.toLowerCase();
+
+    let bucket = "debt";
+
+    if (k.includes("equity")) {
+      bucket = "equity";
+
+      // Commodities → gold/silver if detected, otherwise debt
+    } else if (k.includes("commodities")) {
+      const subcategory = extendedData?.sub_category?.toLowerCase?.() || "";
+      const name = fundKey?.toLowerCase?.() || "";
+
+      if (subcategory.includes("gold") || name.includes("gold")) {
+        bucket = "gold";
+      } else if (subcategory.includes("silver") || name.includes("silver")) {
+        bucket = "silver";
+      } else {
+        bucket = "debt";
+      }
+    } else {
+      bucket = "debt";
+    }
+
+    // Add values
+    switch (bucket) {
+      case "equity":
+        equity += val;
+        break;
+      case "gold":
+        gold += val;
+        break;
+      case "silver":
+        silver += val;
+        break;
+      default:
+        debt += val; // everything else → debt
+    }
+  });
+
+  // Only these 4 buckets now exist
+  const assetSegments = normalizeAndSort([
+    { key: "equity", label: "equity", value: equity },
+    { key: "gold", label: "gold", value: gold },
+    { key: "silver", label: "silver", value: silver },
+    { key: "debt", label: "debt", value: debt },
+  ]);
+
+  html += buildChartHTML("Asset Allocation", assetSegments);
+
+  // ---------- MARKET CAP ----------
+
+  let large = 0,
+    mid = 0,
+    small = 0;
+
+  const hasDirectMC =
+    ps.large_cap !== undefined ||
+    ps.mid_cap !== undefined ||
+    ps.small_cap !== undefined;
+
+  const hasMCPer =
+    ps.market_cap_per &&
+    (ps.market_cap_per.large ||
+      ps.market_cap_per.mid ||
+      ps.market_cap_per.small);
+
+  if (hasDirectMC) {
+    large = parseFloat(ps.large_cap || 0) || 0;
+    mid = parseFloat(ps.mid_cap || 0) || 0;
+    small = parseFloat(ps.small_cap || 0) || 0;
+  } else if (hasMCPer) {
+    large = parseFloat(ps.market_cap_per.large || 0) || 0;
+    mid = parseFloat(ps.market_cap_per.mid || 0) || 0;
+    small = parseFloat(ps.market_cap_per.small || 0) || 0;
+  }
+
+  const mcapSegments = normalizeAndSort([
+    { key: "large-cap", label: "large", value: large },
+    { key: "mid-cap", label: "mid", value: mid },
+    { key: "small-cap", label: "small", value: small },
+  ]);
+
+  html += buildChartHTML("Market Cap Split", mcapSegments);
+
+  return html;
+}
+
 function createFundCardWithTransactions(
   fund,
   fundKey,
@@ -5384,10 +6310,9 @@ function createFundCardWithTransactions(
   }</div>
     ${
       current <= 0
-        ? `</div>
-    <div class="folio-stat fund-card-separator"><span class="label">Invested:</span><span class="value">₹${formatNumber(
-      invested
-    )}</span></div>
+        ? `<div class="folio-stat fund-card-separator"><span class="label">Invested:</span><span class="value">₹${formatNumber(
+            invested
+          )}</span></div>
     <div class="folio-stat"><span class="label">Withdrawn:</span><span class="value">₹${formatNumber(
       withdrawn
     )}</span></div>`
@@ -5398,9 +6323,9 @@ function createFundCardWithTransactions(
         ? `<div class="folio-stat fund-card-separator-space"><span class="label">P&L:</span><span class="value ${
             realizedGain >= 0 ? "gain" : "loss"
           }">
-            ${realizedGain >= 0 ? "+" : ""}₹${formatNumber(
-            Math.abs(realizedGain)
-          )} (${realizedGainPercentage}%)</span></div>`
+            ₹${formatNumber(
+              Math.abs(realizedGain)
+            )} (${realizedGainPercentage}%)</span></div>`
         : ""
     }
     ${
@@ -5419,132 +6344,30 @@ function createFundCardWithTransactions(
     }
     ${
       current > 0
-        ? `<div class="folio-stat"><span class="label">Units:</span><span class="value">${roundValue(
-            remainingUnits
-          )}</span></div>`
+        ? `<div class="folio-stat"><span class="label">P&L:</span><span class="value ${
+            unrealizedGain >= 0 ? "gain" : "loss"
+          }">
+          ₹${formatNumber(Math.abs(unrealizedGain))} (${
+            current > 0 ? unrealizedGainPercentage : realizedGainPercentage
+          }%)</span></div>`
         : ""
     }
-    ${
-      current > 0
-        ? `<div class="folio-stat"><span class="label">Avg NAV:</span><span class="value">${roundValue(
-            averageRemainingCostPerUnit
-          )}</span></div>`
-        : ""
-    }
-    ${
-      current > 0
-        ? `<div class="folio-stat"><span class="label">Avg. Holding Days:</span><span class="value">${roundValue(
-            averageHoldingDays
-          )}</span></div>`
-        : ""
-    }
+    <div class="folio-stat fund-card-separator-space"><span class="label">XIRR:</span><span class="value">${xirrText}</span></div>
+    <div class="fund-card-actions">
       ${
         current > 0
-          ? `<div class="folio-stat"><span class="label">P&L:</span><span class="value ${
-              unrealizedGain >= 0 ? "gain" : "loss"
-            }">
-            ${unrealizedGain >= 0 ? "+" : ""}₹${formatNumber(
-              Math.abs(unrealizedGain)
-            )} (${
-              current > 0 ? unrealizedGainPercentage : realizedGainPercentage
-            }%)</span></div>`
+          ? `
+      <button class="fund-action-btn primary" onclick="showFundDetailsModal('${fundKey}', false)">
+        <i class="fa-solid fa-chart-line"></i> View Details
+      </button>
+      
+      <button class="fund-action-btn secondary" onclick="event.stopPropagation(); showFundHoldings('${fundKey}')">
+        <i class="fa-solid fa-eye"></i> Holdings (${fund.holdings.length})
+      </button>
+      `
           : ""
       }
-    <div class="folio-stat fund-card-separator-space"><span class="label">XIRR:</span><span class="value">${xirrText}</span></div>
-    ${
-      current > 0
-        ? `<div class="folio-stat fund-card-separator-header hidden"><span class="label">Overall Info: </span><span></span></div>`
-        : ""
-    }
-    ${
-      current > 0
-        ? `<div class="folio-stat fund-card-separator hidden"><span class="label">Invested:</span><span class="value">₹${formatNumber(
-            invested
-          )}</span></div>
-    <div class="folio-stat hidden"><span class="label">Withdrawn:</span><span class="value">₹${formatNumber(
-      withdrawn
-    )}</span></div>`
-        : ""
-    }
-    ${
-      current > 0
-        ? `<div class="folio-stat hidden"><span class="label">Overall Gain/Loss:</span><span class="value ${
-            overallGain >= 0 ? "gain" : "loss"
-          }">
-            ${overallGain >= 0 ? "+" : ""}₹${formatNumber(
-            Math.abs(overallGain)
-          )}</span></div>`
-        : ""
-    }
-    ${
-      current > 0
-        ? `<div class="folio-stat fund-card-separator-space hidden"><span class="label">P&L:</span><span class="value ${
-            realizedGain >= 0 ? "gain" : "loss"
-          }">
-            ${realizedGain >= 0 ? "+" : ""}₹${formatNumber(
-            Math.abs(realizedGain)
-          )}</span></div>`
-        : ""
-    }
-    ${
-      current > 0
-        ? `${createFundValuationChart(fund, fundKey)}
-              ${createFundPerformanceChart(
-                fund,
-                fundKey,
-                extendedData,
-                fund.benchmark_returns
-              )}`
-        : ""
-    }
-    ${
-      current > 0
-        ? extendedData
-          ? `<div class="extended-stats hidden">
-          <div class="folio-stat fund-card-separator-header"><span class="label">Fund Stats: </span><span></span></div>
-               <div class="folio-stat fund-card-separator"><span class="label">Alpha:</span><span class="value">${roundValue(
-                 extendedData.return_stats.alpha
-               )}</span></div>
-               <div class="folio-stat"><span class="label">Beta:</span><span class="value">${roundValue(
-                 extendedData.return_stats.beta
-               )}</span></div>
-               <div class="folio-stat"><span class="label">Sharpe Ratio:</span><span class="value">${roundValue(
-                 extendedData.return_stats.sharpe_ratio
-               )}</span></div>
-               <div class="folio-stat"><span class="label">Sortino Ratio:</span><span class="value">${roundValue(
-                 extendedData.return_stats.sortino_ratio
-               )}</span></div>
-               <div class="folio-stat"><span class="label">Information Ratio:</span><span class="value">${roundValue(
-                 extendedData.return_stats.information_ratio
-               )}</span></div>
-               <div class="folio-stat"><span class="label">Standard Deviation:</span><span class="value">${roundValue(
-                 extendedData.return_stats.standard_deviation
-               )}</span></div>
-               <div class="folio-stat"><span class="label">Expense Ratio:</span><span class="value">${roundValue(
-                 extendedData.expense_ratio
-               )}%</span></div>
-               <div class="folio-stat hidden"><span class="label">1Y Return:</span><span class="value">${roundValue(
-                 extendedData.return_stats.return1y
-               )}%</span></div>
-               <div class="folio-stat hidden"><span class="label">3Y Return:</span><span class="value">${roundValue(
-                 extendedData.return_stats.return3y
-               )}%</span></div>
-               <div class="folio-stat hidden"><span class="label">5Y Return:</span><span class="value">${roundValue(
-                 extendedData.return_stats.return5y
-               )}%</span></div>
-                <div class="folio-stat"><span class="label">Rating:</span><span class="value">${roundValue(
-                  extendedData.groww_rating
-                )}</span></div>
-               <div class="folio-stat"><span class="label">AUM:</span><span class="value">₹${formatNumber(
-                 roundValue(extendedData.aum)
-               )}CR</span></div>
-               <div class="folio-stat fund-card-separator-space"><span class="label">Holdings:</span><span class="value"><button class="holdings-eye-btn" onclick="event.stopPropagation(); showFundHoldings('${fundKey}')"><i class="fa-solid fa-eye"></i></button><span>${
-              fund.holdings.length
-            }</span></span></div>
-             </div>`
-          : ""
-        : ""
-    }<div class="folio-stat"><button class="view-tx-btn" onclick="showFundTransactions('${fundKey}', '${folioNumbersStr}')">View Transactions</button></div>
+    </div>
   `;
 
   return card;
@@ -6338,24 +7161,6 @@ function showToast(message, type = "info") {
   }, 3000);
 }
 
-document.getElementById("toggleExtendedBtn").addEventListener("click", () => {
-  const extendedElements = document.querySelectorAll(".extended-stats");
-  extendedElements.forEach((el) => el.classList.toggle("hidden"));
-
-  const firstHidden = extendedElements[0].classList.contains("hidden");
-
-  if (firstHidden) {
-    document.getElementById(
-      "toggleExtendedBtn"
-    ).innerHTML = `<i class="fa-solid fa-eye"></i> Show Fund Stats`;
-  } else {
-    extendedElements[0].scrollIntoView({ behavior: "smooth", block: "center" });
-    document.getElementById(
-      "toggleExtendedBtn"
-    ).innerHTML = `<i class="fa-solid fa-eye-slash"></i> Hide Fund Stats`;
-  }
-});
-
 let currentWidthCategory;
 
 function getWidthCategory() {
@@ -6573,8 +7378,6 @@ async function updateAllUsersStats(updateType = "auto") {
     // Refresh current user's view
     if (currentUser && userDataMap.has(currentUser)) {
       mfStats = { ...userDataMap.get(currentUser).mfStats, ...newStats };
-
-      window.fundChartsRendered = false;
 
       if (isSummaryCAS) {
         processSummaryCAS();
@@ -6800,8 +7603,6 @@ async function updateAllUsersNav(updateType = "auto") {
             }
           }
         });
-
-        window.fundChartsRendered = false;
 
         if (isSummaryCAS) {
           processSummaryCAS();
@@ -7069,8 +7870,6 @@ async function checkAndPerformAutoUpdates() {
     console.log("📅 Daily NAV update required");
     const updated = await updateNavHistoryOnly();
     if (updated) {
-      window.fundChartsRendered = false;
-
       if (isSummaryCAS) {
         processSummaryCAS();
         disableSummaryIncompatibleTabs();
@@ -8261,21 +9060,6 @@ function calculateFamilyMetrics(allUserData) {
         Object.entries(fundAsset).forEach(([k, v]) => {
           if (v == null || isNaN(parseFloat(v)) || parseFloat(v) <= 0) return;
           const key = k.trim().toLowerCase();
-          // let bucket = "other";
-          // if (key.includes("equity")) bucket = "equity";
-          // else if (key.includes("debt")) bucket = "debt";
-          // else if (key.includes("commodities")) {
-          //   const subcategory =
-          //     extendedData?.sub_category?.toLowerCase?.() || "";
-          //   const name = fund?.scheme?.toLowerCase?.() || "";
-          //   if (subcategory.includes("gold") || name.includes("gold"))
-          //     bucket = "gold";
-          //   else if (subcategory.includes("silver") || name.includes("silver"))
-          //     bucket = "silver";
-          //   else bucket = "commodities";
-          // } else if (key.includes("real estate")) bucket = "real estate";
-          // else if (key.includes("cash")) bucket = "cash";
-
           let bucket = "debt";
           if (key.includes("equity")) bucket = "equity";
           else if (key.includes("commodities")) {
@@ -8494,7 +9278,7 @@ function updateCompactFamilyDashboard(metrics) {
         </div>
 
         <div class="compact-stat-row">
-          <span class="stat-label">Total Returns</span>
+          <span class="stat-label">P&L</span>
           <span class="stat-value ${
             metrics.totalUnrealizedGain >= 0 ? "positive" : "negative"
           }">
@@ -8536,7 +9320,7 @@ function updateCompactFamilyDashboard(metrics) {
       </div>
       <div class="compact-holding-values">
         <div class="compact-holding-current ${
-          data.currentValue <= data.cost ? "red" : ""
+          data.currentValue <= data.cost ? "red" : "green"
         }">
           ₹${formatNumber(data.currentValue)}
         </div>
@@ -8868,17 +9652,18 @@ function calculateOneDayReturns() {
   }
 
   const percentChange = (totalOneDayChange / totalPreviousDayValue) * 100;
-  const sign = totalOneDayChange >= 0 ? "+" : "";
 
   return {
-    text: `${sign}₹${formatNumber(
+    text: `₹${formatNumber(
       Math.abs(Math.round(totalOneDayChange))
-    )} (${sign}${percentChange.toFixed(2)}%)`,
+    )} (${percentChange.toFixed(2)}%)`,
     value: totalOneDayChange,
   };
 }
 
-let compactDisplayMode = "xirr"; // xirr, abs, 1day
+let compactDisplayMode = "1day";
+let compactSortMode = "currentValue";
+let compactPastSortMode = "returns";
 
 function toggleCompactXIRR(displayMode) {
   const xirrElements = document.querySelectorAll(".compact-holding-xirr");
@@ -8929,22 +9714,20 @@ function toggleCompactXIRR(displayMode) {
   }
 }
 
-let compactSortMode = "currentValue"; // default, xirr, abs
-
 function toggleCompactSort() {
   let display;
   if (compactSortMode === "currentValue") {
-    compactSortMode = "xirr";
-    display = "xirr";
-  } else if (compactSortMode === "xirr") {
     compactSortMode = "abs";
     display = "abs";
   } else if (compactSortMode === "abs") {
+    compactSortMode = "xirr";
+    display = "xirr";
+  } else if (compactSortMode === "xirr") {
     compactSortMode = "1day";
     display = "1day";
-  } else {
+  } else if (compactSortMode === "1day") {
     compactSortMode = "currentValue";
-    display = "xirr";
+    display = "1day";
   }
 
   const sortBtn = document.querySelector(".compact-filter-btn");
@@ -8973,6 +9756,306 @@ function toggleCompactSort() {
   );
   populateCompactHoldings(activeFunds);
   toggleCompactXIRR(display);
+}
+
+function updateCompactPastDashboard() {
+  if (!portfolioData || !fundWiseData) return;
+
+  const container = document.getElementById("compactPastDashboard");
+  if (!container) return;
+
+  const inactiveFundData = {};
+
+  Object.entries(fundWiseData).forEach(([fundKey, fund]) => {
+    const totalInvested = fund.transactions
+      .filter((t) => t.type === "PURCHASE")
+      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+
+    if (totalInvested === 0) return;
+
+    // Check each folio for this fund
+    fund.folios.forEach((folioNum) => {
+      const folioData = portfolioData.folios.find((f) => f.folio === folioNum);
+      if (!folioData) return;
+
+      const schemeInFolio = folioData.schemes.find(
+        (s) => s.scheme.trim().toLowerCase() === fund.scheme.toLowerCase()
+      );
+
+      if (schemeInFolio) {
+        const folioValue = schemeInFolio.valuation
+          ? parseFloat(schemeInFolio.valuation.value || 0)
+          : 0;
+
+        // Only include inactive folios (value = 0)
+        if (folioValue === 0) {
+          if (!inactiveFundData[fundKey]) {
+            inactiveFundData[fundKey] = {
+              fundKey,
+              fund,
+              folioNums: [],
+              totalInvested: 0,
+              totalWithdrawn: 0,
+              totalRealizedGain: 0,
+            };
+          }
+
+          inactiveFundData[fundKey].folioNums.push(folioNum);
+
+          // Aggregate folio-level data
+          const folioSummary = fund.advancedMetrics?.folioSummaries?.[folioNum];
+          if (folioSummary) {
+            inactiveFundData[fundKey].totalInvested +=
+              folioSummary.invested || 0;
+            inactiveFundData[fundKey].totalWithdrawn +=
+              folioSummary.withdrawn || 0;
+            inactiveFundData[fundKey].totalRealizedGain +=
+              folioSummary.realizedGain || 0;
+          }
+        }
+      }
+    });
+  });
+
+  const inactiveFunds = Object.values(inactiveFundData);
+
+  if (inactiveFunds.length === 0) {
+    container.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">
+        <div style="font-size: 48px; margin-bottom: 20px;">📋</div>
+        <h3 style="margin-bottom: 10px; color: var(--text-primary);">No Past Holdings</h3>
+        <p style="color: var(--text-tertiary);">You don't have any fully redeemed funds yet.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.style.display = "block";
+
+  // Calculate totals
+  let totalInvested = 0;
+  let totalWithdrawn = 0;
+  let totalRealizedGain = 0;
+
+  inactiveFunds.forEach((fundData) => {
+    totalInvested += fundData.totalInvested;
+    totalWithdrawn += fundData.totalWithdrawn;
+    totalRealizedGain += fundData.totalRealizedGain;
+  });
+
+  const investedAmountForRealized = totalInvested;
+  const realizedGainPercent =
+    investedAmountForRealized > 0
+      ? parseFloat(
+          (totalRealizedGain / investedAmountForRealized) * 100
+        ).toFixed(2)
+      : 0;
+
+  container.innerHTML = `
+    <div class="compact-summary-card">
+      <div class="compact-header">
+        <h3>PAST HOLDINGS (<span>${inactiveFunds.length}</span>)</h3>
+        <h2 class="compact-total-value">₹${formatNumber(totalWithdrawn)}</h2>
+      </div>
+
+      <div class="compact-stats">
+        <div class="compact-stat-row">
+          <span class="stat-label">Total Invested</span>
+          <span class="stat-value">₹${formatNumber(totalInvested)}</span>
+        </div>
+
+        <div class="compact-stat-row">
+          <span class="stat-label">Total Withdrawn</span>
+          <span class="stat-value">₹${formatNumber(totalWithdrawn)}</span>
+        </div>
+
+        <div class="compact-stat-row">
+          <span class="stat-label">P&L</span>
+          <span class="stat-value ${
+            totalRealizedGain >= 0 ? "positive" : "negative"
+          }">
+            ₹${formatNumber(Math.abs(totalRealizedGain))} 
+            (${parseFloat(realizedGainPercent).toFixed(2)}%)
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="compact-controls past-sort">
+      <button class="compact-filter-btn" onclick="toggleCompactPastSort()">
+        <i class="fa-solid fa-sort"></i>
+        <span>Returns</span>
+      </button>
+    </div>
+
+    <div class="compact-holdings-list" id="compactPastHoldingsList"></div>
+  `;
+
+  populateCompactPastHoldings(inactiveFunds);
+}
+
+function populateCompactPastHoldings(inactiveFunds) {
+  const list = document.getElementById("compactPastHoldingsList");
+  if (!list) return;
+
+  list.innerHTML = "";
+
+  if (inactiveFunds.length === 0) {
+    list.innerHTML =
+      '<div style="text-align: center; padding: 20px; color: var(--text-secondary);">No past holdings data available</div>';
+    return;
+  }
+
+  // Sort based on current mode
+  let sortedFunds;
+  switch (compactPastSortMode) {
+    case "invested":
+      sortedFunds = [...inactiveFunds].sort(
+        (a, b) => b.totalInvested - a.totalInvested
+      );
+      break;
+    case "returns":
+      sortedFunds = [...inactiveFunds].sort(
+        (a, b) => b.totalRealizedGain - a.totalRealizedGain
+      );
+      break;
+    case "withdrawn":
+    default:
+      sortedFunds = [...inactiveFunds].sort(
+        (a, b) => b.totalWithdrawn - a.totalWithdrawn
+      );
+      break;
+  }
+
+  sortedFunds.forEach((fundData) => {
+    const { fundKey, fund, totalInvested, totalWithdrawn, totalRealizedGain } =
+      fundData;
+
+    const realizedGainPercent = parseFloat(
+      (totalRealizedGain / totalInvested) * 100
+    ).toFixed(2);
+
+    const item = document.createElement("div");
+    item.className = "compact-holding-item";
+    // item.onclick = () => {
+    //   showFundDetailsModal(fundKey, true);
+    // };
+
+    item.innerHTML = `
+      <div class="compact-holding-info">
+        <div class="compact-holding-name">${
+          fund.schemeDisplay || fund.scheme
+        }</div>
+        <div class="compact-holding-meta">${standardizeTitle(fund.amc)}</div>
+      </div>
+      <div class="compact-holding-values">
+        <div class="compact-holding-current ${
+          totalWithdrawn <= totalInvested ? "red" : "green"
+        }">₹${formatNumber(totalWithdrawn)}</div>
+        <div class="compact-holding-invested">₹${formatNumber(
+          totalInvested
+        )}</div>
+        <div class="compact-holding-xirr">
+          <span>Returns: </span>
+          <span class="${totalRealizedGain >= 0 ? "green" : "red"}">
+            ₹${formatNumber(Math.abs(totalRealizedGain))} (${parseFloat(
+      realizedGainPercent
+    ).toFixed(2)}%)
+          </span>
+        </div>
+      </div>
+    `;
+
+    list.appendChild(item);
+  });
+}
+
+function toggleCompactPastSort() {
+  // Cycle through sort modes
+  if (compactPastSortMode === "returns") {
+    compactPastSortMode = "invested";
+  } else if (compactPastSortMode === "invested") {
+    compactPastSortMode = "withdrawn";
+  } else {
+    compactPastSortMode = "returns";
+  }
+
+  // Update button text
+  const sortBtn = document.querySelector(
+    "#compactPastDashboard .compact-filter-btn"
+  );
+  if (sortBtn) {
+    const btnText = sortBtn.querySelector("span");
+    if (btnText) {
+      switch (compactPastSortMode) {
+        case "withdrawn":
+          btnText.textContent = "Withdrawn";
+          break;
+        case "invested":
+          btnText.textContent = "Invested";
+          break;
+        case "returns":
+          btnText.textContent = "Returns";
+          break;
+      }
+    }
+  }
+
+  // Re-collect and aggregate inactive funds data
+  const inactiveFundData = {};
+
+  Object.entries(fundWiseData).forEach(([fundKey, fund]) => {
+    const totalInvested = fund.transactions
+      .filter((t) => t.type === "PURCHASE")
+      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+
+    if (totalInvested === 0) return;
+
+    fund.folios.forEach((folioNum) => {
+      const folioData = portfolioData.folios.find((f) => f.folio === folioNum);
+      if (!folioData) return;
+
+      const schemeInFolio = folioData.schemes.find(
+        (s) => s.scheme.trim().toLowerCase() === fund.scheme.toLowerCase()
+      );
+
+      if (schemeInFolio) {
+        const folioValue = schemeInFolio.valuation
+          ? parseFloat(schemeInFolio.valuation.value || 0)
+          : 0;
+
+        if (folioValue === 0) {
+          if (!inactiveFundData[fundKey]) {
+            inactiveFundData[fundKey] = {
+              fundKey,
+              fund,
+              folioNums: [],
+              totalInvested: 0,
+              totalWithdrawn: 0,
+              totalRealizedGain: 0,
+            };
+          }
+
+          inactiveFundData[fundKey].folioNums.push(folioNum);
+
+          const folioSummary = fund.advancedMetrics?.folioSummaries?.[folioNum];
+          if (folioSummary) {
+            inactiveFundData[fundKey].totalInvested +=
+              folioSummary.invested || 0;
+            inactiveFundData[fundKey].totalWithdrawn +=
+              folioSummary.withdrawn || 0;
+            inactiveFundData[fundKey].totalRealizedGain +=
+              folioSummary.realizedGain || 0;
+          }
+        }
+      }
+    });
+  });
+
+  const inactiveFunds = Object.values(inactiveFundData);
+
+  // Re-populate with sorted data
+  populateCompactPastHoldings(inactiveFunds);
 }
 
 function populateCompactHoldings(funds) {
@@ -9063,22 +10146,24 @@ function populateCompactHoldings(funds) {
     const xirrVal = xirr == null || isNaN(xirr) ? 0 : xirr;
     const xirrText = xirrVal == 0 ? "--" : `${parseFloat(xirr.toFixed(2))}%`;
     const returnsPercentText =
-      returnsPercent == 0 ? "--" : `${parseFloat(returnsPercent.toFixed(2))}%`;
+      returnsPercent == 0
+        ? "--"
+        : `₹${formatNumber(Math.abs(returns))} (${parseFloat(
+            returnsPercent.toFixed(2)
+          )}%)`;
 
     const oneDayReturn = fund.oneDayReturn;
     const oneDayText = oneDayReturn
-      ? `${oneDayReturn.percent >= 0 ? "+" : ""}${oneDayReturn.percent.toFixed(
+      ? `₹${formatNumber(oneDayReturn.rupees)} (${oneDayReturn.percent.toFixed(
           2
-        )}%`
+        )})%`
       : "--";
 
     const item = document.createElement("div");
     item.className = "compact-holding-item";
     const fundKey = fund.scheme.trim().toLowerCase();
-    const chartIdVal = `fundChart_${fundKey.replace(/\s+/g, "_")}`;
     item.onclick = () => {
-      switchDashboardTab("current-holding");
-      scrollToFolioCard(chartIdVal);
+      showFundDetailsModal(fundKey, false);
     };
 
     item.innerHTML = `
@@ -9090,16 +10175,16 @@ function populateCompactHoldings(funds) {
       </div>
       <div class="compact-holding-values">
         <div class="compact-holding-current ${
-          currentValue <= invested ? "red" : ""
+          currentValue <= invested ? "red" : "green"
         }">₹${formatNumber(currentValue)}</div>
         <div class="compact-holding-invested">₹${formatNumber(invested)}</div>
-        <div class="compact-holding-xirr"><span>XIRR: </span><span class="${
+        <div class="compact-holding-xirr hidden"><span>XIRR: </span><span class="${
           xirrVal < 0 ? "red" : "green"
         }">${xirrText}</span></div>
         <div class="compact-holding-abs hidden"><span>Returns: </span><span class="${
           returns < 0 ? "red" : "green"
         }">${returnsPercentText}</span></div>
-        <div class="compact-holding-1day hidden"><span>1D Returns: </span><span class=" ${
+        <div class="compact-holding-1day"><span>1D Returns: </span><span class=" ${
           oneDayReturn && oneDayReturn.percent >= 0 ? "green" : "red"
         }">${oneDayText}</span></div>
       </div>
@@ -9107,35 +10192,6 @@ function populateCompactHoldings(funds) {
 
     list.appendChild(item);
   });
-}
-
-function scrollToFolioCard(canvasId) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) {
-    return;
-  }
-
-  const folioCard = canvas.closest(".folio-card");
-  if (!folioCard) {
-    return;
-  }
-
-  const scrollContainer = folioCard.closest(
-    ".modal-content, .transaction-modal, .transaction-modal-overlay, body"
-  );
-
-  const offset = 80;
-
-  if (scrollContainer && scrollContainer !== document.body) {
-    const targetTop = folioCard.offsetTop - offset;
-    scrollContainer.scrollTo({
-      top: targetTop,
-      behavior: "smooth",
-    });
-  } else {
-    const top = folioCard.getBoundingClientRect().top + window.scrollY - offset;
-    window.scrollTo({ top, behavior: "smooth" });
-  }
 }
 
 function calculate1DayReturn(fund) {
@@ -9187,10 +10243,6 @@ function toggleTheme() {
   document.documentElement.setAttribute("data-theme", newTheme);
   localStorage.setItem("theme", newTheme);
   updateThemeUI(newTheme);
-
-  if (window.fundChartsRendered) {
-    window.fundChartsRendered = false;
-  }
 
   if (portfolioData && fundWiseData) {
     calculateAndDisplayPortfolioAnalytics();
@@ -9278,7 +10330,6 @@ function initializeModalSwipe(modalElement) {
   });
 }
 
-// Helper to close any active modal
 function closeActiveModal() {
   const allTimeModal = document.getElementById("allTimeTransactionsModal");
   const activeModal = document.getElementById("activeTransactionsModal");
@@ -9287,12 +10338,14 @@ function closeActiveModal() {
   const portfolioHoldingsModal = document.getElementById(
     "portfolioHoldingsModal"
   );
+  const fundDetailsModal = document.getElementById("fundDetailsModal");
 
   if (allTimeModal) closeAllTimeTransactions();
   if (activeModal) closeActiveTransactions();
   if (fundTxModal) closeFundTransactionModal();
   if (fundHoldingsModal) closeFundHoldingsModal();
   if (portfolioHoldingsModal) closePortfolioHoldingsModal();
+  if (fundDetailsModal) closeFundDetailsModal();
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
@@ -9418,6 +10471,37 @@ window.addEventListener("popstate", function (event) {
   const portfolioHoldingsModal = document.getElementById(
     "portfolioHoldingsModal"
   );
+  const fundDetailsModal = document.getElementById("fundDetailsModal");
+
+  if (allTimeModal) {
+    closeAllTimeTransactions();
+    return;
+  }
+
+  if (activeModal) {
+    closeActiveTransactions();
+    return;
+  }
+
+  if (fundTxModal) {
+    closeFundTransactionModal();
+    return;
+  }
+
+  if (fundHoldingsModal) {
+    closeFundHoldingsModal();
+    return;
+  }
+
+  if (portfolioHoldingsModal) {
+    closePortfolioHoldingsModal();
+    return;
+  }
+
+  if (fundDetailsModal) {
+    closeFundDetailsModal();
+    return;
+  }
 
   if (allTimeModal) {
     closeAllTimeTransactions();
