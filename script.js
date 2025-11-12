@@ -56,32 +56,20 @@ if (window.location.pathname === "/index.html") {
   );
 }
 
-let assetAllocationChart = null;
 let marketCapChart = null;
 let sectorChart = null;
 let amcChart = null;
 let holdingsChart = null;
-let familyAssetAllocationChart = null;
-let familyMarketCapChart = null;
 let familySectorChart = null;
 let familyAmcChart = null;
 
 function calculateAndDisplayPortfolioAnalytics() {
   try {
-    document.getElementById("assetAllocationCard")?.classList.add("loading");
-    document.getElementById("marketCapCard")?.classList.add("loading");
+    document.getElementById("asset-market-cap-split")?.classList.add("loading");
     document.getElementById("sectorCard")?.classList.add("loading");
     document.getElementById("amcCard")?.classList.add("loading");
     document.getElementById("holdingsCard")?.classList.add("loading");
 
-    if (assetAllocationChart) {
-      assetAllocationChart.destroy();
-      assetAllocationChart = null;
-    }
-    if (marketCapChart) {
-      marketCapChart.destroy();
-      marketCapChart = null;
-    }
     if (sectorChart) {
       sectorChart.destroy();
       sectorChart = null;
@@ -98,32 +86,32 @@ function calculateAndDisplayPortfolioAnalytics() {
     setTimeout(() => {
       const analytics = calculatePortfolioAnalytics();
 
-      displayAssetAllocation(analytics.assetAllocation);
-
       setTimeout(() => {
+        displayAssetAllocation(analytics.assetAllocation);
         displayMarketCapSplit(analytics.marketCap);
-      }, 100);
-
-      setTimeout(() => {
-        displaySectorSplit(analytics.sector);
       }, 200);
 
       setTimeout(() => {
+        displaySectorSplit(analytics.sector);
+      }, 100);
+
+      setTimeout(() => {
         displayAMCSplit(analytics.amc);
-      }, 300);
+      }, 100);
 
       setTimeout(() => {
         displayHoldingsSplit(analytics.holdings);
-      }, 500);
+      }, 100);
 
       setTimeout(() => {
         displayWeightedReturns(analytics.weightedReturns);
-      }, 400);
+      }, 100);
     }, 100);
   } catch (err) {
     console.error("Portfolio analytics failed:", err);
-    document.getElementById("assetAllocationCard")?.classList.remove("loading");
-    document.getElementById("marketCapCard")?.classList.remove("loading");
+    document
+      .getElementById("asset-market-cap-split")
+      ?.classList.remove("loading");
     document.getElementById("sectorCard")?.classList.remove("loading");
     document.getElementById("amcCard")?.classList.remove("loading");
     document.getElementById("holdingsCard")?.classList.remove("loading");
@@ -653,16 +641,44 @@ function displayAssetAllocation(assetAllocation) {
   const [sortedLabels, sortedData] = sortData(labels, data);
 
   setTimeout(() => {
-    assetAllocationChart = buildDoughnutChart(
-      "assetAllocationChart",
-      sortedLabels,
-      sortedData
-    );
+    const container = document.getElementById("asset-market-cap-split");
+    if (!container) return;
+
+    const chartCanvas = document.getElementById("assetAllocationChart");
+    if (!chartCanvas) return;
+
+    const barHTML = sortedLabels
+      .map((label, i) => {
+        const segment = label.toLowerCase();
+        return `
+          <div class="composition-segment ${segment}"
+               style="width: ${sortedData[i]}%"
+               title="${label}: ${sortedData[i].toFixed(1)}%">
+          </div>`;
+      })
+      .join("");
+
+    const legendHTML = sortedLabels
+      .map((label, i) => {
+        const segment = label.toLowerCase();
+        return `
+          <span class="legend-item">
+            <span class="legend-color ${segment}"></span>${label}: ${sortedData[
+          i
+        ].toFixed(1)}%
+          </span>`;
+      })
+      .join("");
+
+    chartCanvas.parentElement.innerHTML = `
+      <div class="fund-composition-chart">
+        <div class="composition-bar">${barHTML}</div>
+        <div class="composition-legend">${legendHTML}</div>
+      </div>
+    `;
 
     setTimeout(() => {
-      document
-        .getElementById("assetAllocationCard")
-        ?.classList.remove("loading");
+      container.classList.remove("loading");
     }, 150);
   }, 50);
 }
@@ -676,14 +692,44 @@ function displayMarketCapSplit(marketCap) {
   const [sortedLabels, sortedData] = sortData(labels, data);
 
   setTimeout(() => {
-    marketCapChart = buildDoughnutChart(
-      "marketCapChart",
-      sortedLabels,
-      sortedData
-    );
+    const container = document.getElementById("asset-market-cap-split");
+    if (!container) return;
+
+    const chartCanvas = document.getElementById("marketCapChart");
+    if (!chartCanvas) return;
+
+    const barHTML = sortedLabels
+      .map((label, i) => {
+        const segment = label.toLowerCase() + "-cap";
+        return `
+          <div class="composition-segment ${segment}"
+               style="width: ${sortedData[i]}%"
+               title="${label}: ${sortedData[i].toFixed(1)}%">
+          </div>`;
+      })
+      .join("");
+
+    const legendHTML = sortedLabels
+      .map((label, i) => {
+        const segment = label.toLowerCase() + "-cap";
+        return `
+          <span class="legend-item">
+            <span class="legend-color ${segment}"></span>${label}: ${sortedData[
+          i
+        ].toFixed(1)}%
+          </span>`;
+      })
+      .join("");
+
+    chartCanvas.parentElement.innerHTML = `
+      <div class="fund-composition-chart">
+        <div class="composition-bar">${barHTML}</div>
+        <div class="composition-legend">${legendHTML}</div>
+      </div>
+    `;
 
     setTimeout(() => {
-      document.getElementById("marketCapCard")?.classList.remove("loading");
+      container.classList.remove("loading");
     }, 150);
   }, 50);
 }
@@ -8788,7 +8834,7 @@ async function loadFamilyDashboard() {
     container.innerHTML = `
       <div class="card" style="grid-column: 1 / -1; text-align: center;">
         <div style="font-size: 48px; margin-bottom: 20px;">🔒</div>
-        <h3 style="margin-bottom: 10px; color: #1f2937;">Family Dashboard Locked</h3>
+        <h3 style="margin-bottom: 10px; color: var(--text-secondary);">Family Dashboard Locked</h3>
         <p style="color: var(text-secondary);">Upload CAS files for at least 2 family members to unlock this feature.</p>
       </div>
     `;
@@ -9387,103 +9433,20 @@ function updateCompactFamilyDashboard(metrics) {
 function displayFamilyAnalytics(metrics) {
   window.familyDashboardCache = metrics;
 
-  if (familyAssetAllocationChart) {
-    familyAssetAllocationChart.destroy();
-    familyAssetAllocationChart = null;
-  }
-  if (familyMarketCapChart) {
-    familyMarketCapChart.destroy();
-    familyMarketCapChart = null;
-  }
   if (familySectorChart) {
     familySectorChart.destroy();
     familySectorChart = null;
   }
+
   if (familyAmcChart) {
     familyAmcChart.destroy();
     familyAmcChart = null;
   }
 
-  const assetLabels = [];
-  const assetData = [];
-  const preferred = [
-    "equity",
-    "debt",
-    "gold",
-    "silver",
-    "commodities",
-    "real estate",
-    "cash",
-    "other",
-  ];
-
-  preferred.forEach((k) => {
-    const val = parseFloat(metrics.assetAllocation[k]);
-    if (!isNaN(val) && val > 0) {
-      assetLabels.push(k.charAt(0).toUpperCase() + k.slice(1));
-      assetData.push(val);
-    }
-  });
-
-  Object.keys(metrics.assetAllocation).forEach((k) => {
-    if (!preferred.includes(k)) {
-      const val = parseFloat(metrics.assetAllocation[k]);
-      if (!isNaN(val) && val > 0) {
-        assetLabels.push(k.charAt(0).toUpperCase() + k.slice(1));
-        assetData.push(val);
-      }
-    }
-  });
-
-  if (assetData.length > 0) {
-    const [sortedLabels, sortedData] = sortData(assetLabels, assetData);
-    setTimeout(() => {
-      familyAssetAllocationChart = buildDoughnutChart(
-        "familyAssetAllocationChart",
-        sortedLabels,
-        sortedData
-      );
-      document
-        .getElementById("familyAssetAllocationCard")
-        ?.classList.remove("loading");
-    }, 50);
-  } else {
-    document.getElementById("familyAssetAllocationCard").innerHTML =
-      '<p style="text-align: center; color: #9ca3af; padding: 20px;">No data available</p>';
-  }
-
-  const mcLabels = [];
-  const mcData = [];
-
-  if (metrics.marketCap.large > 0) {
-    mcLabels.push("Large");
-    mcData.push(metrics.marketCap.large);
-  }
-  if (metrics.marketCap.mid > 0) {
-    mcLabels.push("Mid");
-    mcData.push(metrics.marketCap.mid);
-  }
-  if (metrics.marketCap.small > 0) {
-    mcLabels.push("Small");
-    mcData.push(metrics.marketCap.small);
-  }
-
-  if (mcData.length > 0) {
-    const [sortedLabels, sortedData] = sortData(mcLabels, mcData);
-    setTimeout(() => {
-      familyMarketCapChart = buildDoughnutChart(
-        "familyMarketCapChart",
-        sortedLabels,
-        sortedData
-      );
-      document
-        .getElementById("familyMarketCapCard")
-        ?.classList.remove("loading");
-    }, 100);
-  } else {
-    document.getElementById("familyMarketCapCard").innerHTML =
-      '<p style="text-align: center; color: #9ca3af; padding: 20px;">No data available</p>';
-  }
+  setTimeout(() => {
+    displayFamilyAssetAllocation(metrics);
+    displayFamilyMarketCapSplit(metrics);
+  }, 200);
 
   const sectorLabels = [];
   const sectorData = [];
@@ -9576,6 +9539,138 @@ function displayFamilyAnalytics(metrics) {
   });
 }
 
+function displayFamilyAssetAllocation(metrics) {
+  const preferred = [
+    "equity",
+    "debt",
+    "gold",
+    "silver",
+    "commodities",
+    "real estate",
+    "cash",
+    "other",
+  ];
+
+  const assetLabels = [];
+  const assetData = [];
+
+  preferred.forEach((k) => {
+    const val = parseFloat(metrics.assetAllocation?.[k]);
+    if (!isNaN(val) && val > 0) {
+      assetLabels.push(k.charAt(0).toUpperCase() + k.slice(1));
+      assetData.push(val);
+    }
+  });
+
+  Object.keys(metrics.assetAllocation || {}).forEach((k) => {
+    if (!preferred.includes(k)) {
+      const val = parseFloat(metrics.assetAllocation[k]);
+      if (!isNaN(val) && val > 0) {
+        assetLabels.push(k.charAt(0).toUpperCase() + k.slice(1));
+        assetData.push(val);
+      }
+    }
+  });
+
+  const container = document.getElementById("family-asset-market-cap-split");
+  const assetCard = document.getElementById("familyAssetAllocationCard");
+  if (!container || !assetCard) return;
+
+  container.classList.remove("loading");
+
+  if (assetData.length === 0) {
+    assetCard.querySelector(".chart-wrapper").innerHTML =
+      '<p style="text-align: center; color: #9ca3af; padding: 20px;">No data available</p>';
+    return;
+  }
+
+  const [sortedLabels, sortedData] = sortData(assetLabels, assetData);
+
+  const barHTML = sortedLabels
+    .map(
+      (label, i) => `
+      <div class="composition-segment ${label.toLowerCase()}"
+           style="width: ${sortedData[i]}%"
+           title="${label}: ${sortedData[i].toFixed(1)}%">
+      </div>`
+    )
+    .join("");
+
+  const legendHTML = sortedLabels
+    .map(
+      (label, i) => `
+      <span class="legend-item">
+        <span class="legend-color ${label.toLowerCase()}"></span>
+        ${label}: ${sortedData[i].toFixed(1)}%
+      </span>`
+    )
+    .join("");
+
+  const wrapper = assetCard.querySelector(".chart-wrapper");
+  wrapper.innerHTML = `
+    <div class="fund-composition-chart">
+      <div class="composition-bar">${barHTML}</div>
+      <div class="composition-legend">${legendHTML}</div>
+    </div>
+  `;
+}
+
+function displayFamilyMarketCapSplit(metrics) {
+  const preferred = ["large", "mid", "small"];
+  const mcLabels = [];
+  const mcData = [];
+
+  preferred.forEach((k) => {
+    const val = parseFloat(metrics.marketCap?.[k]);
+    if (!isNaN(val) && val > 0) {
+      mcLabels.push(k.charAt(0).toUpperCase() + k.slice(1));
+      mcData.push(val);
+    }
+  });
+
+  const container = document.getElementById("family-asset-market-cap-split");
+  const mcCard = document.getElementById("familyMarketCapCard");
+  if (!container || !mcCard) return;
+
+  container.classList.remove("loading");
+
+  if (mcData.length === 0) {
+    mcCard.querySelector(".chart-wrapper").innerHTML =
+      '<p style="text-align: center; color: #9ca3af; padding: 20px;">No data available</p>';
+    return;
+  }
+
+  const [sortedLabels, sortedData] = sortData(mcLabels, mcData);
+
+  const barHTML = sortedLabels
+    .map(
+      (label, i) => `
+      <div class="composition-segment ${label.toLowerCase()}-cap"
+           style="width: ${sortedData[i]}%"
+           title="${label}: ${sortedData[i].toFixed(1)}%">
+      </div>`
+    )
+    .join("");
+
+  const legendHTML = sortedLabels
+    .map(
+      (label, i) => `
+      <span class="legend-item">
+        <span class="legend-color ${label.toLowerCase()}-cap"></span>
+        ${label}: ${sortedData[i].toFixed(1)}%
+      </span>`
+    )
+    .join("");
+
+  const wrapper = mcCard.querySelector(".chart-wrapper");
+  wrapper.innerHTML = `
+    <div class="fund-composition-chart">
+      <div class="composition-bar">${barHTML}</div>
+      <div class="composition-legend">${legendHTML}</div>
+    </div>
+  `;
+}
+
 function displayFamilyUserBreakdown(userBreakdown) {
   const container = document.getElementById("familyUserBreakdown");
   container.innerHTML = "";
@@ -9627,6 +9722,7 @@ function invalidateFamilyDashboardCache() {
   familyDashboardCache = null;
   familyDashboardCacheTimestamp = null;
   familyDashboardInitialized = false;
+  toggleFamilyDashboard();
 }
 
 function updateCompactDashboard() {

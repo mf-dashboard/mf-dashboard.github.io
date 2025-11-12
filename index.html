@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
-    <link rel="stylesheet" href="styles.css?v=20251111" />
+    <link rel="stylesheet" href="styles.css?v=20251112" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -33,7 +33,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20251111" />
+    <link rel="manifest" href="/manifest.json?v=20251112" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -496,22 +496,24 @@
           <div class="portfolio-analytics-section">
             <h3>Portfolio Analytics</h3>
             <div class="analytics-grid">
-              <div class="analytics-card loading" id="assetAllocationCard">
-                <h4>Asset Allocation</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
+              <div class="analytics-card loading" id="asset-market-cap-split">
+                <div id="assetAllocationCard">
+                  <h4>Asset Allocation</h4>
+                  <div class="chart-wrapper">
+                    <div class="chart-loading">
+                      <div class="chart-spinner"></div>
+                    </div>
+                    <canvas id="assetAllocationChart"></canvas>
                   </div>
-                  <canvas id="assetAllocationChart"></canvas>
                 </div>
-              </div>
-              <div class="analytics-card loading" id="marketCapCard">
-                <h4>Equity Market Cap Split</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
+                <div>
+                  <h4>Equity Market Cap Split</h4>
+                  <div class="chart-wrapper" id="marketCapCard">
+                    <div class="chart-loading">
+                      <div class="chart-spinner"></div>
+                    </div>
+                    <canvas id="marketCapChart"></canvas>
                   </div>
-                  <canvas id="marketCapChart"></canvas>
                 </div>
               </div>
               <div class="analytics-card loading" id="amcCard">
@@ -627,23 +629,25 @@
             <div class="analytics-grid">
               <div
                 class="analytics-card loading"
-                id="familyAssetAllocationCard"
+                id="family-asset-market-cap-split"
               >
-                <h4>Asset Allocation</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
+                <div id="familyAssetAllocationCard">
+                  <h4>Asset Allocation</h4>
+                  <div class="chart-wrapper">
+                    <div class="chart-loading">
+                      <div class="chart-spinner"></div>
+                    </div>
+                    <canvas id="familyAssetAllocationChart"></canvas>
                   </div>
-                  <canvas id="familyAssetAllocationChart"></canvas>
                 </div>
-              </div>
-              <div class="analytics-card loading" id="familyMarketCapCard">
-                <h4>Equity Market Cap Split</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
+                <div id="familyMarketCapCard">
+                  <h4>Equity Market Cap Split</h4>
+                  <div class="chart-wrapper">
+                    <div class="chart-loading">
+                      <div class="chart-spinner"></div>
+                    </div>
+                    <canvas id="familyMarketCapChart"></canvas>
                   </div>
-                  <canvas id="familyMarketCapChart"></canvas>
                 </div>
               </div>
               <div class="analytics-card loading" id="familyAmcCard">
@@ -682,7 +686,7 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20251111"></script>
-    <script src="script.js?v=20251111"></script>
+    <script src="indexeddb-helper.js?v=20251112"></script>
+    <script src="script.js?v=20251112"></script>
   </body>
 </html>

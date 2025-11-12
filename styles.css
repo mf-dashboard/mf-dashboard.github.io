@@ -2186,7 +2186,7 @@ p.instructions-note {
 }
 
 .warning {
-  color: #f59e0b !important;
+  color: var(--warning) !important;
 }
 
 .gains-table td.warning {
@@ -2284,7 +2284,7 @@ button.mobile-menu-item {
 
 #familyUserBreakdown {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
   gap: 20px;
   margin-top: 20px;
 }
@@ -2312,7 +2312,6 @@ button.mobile-menu-item {
 
 .family-user-stats {
   display: grid;
-  gap: 10px;
 }
 
 .family-stat-row {
@@ -2602,28 +2601,25 @@ button.theme-toggle i {
   opacity: 0.85;
 }
 
-.composition-segment.equity {
+.composition-segment.equity,
+.composition-segment.large-cap,
+.legend-color.equity,
+.legend-color.large-cap {
   background: #667eea;
 }
 
-.composition-segment.debt {
+.composition-segment.debt,
+.composition-segment.mid-cap,
+.legend-color.mid-cap,
+.legend-color.debt {
   background: #10b981;
 }
 
-.composition-segment.other {
-  background: #f59e0b;
-}
-
-.composition-segment.large-cap {
-  background: #667eea;
-}
-
-.composition-segment.mid-cap {
-  background: #10b981;
-}
-
-.composition-segment.small-cap {
-  background: #f59e0b;
+.composition-segment.other,
+.composition-segment.small-cap,
+.legend-color.small-cap,
+.legend-color.other {
+  background: var(--warning);
 }
 
 .composition-legend {
@@ -2645,30 +2641,6 @@ button.theme-toggle i {
   height: 12px;
   border-radius: 2px;
   display: inline-block;
-}
-
-.legend-color.equity {
-  background: #667eea;
-}
-
-.legend-color.debt {
-  background: #10b981;
-}
-
-.legend-color.other {
-  background: #f59e0b;
-}
-
-.legend-color.large-cap {
-  background: #667eea;
-}
-
-.legend-color.mid-cap {
-  background: #10b981;
-}
-
-.legend-color.small-cap {
-  background: #f59e0b;
 }
 
 .fund-composition-chart.empty-composition {
@@ -2930,6 +2902,42 @@ button.theme-toggle i {
   border-radius: 3px;
 }
 
+.composition-segment.silver,
+.legend-color.silver {
+  background: #9ca3af;
+}
+
+.composition-segment.commodities,
+.legend-color.commodities,
+.composition-segment.gold,
+.legend-color.gold {
+  background: var(--warning);
+}
+
+.composition-segment.real.estate,
+.legend-color.real.estate {
+  background: #8b5cf6;
+}
+
+.composition-segment.cash,
+.legend-color.cash {
+  background: #14b8a6;
+}
+
+#asset-market-cap-split,
+#family-asset-market-cap-split {
+  display: flex;
+  flex-direction: column;
+  gap: 50px;
+  justify-content: center;
+}
+
+#asset-market-cap-split .chart-wrapper,
+#family-asset-market-cap-split .chart-wrapper {
+  height: fit-content;
+  min-height: fit-content;
+}
+
 @media (max-width: 1024px) {
   .mobile-header {
     display: flex;
@@ -3144,6 +3152,7 @@ button.theme-toggle i {
     grid-template-columns: 1fr;
     gap: 20px;
     padding: 0;
+    padding-bottom: 10px;
   }
 
   #cas-upload-tab,
