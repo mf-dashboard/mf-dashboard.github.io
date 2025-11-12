@@ -74,6 +74,27 @@ function calculateAndDisplayPortfolioAnalytics() {
     document.getElementById("amcCard")?.classList.add("loading");
     document.getElementById("holdingsCard")?.classList.add("loading");
 
+    if (assetAllocationChart) {
+      assetAllocationChart.destroy();
+      assetAllocationChart = null;
+    }
+    if (marketCapChart) {
+      marketCapChart.destroy();
+      marketCapChart = null;
+    }
+    if (sectorChart) {
+      sectorChart.destroy();
+      sectorChart = null;
+    }
+    if (amcChart) {
+      amcChart.destroy();
+      amcChart = null;
+    }
+    if (holdingsChart) {
+      holdingsChart.destroy();
+      holdingsChart = null;
+    }
+
     setTimeout(() => {
       const analytics = calculatePortfolioAnalytics();
 
@@ -629,12 +650,6 @@ function displayAssetAllocation(assetAllocation) {
     }
   });
 
-  // Destroy existing chart properly
-  if (assetAllocationChart) {
-    assetAllocationChart.destroy();
-    assetAllocationChart = null;
-  }
-
   const [sortedLabels, sortedData] = sortData(labels, data);
 
   setTimeout(() => {
@@ -657,12 +672,6 @@ function displayMarketCapSplit(marketCap) {
     (k) => marketCap[k.toLowerCase()] !== undefined
   );
   const data = labels.map((l) => marketCap[l.toLowerCase()]);
-
-  // Destroy existing chart properly
-  if (marketCapChart) {
-    marketCapChart.destroy();
-    marketCapChart = null;
-  }
 
   const [sortedLabels, sortedData] = sortData(labels, data);
 
@@ -687,17 +696,11 @@ function displaySectorSplit(sectorObj) {
   if (othersValue > 0) top.push(["Others", othersValue]);
 
   const filteredTop = top.filter(([name, value]) => {
-    return value >= 1; // keep only ≥ 1%
+    return value >= 1;
   });
 
   const labels = filteredTop.map(([name]) => name);
   const data = filteredTop.map(([_, val]) => val);
-
-  // Destroy existing chart properly
-  if (sectorChart) {
-    sectorChart.destroy();
-    sectorChart = null;
-  }
 
   const [sortedLabels, sortedData] = sortData(labels, data);
 
@@ -708,10 +711,8 @@ function displaySectorSplit(sectorObj) {
       const sectorCard = document.getElementById("sectorCard");
       if (!sectorCard) return;
 
-      // remove loading state
       sectorCard.classList.remove("loading");
 
-      //Check if only "Unclassified" is there (and non-zero)
       const nonZeroEntries = entries.filter(([_, v]) => v > 0);
       const onlyUnclassified =
         nonZeroEntries.length === 1 &&
@@ -744,12 +745,6 @@ function displayAMCSplit(amcObj) {
   const labels = cleaned.map(([n]) => n);
   const data = cleaned.map(([_, v]) => v);
 
-  // Destroy existing chart properly
-  if (amcChart) {
-    amcChart.destroy();
-    amcChart = null;
-  }
-
   const [sortedLabels, sortedData] = sortData(labels, data);
 
   setTimeout(() => {
@@ -763,21 +758,14 @@ function displayAMCSplit(amcObj) {
 
 function displayHoldingsSplit(holdingsObj) {
   let entries = Object.entries(holdingsObj)
-    .filter(([company]) => company !== "Cash Equivalents") // Exclude cash from chart
+    .filter(([company]) => company !== "Cash Equivalents")
     .map(([company, data]) => [company, data.percentage])
     .sort((a, b) => b[1] - a[1]);
 
-  // Just take top 10, no "Others"
   const top = entries.slice(0, 10);
 
   const labels = top.map(([name]) => name);
   const data = top.map(([_, val]) => val);
-
-  // Destroy existing chart properly
-  if (holdingsChart) {
-    holdingsChart.destroy();
-    holdingsChart = null;
-  }
 
   const [sortedLabels, sortedData] = sortData(labels, data);
 
@@ -1652,9 +1640,9 @@ async function loadFileFromTab() {
     console.log(`💾 Debug data saved for user: ${currentUser}`);
 
     allUsers = storageManager.getAllUsers();
-    const userSelector = document.getElementById("userSelector");
-    userSelector.innerHTML = "";
-    initializeUserManagement();
+
+    populateUserList(allUsers);
+    updateCurrentUserDisplay();
 
     const dashboard = document.getElementById("dashboard");
     dashboard.classList.remove("disabled");
@@ -1663,13 +1651,16 @@ async function loadFileFromTab() {
 
     hideProcessingSplash();
 
-    const showCards = ["clear-cache", "update-stats", "update-nav"];
+    const showCards = ["update-stats", "update-nav"];
     const hideCard = "instructions-card";
 
-    showCards.forEach((e) =>
-      document.querySelector("." + e).classList.remove("hidden")
-    );
-    document.querySelector("." + hideCard).classList.add("hidden");
+    showCards.forEach((e) => {
+      const element = document.querySelector("." + e);
+      if (element) element.classList.remove("hidden");
+    });
+
+    const hideElement = document.querySelector("." + hideCard);
+    if (hideElement) hideElement.classList.add("hidden");
 
     showToast(`Debug data loaded successfully for ${currentUser}!`, "success");
     updateFooterInfo();
@@ -1824,9 +1815,10 @@ async function loadFileFromTab() {
     console.log(`💾 File signature saved for user: ${currentUser}`);
 
     allUsers = storageManager.getAllUsers();
-    const userSelector = document.getElementById("userSelector");
-    userSelector.innerHTML = "";
-    initializeUserManagement();
+
+    // Update user list and display
+    populateUserList(allUsers);
+    updateCurrentUserDisplay();
 
     const dashboard = document.getElementById("dashboard");
     dashboard.classList.remove("disabled");
@@ -1840,13 +1832,16 @@ async function loadFileFromTab() {
 
     hideProcessingSplash();
 
-    const showCards = ["clear-cache", "update-stats", "update-nav"];
+    const showCards = ["update-stats", "update-nav"];
     const hideCard = "instructions-card";
 
-    showCards.forEach((e) =>
-      document.querySelector("." + e).classList.remove("hidden")
-    );
-    document.querySelector("." + hideCard).classList.add("hidden");
+    showCards.forEach((e) => {
+      const element = document.querySelector("." + e);
+      if (element) element.classList.remove("hidden");
+    });
+
+    const hideElement = document.querySelector("." + hideCard);
+    if (hideElement) hideElement.classList.add("hidden");
 
     showToast(
       `Portfolio loaded and saved successfully for ${currentUser}!`,
@@ -2248,35 +2243,6 @@ async function getSearchKeys() {
     }
 
     return {};
-  }
-}
-
-async function clearCache() {
-  if (!currentUser) {
-    showToast("No user selected", "warning");
-    return;
-  }
-
-  if (
-    confirm(
-      `This will clear all cached portfolio data for ${currentUser}. Continue?`
-    )
-  ) {
-    showProcessingSplash();
-
-    try {
-      await storageManager.deleteUser(currentUser);
-
-      hideProcessingSplash();
-      showToast("User data cleared, reloading...", "success");
-      setTimeout(() => {
-        location.reload();
-      }, 500);
-    } catch (err) {
-      hideProcessingSplash();
-      console.error("Error clearing cache:", err);
-      showToast("Failed to clear cache: " + err.message, "error");
-    }
   }
 }
 
@@ -7901,13 +7867,14 @@ function showUploadSection() {
   disableAllTabsExceptUpload();
   switchDashboardTab("cas-upload-tab");
 
-  const hideCards = ["clear-cache", "update-stats", "update-nav"];
+  const hideCards = ["update-stats", "update-nav"];
   const showCard = "instructions-card";
 
   hideCards.forEach((e) => {
     const element = document.querySelector("." + e);
     if (element) element.classList.add("hidden");
   });
+  if (hideElement) hideElement.classList.add("hidden");
 
   const instructionsCard = document.querySelector("." + showCard);
   if (instructionsCard) instructionsCard.classList.remove("hidden");
@@ -8539,16 +8506,9 @@ function initializeUserManagement() {
   const users = storageManager.getAllUsers();
   allUsers = users;
 
-  const userSelector = document.getElementById("userSelector");
-  const userSelectorSection = document.getElementById("userSelectorSection");
-
-  const newSelector = userSelector.cloneNode(true);
-  userSelector.parentNode.replaceChild(newSelector, userSelector);
+  const container = document.getElementById("userListContainer");
 
   if (users.length > 0) {
-    userSelectorSection.style.display = "block";
-    populateUserSelector(users);
-
     const lastUser = localStorage.getItem("lastActiveUser");
     if (lastUser && users.includes(lastUser)) {
       currentUser = lastUser;
@@ -8556,16 +8516,137 @@ function initializeUserManagement() {
       currentUser = users[0];
     }
 
-    newSelector.value = currentUser;
-    updateCurrentUserDisplay();
+    console.log("Initializing user management. Current user:", currentUser);
 
-    newSelector.addEventListener("change", onUserChange);
+    populateUserList(users);
+
+    updateCurrentUserDisplay();
 
     toggleFamilyDashboard();
     return true;
   } else {
-    userSelectorSection.style.display = "none";
+    if (container) {
+      container.innerHTML =
+        '<div style="text-align: center; padding: 20px; color: var(--text-tertiary);">No users found. Upload a CAS file to get started.</div>';
+    }
+
+    const display = document.getElementById("currentUserDisplay");
+    if (display) {
+      display.style.display = "none";
+    }
+
     return false;
+  }
+}
+
+function populateUserList(users) {
+  const container = document.getElementById("userListContainer");
+  if (!container) {
+    console.warn("userListContainer not found");
+    return;
+  }
+
+  container.innerHTML = "";
+
+  if (users.length === 0) {
+    container.innerHTML =
+      '<div style="text-align: center; padding: 20px; color: var(--text-tertiary);">No users found. Upload a CAS file to get started.</div>';
+    return;
+  }
+
+  users.forEach((user) => {
+    const investorName = getStoredInvestorName(user);
+    const isActive = user === currentUser;
+
+    const userItem = document.createElement("div");
+    userItem.className = `user-item ${isActive ? "active" : ""}`;
+
+    userItem.onclick = (e) => {
+      if (e.target.closest(".user-item-delete")) return;
+      switchToUser(user);
+    };
+
+    userItem.innerHTML = `
+      <div class="user-item-info">
+        <div class="user-item-name">${investorName}</div>
+        <div class="user-item-email">${user}</div>
+      </div>
+      <button class="user-item-delete" onclick="event.stopPropagation(); deleteSingleUser('${user}')">
+        <i class="fa-solid fa-trash"></i>
+      </button>
+    `;
+
+    container.appendChild(userItem);
+  });
+
+  console.log("User list populated. Current user:", currentUser);
+}
+
+function switchToUser(userName) {
+  if (!userName || userName === currentUser) return;
+
+  const investorName = getStoredInvestorName(userName);
+  const confirmSwitch = confirm(`Switch to user: ${investorName}?`);
+  if (!confirmSwitch) return;
+
+  currentUser = userName;
+  localStorage.setItem("lastActiveUser", currentUser);
+
+  console.log("Switching to user:", userName);
+
+  showToast(`Switching to ${investorName}...`, "success");
+  toggleFamilyDashboard();
+
+  setTimeout(() => {
+    location.reload();
+  }, 500);
+}
+
+async function deleteSingleUser(userName) {
+  if (!userName) {
+    showToast("No user specified", "warning");
+    return;
+  }
+
+  const confirmDelete = confirm(
+    `Are you sure you want to delete user "${userName}" and all their data? This cannot be undone.`
+  );
+
+  if (!confirmDelete) return;
+
+  showProcessingSplash();
+
+  try {
+    await storageManager.deleteUser(userName);
+
+    allUsers = storageManager.getAllUsers();
+
+    if (userName === currentUser) {
+      if (allUsers.length > 0) {
+        currentUser = allUsers[0];
+        localStorage.setItem("lastActiveUser", currentUser);
+      } else {
+        currentUser = null;
+        localStorage.removeItem("lastActiveUser");
+      }
+    }
+
+    populateUserList(allUsers);
+
+    hideProcessingSplash();
+    showToast(`User ${userName} deleted successfully`, "success");
+    toggleFamilyDashboard();
+    invalidateFamilyDashboardCache();
+
+    if (userName === currentUser || allUsers.length === 0) {
+      setTimeout(() => {
+        location.reload();
+      }, 500);
+    }
+  } catch (err) {
+    hideProcessingSplash();
+    console.error("Error deleting user:", err);
+    showToast("Failed to delete user", "error");
   }
 }
 
@@ -8581,77 +8662,43 @@ function populateUserSelector(users) {
 }
 
 function updateCurrentUserDisplay() {
-  const display = document.getElementById("currentUserDisplay");
-  if (currentUser) {
-    display.textContent = `Current User: ${currentUser}`;
-    display.style.display = "block";
-  } else {
-    display.style.display = "none";
-  }
-}
-
-async function onUserChange() {
-  const selector = document.getElementById("userSelector");
-  const selectedUser = selector.value;
-
-  if (!selectedUser) return;
-  if (selectedUser === currentUser) return;
-
-  const confirmSwitch = confirm(`Switch to user: ${selectedUser}?`);
-  if (!confirmSwitch) {
-    selector.value = currentUser;
-    return;
-  }
-
-  currentUser = selectedUser;
-  localStorage.setItem("lastActiveUser", currentUser);
-
-  showToast(`Switching to ${currentUser}...`, "success");
-  toggleFamilyDashboard();
-  setTimeout(() => {
-    location.reload();
-  }, 500);
-}
-
-async function deleteCurrentUser() {
   if (!currentUser) {
-    showToast("No user selected", "warning");
+    const display = document.getElementById("currentUserDisplay");
+    if (display) {
+      display.style.display = "none";
+    }
     return;
   }
 
-  const confirmDelete = confirm(
-    `Are you sure you want to delete user "${currentUser}" and all their data? This cannot be undone.`
-  );
+  console.log("Updating current user display:", currentUser);
 
-  if (!confirmDelete) return;
-
-  showProcessingSplash();
-
-  try {
-    await storageManager.deleteUser(currentUser);
-
-    allUsers = storageManager.getAllUsers();
-
-    if (allUsers.length > 0) {
-      currentUser = allUsers[0];
-      localStorage.setItem("lastActiveUser", currentUser);
-    } else {
-      currentUser = null;
-      localStorage.removeItem("lastActiveUser");
-    }
-
-    hideProcessingSplash();
-    showToast("User deleted, reloading...", "success");
-    toggleFamilyDashboard();
-    invalidateFamilyDashboardCache();
-    setTimeout(() => {
-      location.reload();
-    }, 500);
-  } catch (err) {
-    hideProcessingSplash();
-    console.error("Error deleting user:", err);
-    showToast("Failed to delete user", "error");
+  const display = document.getElementById("currentUserDisplay");
+  if (display) {
+    const investorName = getStoredInvestorName(currentUser);
+    display.textContent = `Current User: ${investorName}`;
+    display.style.display = "block";
   }
+
+  const allUserItems = document.querySelectorAll(".user-item");
+
+  if (allUserItems.length === 0) {
+    console.warn("No user items found in DOM");
+    return;
+  }
+
+  allUserItems.forEach((item) => {
+    const userNameElement = item.querySelector(".user-item-email");
+    if (!userNameElement) return;
+
+    const userName = userNameElement.textContent.trim();
+
+    if (userName === currentUser) {
+      item.classList.add("active");
+      console.log("Added active class to:", userName);
+    } else {
+      item.classList.remove("active");
+    }
+  });
 }
 
 async function deleteAllUsers() {
@@ -10373,14 +10420,17 @@ window.addEventListener("DOMContentLoaded", async () => {
     const stored = await storageManager.loadPortfolioData(currentUser);
 
     if (stored) {
-      const showCards = ["clear-cache", "update-stats", "update-nav"];
+      const showCards = ["update-stats", "update-nav"];
       const hideCard = "instructions-card";
 
-      showCards.forEach((e) =>
-        document.querySelector("." + e).classList.remove("hidden")
-      );
+      showCards.forEach((e) => {
+        const element = document.querySelector("." + e);
+        if (element) element.classList.remove("hidden");
+      });
 
-      document.querySelector("." + hideCard).classList.add("hidden");
+      const hideElement = document.querySelector("." + hideCard);
+      if (hideElement) hideElement.classList.add("hidden");
+
       dashboard.classList.remove("disabled");
       showProcessingSplash();
 

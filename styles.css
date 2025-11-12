@@ -1793,7 +1793,6 @@ p.instructions-note {
   flex-direction: column;
   gap: 12px;
   align-items: stretch;
-  margin-top: auto; /* Push to bottom */
 }
 
 .upload-card input[type="file"],
@@ -2849,6 +2848,86 @@ button.theme-toggle i {
 
 .past-sort {
   justify-content: right;
+}
+
+.user-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.user-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  background: var(--bg-offwhite);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.user-item:hover {
+  border-color: var(--primary-gradient-start);
+  background: var(--bg-card-hover);
+}
+
+.user-item.active {
+  border-color: var(--primary-gradient-start);
+  background: var(--bg-gradiant);
+}
+
+.user-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-item-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.user-item-email {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  display: none;
+}
+
+.user-item-delete {
+  background: var(--danger-btn);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  box-shadow: none;
+}
+
+.user-item-delete:hover {
+  background: var(--danger-btn-hover);
+  transform: scale(1.05);
+}
+
+.user-list-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.user-list-container::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 3px;
+}
+
+.user-list-container::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
 }
 
 @media (max-width: 1024px) {
