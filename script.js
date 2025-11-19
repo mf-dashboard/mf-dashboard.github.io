@@ -10297,9 +10297,9 @@ function populateCompactHoldings(funds) {
 
     const oneDayReturn = fund.oneDayReturn;
     const oneDayText = oneDayReturn
-      ? `₹${formatNumber(oneDayReturn.rupees)} (${oneDayReturn.percent.toFixed(
-          2
-        )})%`
+      ? `₹${formatNumber(
+          Math.abs(oneDayReturn.rupees)
+        )} (${oneDayReturn.percent.toFixed(2)}%)`
       : "--";
 
     const item = document.createElement("div");
