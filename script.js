@@ -357,7 +357,6 @@ function calculatePortfolioAnalytics() {
 
 const themeColors = [
   "#667eea",
-  "#764ba2",
   "#10b981",
   "#f59e0b",
   "#3b82f6",
@@ -366,6 +365,7 @@ const themeColors = [
   "#14b8a6",
   "#f472b6",
   "#93c5fd",
+  "#764ba2",
 ];
 
 function getChartColors() {
@@ -649,10 +649,10 @@ function displayAssetAllocation(assetAllocation) {
 
     const barHTML = sortedLabels
       .map((label, i) => {
-        const segment = label.toLowerCase();
+        const color = themeColors[i % themeColors.length];
         return `
-          <div class="composition-segment ${segment}"
-               style="width: ${sortedData[i]}%"
+          <div class="composition-segment"
+               style="width: ${sortedData[i]}%; background-color: ${color};"
                title="${label}: ${sortedData[i].toFixed(1)}%">
           </div>`;
       })
@@ -660,10 +660,10 @@ function displayAssetAllocation(assetAllocation) {
 
     const legendHTML = sortedLabels
       .map((label, i) => {
-        const segment = label.toLowerCase();
+        const color = themeColors[i % themeColors.length];
         return `
           <span class="legend-item">
-            <span class="legend-color ${segment}"></span>${label}: ${sortedData[
+            <span class="legend-color" style="background-color: ${color};"></span>${label}: ${sortedData[
           i
         ].toFixed(1)}%
           </span>`;
@@ -700,10 +700,10 @@ function displayMarketCapSplit(marketCap) {
 
     const barHTML = sortedLabels
       .map((label, i) => {
-        const segment = label.toLowerCase() + "-cap";
+        const color = themeColors[i % themeColors.length];
         return `
-          <div class="composition-segment ${segment}"
-               style="width: ${sortedData[i]}%"
+          <div class="composition-segment"
+               style="width: ${sortedData[i]}%; background-color: ${color};"
                title="${label}: ${sortedData[i].toFixed(1)}%">
           </div>`;
       })
@@ -711,10 +711,10 @@ function displayMarketCapSplit(marketCap) {
 
     const legendHTML = sortedLabels
       .map((label, i) => {
-        const segment = label.toLowerCase() + "-cap";
+        const color = themeColors[i % themeColors.length];
         return `
           <span class="legend-item">
-            <span class="legend-color ${segment}"></span>${label}: ${sortedData[
+            <span class="legend-color" style="background-color: ${color};"></span>${label}: ${sortedData[
           i
         ].toFixed(1)}%
           </span>`;
@@ -1915,7 +1915,16 @@ function processSummaryCAS() {
   // Build fundWiseData from summary folios
   fundWiseData = {};
 
+  // Get hidden folios for current user
+  const hiddenFolios = currentUser ? getHiddenFolios(currentUser) : [];
+
   portfolioData.folios.forEach((folio) => {
+    // Skip if folio is hidden
+    if (hiddenFolios.includes(folio.folio)) {
+      console.log(`⏭️ Skipping hidden folio: ${folio.folio}`);
+      return;
+    }
+
     const key = folio.scheme.trim().toLowerCase();
     const extendedData = folio.isin ? mfStats[folio.isin] : null;
 
@@ -2498,6 +2507,9 @@ function aggregateFundWiseData() {
 
   fundWiseData = {};
 
+  // Get hidden folios for current user
+  const hiddenFolios = currentUser ? getHiddenFolios(currentUser) : [];
+
   portfolioData.folios.forEach((folio) => {
     if (!folio.schemes || !Array.isArray(folio.schemes)) {
       console.warn("Folio missing schemes array:", folio.folio);
@@ -2513,12 +2525,20 @@ function aggregateFundWiseData() {
       )
         return;
 
-      // Skip if there are no transactions
       if (
         !Array.isArray(scheme.transactions) ||
         scheme.transactions.length === 0
       )
         return;
+
+      // Create unique key for folio + scheme combination
+      const uniqueKey = `${folio.folio}|${scheme.scheme}`;
+
+      // Skip if this folio+scheme combination is hidden
+      if (hiddenFolios.includes(uniqueKey)) {
+        console.log(`⏭️ Skipping hidden folio+scheme: ${uniqueKey}`);
+        return;
+      }
 
       const key = scheme.scheme.trim().toLowerCase();
       // Get additional data from mfStats if available
@@ -2738,9 +2758,23 @@ function calculateadvancedMetrics(fund) {
 
   const stcgThreshold = category === "equity" ? 365 : 730;
 
-  // Group by folio for proper FIFO
+  // Get hidden folios for current user
+  const hiddenFolios = currentUser ? getHiddenFolios(currentUser) : [];
+
+  // Filter out transactions from hidden folios
+  const visibleTransactions = fund.transactions.filter((tx) => {
+    const txFolio = tx.folio || "unknown";
+
+    // For detailed CAS, check if folio+scheme combination is hidden
+    const uniqueKey = `${txFolio}|${fund.scheme}`;
+
+    // Check both simple folio and folio+scheme combination
+    return !hiddenFolios.includes(txFolio) && !hiddenFolios.includes(uniqueKey);
+  });
+
+  // Group by folio for proper FIFO - use filtered transactions
   const folioGroups = {};
-  fund.transactions.forEach((tx) => {
+  visibleTransactions.forEach((tx) => {
     const folio = tx.folio || "default";
     if (!folioGroups[folio]) folioGroups[folio] = [];
     folioGroups[folio].push(tx);
@@ -3382,6 +3416,9 @@ function calculateSummary() {
 
   const currentFY = getFinancialYear(new Date());
 
+  // Get hidden folios
+  const hiddenFolios = currentUser ? getHiddenFolios(currentUser) : [];
+
   Object.entries(fundWiseData).forEach(([key, fund]) => {
     const fifo = calculateadvancedMetrics(fund);
 
@@ -3435,6 +3472,15 @@ function calculateSummary() {
     const isActiveFund = fundCurrentValue > 0;
 
     Object.values(fifo.folioSummaries).forEach((folioSummary) => {
+      // Skip hidden folios in cashflow calculations
+      const folioNum = folioSummary.folio;
+      const uniqueKey = `${folioNum}|${fund.scheme}`;
+
+      if (hiddenFolios.includes(folioNum) || hiddenFolios.includes(uniqueKey)) {
+        console.log(`⏭️ Skipping hidden folio in cashflows: ${folioNum}`);
+        return;
+      }
+
       folioSummary.cashflows.forEach((cf) => {
         const enriched = {
           scheme: fund.schemeDisplay || fund.scheme,
@@ -3530,6 +3576,9 @@ function calculateWeightedHoldingDays() {
 function getCapitalGainsTransactions() {
   const transactions = [];
 
+  // Get hidden folios
+  const hiddenFolios = currentUser ? getHiddenFolios(currentUser) : [];
+
   Object.entries(fundWiseData).forEach(([key, fund]) => {
     const fifo = fund.advancedMetrics;
     if (!fifo) return;
@@ -3543,6 +3592,17 @@ function getCapitalGainsTransactions() {
     fund.transactions
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .forEach((tx) => {
+        // Skip transactions from hidden folios
+        const txFolio = tx.folio || "unknown";
+        const uniqueKey = `${txFolio}|${fund.scheme}`;
+
+        if (
+          hiddenFolios.includes(txFolio) ||
+          hiddenFolios.includes(uniqueKey)
+        ) {
+          return;
+        }
+
         if (tx.type === "PURCHASE") {
           const units = parseFloat(tx.units || 0);
           const nav = parseFloat(tx.nav || 0);
@@ -6120,25 +6180,27 @@ function createFundCompositionCharts(extendedData, fundKey) {
 
     const barHTML = segments
       .filter((s) => s.value > 0)
-      .map(
-        (s) => `
-        <div class="composition-segment ${s.key}"
-             style="width: ${s.value}%"
+      .map((s, index) => {
+        const color = themeColors[index % themeColors.length];
+        return `
+        <div class="composition-segment"
+             style="width: ${s.value}%; background-color: ${color};"
              title="${cap(s.label)}: ${s.value.toFixed(1)}%">
-        </div>`
-      )
+        </div>`;
+      })
       .join("");
 
     const legendHTML = segments
       .filter((s) => s.value > 0)
-      .map(
-        (s) => `
+      .map((s, index) => {
+        const color = themeColors[index % themeColors.length];
+        return `
         <span class="legend-item">
-          <span class="legend-color ${s.key}"></span>${cap(
+          <span class="legend-color" style="background-color: ${color};"></span>${cap(
           s.label
         )}: ${s.value.toFixed(1)}%
-        </span>`
-      )
+        </span>`;
+      })
       .join("");
 
     return `
@@ -6166,10 +6228,7 @@ function createFundCompositionCharts(extendedData, fundKey) {
     return normalized;
   };
 
-  // ---------- ASSET ALLOCATION ----------
-
   const rawAsset = ps.asset_allocation || {};
-
   let equity = 0,
     debt = 0,
     gold = 0,
@@ -6178,19 +6237,13 @@ function createFundCompositionCharts(extendedData, fundKey) {
   Object.entries(rawAsset).forEach(([key, value]) => {
     const val = parseFloat(value);
     if (isNaN(val) || val <= 0) return;
-
     const k = key.toLowerCase();
-
     let bucket = "debt";
-
     if (k.includes("equity")) {
       bucket = "equity";
-
-      // Commodities → gold/silver if detected, otherwise debt
     } else if (k.includes("commodities")) {
       const subcategory = extendedData?.sub_category?.toLowerCase?.() || "";
       const name = fundKey?.toLowerCase?.() || "";
-
       if (subcategory.includes("gold") || name.includes("gold")) {
         bucket = "gold";
       } else if (subcategory.includes("silver") || name.includes("silver")) {
@@ -6201,8 +6254,6 @@ function createFundCompositionCharts(extendedData, fundKey) {
     } else {
       bucket = "debt";
     }
-
-    // Add values
     switch (bucket) {
       case "equity":
         equity += val;
@@ -6214,11 +6265,10 @@ function createFundCompositionCharts(extendedData, fundKey) {
         silver += val;
         break;
       default:
-        debt += val; // everything else → debt
+        debt += val;
     }
   });
 
-  // Only these 4 buckets now exist
   const assetSegments = normalizeAndSort([
     { key: "equity", label: "equity", value: equity },
     { key: "gold", label: "gold", value: gold },
@@ -6228,17 +6278,13 @@ function createFundCompositionCharts(extendedData, fundKey) {
 
   html += buildChartHTML("Asset Allocation", assetSegments);
 
-  // ---------- MARKET CAP ----------
-
   let large = 0,
     mid = 0,
     small = 0;
-
   const hasDirectMC =
     ps.large_cap !== undefined ||
     ps.mid_cap !== undefined ||
     ps.small_cap !== undefined;
-
   const hasMCPer =
     ps.market_cap_per &&
     (ps.market_cap_per.large ||
@@ -6702,11 +6748,22 @@ function getChartData() {
     else if (isTab) aggregationMode = "quarterly";
   }
 
+  // Get hidden folios
+  const hiddenFolios = currentUser ? getHiddenFolios(currentUser) : [];
+
   // Pre-calculate earliest date once
   let earliestDate = now;
-  const allTransactions = Object.values(fundWiseData).flatMap(
-    (fund) => fund.transactions
+  const allTransactions = Object.values(fundWiseData).flatMap((fund) =>
+    // Filter transactions from hidden folios
+    fund.transactions.filter((tx) => {
+      const txFolio = tx.folio || "unknown";
+      const uniqueKey = `${txFolio}|${fund.scheme}`;
+      return (
+        !hiddenFolios.includes(txFolio) && !hiddenFolios.includes(uniqueKey)
+      );
+    })
   );
+
   allTransactions.forEach((tx) => {
     const txDate = new Date(tx.date);
     if (txDate < earliestDate) earliestDate = txDate;
@@ -7920,7 +7977,6 @@ function showUploadSection() {
     const element = document.querySelector("." + e);
     if (element) element.classList.add("hidden");
   });
-  if (hideElement) hideElement.classList.add("hidden");
 
   const instructionsCard = document.querySelector("." + showCard);
   if (instructionsCard) instructionsCard.classList.remove("hidden");
@@ -8608,7 +8664,11 @@ function populateUserList(users) {
     userItem.className = `user-item ${isActive ? "active" : ""}`;
 
     userItem.onclick = (e) => {
-      if (e.target.closest(".user-item-delete")) return;
+      if (
+        e.target.closest(".user-item-delete") ||
+        e.target.closest(".user-item-settings")
+      )
+        return;
       switchToUser(user);
     };
 
@@ -8617,9 +8677,14 @@ function populateUserList(users) {
         <div class="user-item-name">${investorName}</div>
         <div class="user-item-email">${user}</div>
       </div>
-      <button class="user-item-delete" onclick="event.stopPropagation(); deleteSingleUser('${user}')">
-        <i class="fa-solid fa-trash"></i>
-      </button>
+      <div style="display: flex; gap: 8px;">
+        <button class="user-item-settings" onclick="event.stopPropagation(); showFolioManagementModal('${user}')" title="Manage Folios">
+          <i class="fa-solid fa-gear"></i>
+        </button>
+        <button class="user-item-delete" onclick="event.stopPropagation(); deleteSingleUser('${user}')" title="Delete User">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
     `;
 
     container.appendChild(userItem);
@@ -8654,8 +8719,9 @@ async function deleteSingleUser(userName) {
     return;
   }
 
+  const investorName = getStoredInvestorName(userName);
   const confirmDelete = confirm(
-    `Are you sure you want to delete user "${userName}" and all their data? This cannot be undone.`
+    `Are you sure you want to delete user "${investorName}" and all their data? This cannot be undone.`
   );
 
   if (!confirmDelete) return;
@@ -8663,28 +8729,47 @@ async function deleteSingleUser(userName) {
   showProcessingSplash();
 
   try {
+    const wasCurrentUser = userName === currentUser;
+
     await storageManager.deleteUser(userName);
 
     allUsers = storageManager.getAllUsers();
 
-    if (userName === currentUser) {
+    // If deleted user was current user, switch to another user
+    if (wasCurrentUser) {
       if (allUsers.length > 0) {
         currentUser = allUsers[0];
         localStorage.setItem("lastActiveUser", currentUser);
+
+        // Load the new current user's data BEFORE updating UI
+        const stored = await storageManager.loadPortfolioData(currentUser);
+
+        if (stored) {
+          portfolioData = stored.casData;
+          mfStats = stored.mfStats;
+          isSummaryCAS = portfolioData.cas_type === "SUMMARY";
+
+          console.log(`🔄 Switched to user: ${currentUser}`);
+        }
       } else {
         currentUser = null;
         localStorage.removeItem("lastActiveUser");
+        portfolioData = null;
+        mfStats = {};
       }
     }
 
     populateUserList(allUsers);
+    updateCurrentUserDisplay();
 
     hideProcessingSplash();
-    showToast(`User ${userName} deleted successfully`, "success");
+    showToast(`User ${investorName} deleted successfully`, "success");
+
     toggleFamilyDashboard();
     invalidateFamilyDashboardCache();
 
-    if (userName === currentUser || allUsers.length === 0) {
+    // Reload if current user was deleted
+    if (wasCurrentUser || allUsers.length === 0) {
       setTimeout(() => {
         location.reload();
       }, 500);
@@ -8932,8 +9017,15 @@ function calculateFamilyMetrics(allUserData) {
     ([userName, { casData, mfStats: userMfStats }]) => {
       const userFundWiseData = {};
 
+      // Get hidden folios for this user
+      const hiddenFolios = getHiddenFolios(userName);
+
       if (casData.cas_type === "SUMMARY") {
         casData.folios.forEach((folio) => {
+          // Skip if folio is hidden
+          if (hiddenFolios.includes(folio.folio)) {
+            return;
+          }
           const key = folio.scheme.trim().toLowerCase();
           const extendedData = folio.isin ? userMfStats[folio.isin] : null;
 
@@ -8965,6 +9057,7 @@ function calculateFamilyMetrics(allUserData) {
           };
         });
       } else {
+        // Detailed CAS
         casData.folios.forEach((folio) => {
           if (!folio.schemes || !Array.isArray(folio.schemes)) return;
 
@@ -8982,6 +9075,14 @@ function calculateFamilyMetrics(allUserData) {
               scheme.transactions.length === 0
             )
               return;
+
+            // Create unique key for folio + scheme combination
+            const uniqueKey = `${folio.folio}|${scheme.scheme}`;
+
+            // Skip if this folio+scheme combination is hidden
+            if (hiddenFolios.includes(uniqueKey)) {
+              return;
+            }
 
             const key = scheme.scheme.trim().toLowerCase();
             const extendedData = scheme.isin ? userMfStats[scheme.isin] : null;
@@ -9587,23 +9688,25 @@ function displayFamilyAssetAllocation(metrics) {
   const [sortedLabels, sortedData] = sortData(assetLabels, assetData);
 
   const barHTML = sortedLabels
-    .map(
-      (label, i) => `
-      <div class="composition-segment ${label.toLowerCase()}"
-           style="width: ${sortedData[i]}%"
+    .map((label, i) => {
+      const color = themeColors[i % themeColors.length];
+      return `
+      <div class="composition-segment"
+           style="width: ${sortedData[i]}%; background-color: ${color};"
            title="${label}: ${sortedData[i].toFixed(1)}%">
-      </div>`
-    )
+      </div>`;
+    })
     .join("");
 
   const legendHTML = sortedLabels
-    .map(
-      (label, i) => `
+    .map((label, i) => {
+      const color = themeColors[i % themeColors.length];
+      return `
       <span class="legend-item">
-        <span class="legend-color ${label.toLowerCase()}"></span>
+        <span class="legend-color" style="background-color: ${color};"></span>
         ${label}: ${sortedData[i].toFixed(1)}%
-      </span>`
-    )
+      </span>`;
+    })
     .join("");
 
   const wrapper = assetCard.querySelector(".chart-wrapper");
@@ -9643,23 +9746,25 @@ function displayFamilyMarketCapSplit(metrics) {
   const [sortedLabels, sortedData] = sortData(mcLabels, mcData);
 
   const barHTML = sortedLabels
-    .map(
-      (label, i) => `
-      <div class="composition-segment ${label.toLowerCase()}-cap"
-           style="width: ${sortedData[i]}%"
+    .map((label, i) => {
+      const color = themeColors[i % themeColors.length];
+      return `
+      <div class="composition-segment"
+           style="width: ${sortedData[i]}%; background-color: ${color};"
            title="${label}: ${sortedData[i].toFixed(1)}%">
-      </div>`
-    )
+      </div>`;
+    })
     .join("");
 
   const legendHTML = sortedLabels
-    .map(
-      (label, i) => `
+    .map((label, i) => {
+      const color = themeColors[i % themeColors.length];
+      return `
       <span class="legend-item">
-        <span class="legend-color ${label.toLowerCase()}-cap"></span>
+        <span class="legend-color" style="background-color: ${color};"></span>
         ${label}: ${sortedData[i].toFixed(1)}%
-      </span>`
-    )
+      </span>`;
+    })
     .join("");
 
   const wrapper = mcCard.querySelector(".chart-wrapper");
@@ -10489,6 +10594,353 @@ function closeActiveModal() {
   if (fundHoldingsModal) closeFundHoldingsModal();
   if (portfolioHoldingsModal) closePortfolioHoldingsModal();
   if (fundDetailsModal) closeFundDetailsModal();
+}
+
+// Folio Management Functions
+let pendingFolioChanges = {};
+
+function getHiddenFolios(userName) {
+  const key = `hiddenFolios_${userName}`;
+  const stored = localStorage.getItem(key);
+  return stored ? JSON.parse(stored) : [];
+}
+
+function saveHiddenFolios(userName, hiddenFolios) {
+  const key = `hiddenFolios_${userName}`;
+  localStorage.setItem(key, JSON.stringify(hiddenFolios));
+}
+
+function isFolioHidden(userName, folioNumber) {
+  const hiddenFolios = getHiddenFolios(userName);
+  return hiddenFolios.includes(folioNumber);
+}
+
+function toggleFolioInPending(userName, folioNumber) {
+  if (!pendingFolioChanges[userName]) {
+    pendingFolioChanges[userName] = getHiddenFolios(userName);
+  }
+
+  const index = pendingFolioChanges[userName].indexOf(folioNumber);
+
+  if (index > -1) {
+    // Currently hidden, show it
+    pendingFolioChanges[userName].splice(index, 1);
+  } else {
+    // Currently visible, hide it
+    pendingFolioChanges[userName].push(folioNumber);
+  }
+
+  // Update UI - only toggle the switch, not the parent item
+  const toggleSwitch = document.querySelector(`[data-folio="${folioNumber}"]`);
+  if (toggleSwitch) {
+    const isHidden = pendingFolioChanges[userName].includes(folioNumber);
+    if (isHidden) {
+      toggleSwitch.classList.remove("active");
+      // Don't add 'hidden' class to parent
+    } else {
+      toggleSwitch.classList.add("active");
+      // Don't remove 'hidden' class from parent
+    }
+  }
+}
+
+function saveFolioChanges(userName) {
+  if (!pendingFolioChanges[userName]) {
+    closeFolioManagementModal();
+    return;
+  }
+
+  saveHiddenFolios(userName, pendingFolioChanges[userName]);
+
+  showToast("Folio visibility settings saved!", "success");
+
+  closeFolioManagementModal();
+
+  // If current user, reload portfolio
+  if (userName === currentUser) {
+    setTimeout(() => {
+      location.reload();
+    }, 500);
+  }
+}
+
+function showFolioManagementModal(userName) {
+  lockBodyScroll();
+
+  pendingFolioChanges = {};
+
+  const modal = document.createElement("div");
+  modal.className = "transaction-modal-overlay";
+  modal.id = "folioManagementModal";
+
+  modal.innerHTML = `
+    <div class="folio-management-modal">
+      <div class="modal-header">
+        <h2><i class="fa-solid fa-gear"></i> Manage Folios - ${getStoredInvestorName(
+          userName
+        )}</h2>
+        <button class="modal-close" onclick="closeFolioManagementModal()">✕</button>
+      </div>
+      <div class="folio-management-content" id="folioManagementContent">
+        <div style="text-align: center; padding: 40px;">
+          <div class="chart-spinner"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn" onclick="closeFolioManagementModal()">Cancel</button>
+        <button class="primary-btn" onclick="saveFolioChanges('${userName}')">
+          <i class="fa-solid fa-save"></i> Save Changes
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  if (window.innerWidth <= 1024) {
+    initializeModalSwipe(modal);
+  }
+
+  // Load folio data
+  loadFolioManagementData(userName);
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeFolioManagementModal();
+  });
+}
+
+function closeFolioManagementModal() {
+  const modal = document.getElementById("folioManagementModal");
+  if (modal) {
+    modal.remove();
+  }
+  unlockBodyScroll();
+  pendingFolioChanges = {};
+}
+
+async function loadFolioManagementData(userName) {
+  const content = document.getElementById("folioManagementContent");
+
+  try {
+    const stored = await storageManager.loadPortfolioData(userName);
+
+    if (!stored) {
+      content.innerHTML = `
+        <div class="folio-management-empty">
+          <i class="fa-solid fa-folder-open"></i>
+          <p>No data found for this user</p>
+        </div>
+      `;
+      return;
+    }
+
+    const casData = stored.casData;
+    const mfStatsUser = stored.mfStats;
+    const hiddenFolios = getHiddenFolios(userName);
+
+    // Initialize pending changes with current state
+    pendingFolioChanges[userName] = [...hiddenFolios];
+
+    // Group folios by AMC and fund
+    const activeFoliosByAMC = {};
+    const pastFoliosByAMC = {};
+
+    casData.folios.forEach((folio) => {
+      const amc = folio.amc || "Unknown AMC";
+
+      if (casData.cas_type === "SUMMARY") {
+        const totalValue = parseFloat(folio.current_value || 0);
+        const extendedData = folio.isin ? mfStatsUser[folio.isin] : null;
+        const fundDisplayName = sanitizeSchemeName(folio.scheme);
+
+        const folioInfo = {
+          folioNumber: folio.folio,
+          amc: amc,
+          fundName: fundDisplayName,
+          value: totalValue,
+          isHidden: hiddenFolios.includes(folio.folio),
+        };
+
+        if (totalValue > 0) {
+          if (!activeFoliosByAMC[amc]) activeFoliosByAMC[amc] = [];
+          activeFoliosByAMC[amc].push(folioInfo);
+        } else {
+          if (!pastFoliosByAMC[amc]) pastFoliosByAMC[amc] = [];
+          pastFoliosByAMC[amc].push(folioInfo);
+        }
+      } else {
+        // Detailed CAS - handle multiple schemes per folio
+        if (folio.schemes && Array.isArray(folio.schemes)) {
+          folio.schemes.forEach((scheme) => {
+            const schemeLower = scheme.scheme.toLowerCase();
+            if (
+              !schemeLower.includes("fund") &&
+              !schemeLower.includes("fof") &&
+              !schemeLower.includes("etf")
+            )
+              return;
+
+            if (
+              !Array.isArray(scheme.transactions) ||
+              scheme.transactions.length === 0
+            )
+              return;
+
+            const schemeValue = scheme.valuation
+              ? parseFloat(scheme.valuation.value || 0)
+              : 0;
+            const fundDisplayName = sanitizeSchemeName(scheme.scheme);
+
+            // Create a unique key combining folio and scheme
+            const uniqueKey = `${folio.folio}|${scheme.scheme}`;
+
+            const folioInfo = {
+              folioNumber: folio.folio,
+              uniqueKey: uniqueKey,
+              amc: amc,
+              fundName: fundDisplayName,
+              value: schemeValue,
+              isHidden: hiddenFolios.includes(uniqueKey),
+            };
+
+            if (schemeValue > 0) {
+              if (!activeFoliosByAMC[amc]) activeFoliosByAMC[amc] = [];
+              activeFoliosByAMC[amc].push(folioInfo);
+            } else {
+              if (!pastFoliosByAMC[amc]) pastFoliosByAMC[amc] = [];
+              pastFoliosByAMC[amc].push(folioInfo);
+            }
+          });
+        }
+      }
+    });
+
+    // Sort AMCs by total value
+    const sortedActiveAMCs = Object.keys(activeFoliosByAMC).sort((a, b) => {
+      const totalA = activeFoliosByAMC[a].reduce((sum, f) => sum + f.value, 0);
+      const totalB = activeFoliosByAMC[b].reduce((sum, f) => sum + f.value, 0);
+      return totalB - totalA;
+    });
+
+    const sortedPastAMCs = Object.keys(pastFoliosByAMC).sort();
+
+    // Sort folios within each AMC by value (descending)
+    sortedActiveAMCs.forEach((amc) => {
+      activeFoliosByAMC[amc].sort((a, b) => b.value - a.value);
+    });
+
+    let html = "";
+
+    // Current Holdings
+    if (sortedActiveAMCs.length > 0) {
+      html += '<div class="folio-category">';
+      html += '<h4><i class="fa-solid fa-briefcase"></i> Current Holdings</h4>';
+
+      sortedActiveAMCs.forEach((amc) => {
+        const folios = activeFoliosByAMC[amc];
+        const totalValue = folios.reduce((sum, f) => sum + f.value, 0);
+
+        html += `
+          <div class="amc-group">
+            <div class="amc-group-header">
+              <span class="amc-name">${standardizeTitle(amc)}</span>
+              <span class="amc-total">₹${formatNumber(totalValue)}</span>
+            </div>
+            <div class="amc-folios">
+        `;
+
+        folios.forEach((folio) => {
+          const folioKey = folio.uniqueKey || folio.folioNumber;
+          html += `
+            <div class="folio-toggle-item ${folio.isHidden ? "will-hide" : ""}">
+              <div class="folio-toggle-info">
+                <div class="folio-toggle-name">${folio.fundName}</div>
+                <div class="folio-toggle-meta">${
+                  folio.folioNumber
+                } • ₹${formatNumber(folio.value)}</div>
+              </div>
+              <div class="folio-toggle-switch ${
+                !folio.isHidden ? "active" : ""
+              }" 
+                   data-folio="${folioKey}"
+                   onclick="toggleFolioInPending('${userName}', '${folioKey}')">
+              </div>
+            </div>
+          `;
+        });
+
+        html += `
+            </div>
+          </div>
+        `;
+      });
+
+      html += "</div>";
+    }
+
+    // Past Holdings
+    if (sortedPastAMCs.length > 0) {
+      html += '<div class="folio-category">';
+      html +=
+        '<h4><i class="fa-solid fa-clock-rotate-left"></i> Past Holdings</h4>';
+
+      sortedPastAMCs.forEach((amc) => {
+        const folios = pastFoliosByAMC[amc];
+
+        html += `
+          <div class="amc-group">
+            <div class="amc-group-header">
+              <span class="amc-name">${standardizeTitle(amc)}</span>
+              <span class="amc-total">Fully Redeemed</span>
+            </div>
+            <div class="amc-folios">
+        `;
+
+        folios.forEach((folio) => {
+          const folioKey = folio.uniqueKey || folio.folioNumber;
+          html += `
+            <div class="folio-toggle-item ${folio.isHidden ? "will-hide" : ""}">
+              <div class="folio-toggle-info">
+                <div class="folio-toggle-name">${folio.fundName}</div>
+                <div class="folio-toggle-meta">${folio.folioNumber}</div>
+              </div>
+              <div class="folio-toggle-switch ${
+                !folio.isHidden ? "active" : ""
+              }" 
+                   data-folio="${folioKey}"
+                   onclick="toggleFolioInPending('${userName}', '${folioKey}')">
+              </div>
+            </div>
+          `;
+        });
+
+        html += `
+            </div>
+          </div>
+        `;
+      });
+
+      html += "</div>";
+    }
+
+    if (sortedActiveAMCs.length === 0 && sortedPastAMCs.length === 0) {
+      html = `
+        <div class="folio-management-empty">
+          <i class="fa-solid fa-folder-open"></i>
+          <p>No folios found for this user</p>
+        </div>
+      `;
+    }
+
+    content.innerHTML = html;
+  } catch (err) {
+    console.error("Error loading folio data:", err);
+    content.innerHTML = `
+      <div class="folio-management-empty">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <p style="color: var(--danger);">Error loading folio data</p>
+      </div>
+    `;
+  }
 }
 
 window.addEventListener("DOMContentLoaded", async () => {

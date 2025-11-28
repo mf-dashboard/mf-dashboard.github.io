@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
-    <link rel="stylesheet" href="styles.css?v=20251112" />
+    <link rel="stylesheet" href="styles.css?v=20251128" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -33,7 +33,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20251112" />
+    <link rel="manifest" href="/manifest.json?v=20251128" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -270,21 +270,6 @@
         </div>
         <section id="cas-upload-tab">
           <div class="upload-tab-content">
-            <div class="upload-card user-management-card">
-              <div class="upload-icon"><i class="fa-solid fa-users"></i></div>
-              <h3>Manage Users</h3>
-              <p>View and manage all user portfolios</p>
-              <div class="user-list-container" id="userListContainer"></div>
-              <button
-                type="button"
-                class="danger-btn"
-                onclick="deleteAllUsers()"
-                style="width: 100%; margin-top: 10px"
-              >
-                <i class="fa-solid fa-trash"></i>
-                Delete All Users
-              </button>
-            </div>
             <div class="upload-card">
               <div class="upload-icon">📄</div>
               <h3>Upload New CAS</h3>
@@ -310,6 +295,21 @@
                   Load Portfolio
                 </button>
               </div>
+            </div>
+            <div class="upload-card user-management-card">
+              <div class="upload-icon"><i class="fa-solid fa-users"></i></div>
+              <h3>Manage Users</h3>
+              <p>View and manage all user portfolios</p>
+              <div class="user-list-container" id="userListContainer"></div>
+              <button
+                type="button"
+                class="danger-btn"
+                onclick="deleteAllUsers()"
+                style="width: 100%; margin-top: 10px"
+              >
+                <i class="fa-solid fa-trash"></i>
+                Delete All Users
+              </button>
             </div>
             <div class="upload-card update-nav">
               <div class="upload-icon">🔄</div>
@@ -686,7 +686,7 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20251112"></script>
-    <script src="script.js?v=20251112"></script>
+    <script src="indexeddb-helper.js?v=20251128"></script>
+    <script src="script.js?v=20251128"></script>
   </body>
 </html>

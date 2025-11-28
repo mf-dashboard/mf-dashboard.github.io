@@ -2595,24 +2595,12 @@ button.theme-toggle i {
   transition: opacity 0.2s;
   cursor: pointer;
   position: relative;
+  display: inline-block;
+  vertical-align: top;
 }
 
 .composition-segment:hover {
   opacity: 0.85;
-}
-
-.composition-segment.equity,
-.composition-segment.large-cap,
-.legend-color.equity,
-.legend-color.large-cap {
-  background: #667eea;
-}
-
-.composition-segment.debt,
-.composition-segment.mid-cap,
-.legend-color.mid-cap,
-.legend-color.debt {
-  background: #10b981;
 }
 
 .composition-segment.other,
@@ -2902,28 +2890,6 @@ button.theme-toggle i {
   border-radius: 3px;
 }
 
-.composition-segment.silver,
-.legend-color.silver {
-  background: #9ca3af;
-}
-
-.composition-segment.commodities,
-.legend-color.commodities,
-.composition-segment.gold,
-.legend-color.gold {
-  background: var(--warning);
-}
-
-.composition-segment.real.estate,
-.legend-color.real.estate {
-  background: #8b5cf6;
-}
-
-.composition-segment.cash,
-.legend-color.cash {
-  background: #14b8a6;
-}
-
 #asset-market-cap-split,
 #family-asset-market-cap-split {
   display: flex;
@@ -2936,6 +2902,190 @@ button.theme-toggle i {
 #family-asset-market-cap-split .chart-wrapper {
   height: fit-content;
   min-height: fit-content;
+}
+
+.user-item-settings {
+  background: var(--primary-gradient-start);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  box-shadow: none;
+  margin-right: 8px;
+}
+
+.user-item-settings:hover {
+  background: var(--primary-gradient-end);
+  transform: scale(1.05);
+}
+
+.folio-management-modal {
+  background: var(--bg-white);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  z-index: 9999;
+  top: 0;
+  left: 0;
+  animation: slideUpModal 0.3s ease;
+  overflow: hidden;
+}
+
+.folio-management-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background: var(--bg-light);
+}
+
+.folio-category {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.folio-category h4 {
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--border-light);
+}
+
+.folio-toggle-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--bg-offwhite);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border-light);
+  transition: all 0.2s ease;
+}
+
+.folio-toggle-item:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--primary-gradient-start);
+}
+
+.folio-toggle-item.will-hide {
+  opacity: 0.7;
+  background: rgba(239, 68, 68, 0.05);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.folio-toggle-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.folio-toggle-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.folio-toggle-meta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.folio-toggle-switch {
+  position: relative;
+  width: 50px;
+  height: 26px;
+  background: #ccc;
+  border-radius: 13px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  flex-shrink: 0;
+}
+
+.folio-toggle-switch.active {
+  background: var(--success);
+}
+
+.folio-toggle-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.folio-toggle-switch.active::after {
+  transform: translateX(24px);
+}
+
+.folio-management-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-tertiary);
+}
+
+.folio-management-empty i {
+  font-size: 48px;
+  margin-bottom: 15px;
+  opacity: 0.5;
+}
+
+.amc-group {
+  margin-bottom: 25px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-white);
+}
+
+.amc-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-gradiant);
+  border-bottom: 2px solid var(--border-light);
+}
+
+.amc-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.amc-total {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.amc-folios {
+  padding: 8px;
+}
+
+.amc-folios .folio-toggle-item {
+  margin-bottom: 8px;
+}
+
+.amc-folios .folio-toggle-item:last-child {
+  margin-bottom: 0;
 }
 
 @media (max-width: 1024px) {
