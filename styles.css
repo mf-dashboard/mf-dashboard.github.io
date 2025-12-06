@@ -423,12 +423,6 @@ button:disabled {
   gap: 15px;
 }
 
-#currentFolioGrid,
-#pastFolioGrid {
-  flex-wrap: wrap;
-  justify-content: flex-start;
-}
-
 .folio-card {
   max-width: 100%;
   box-sizing: border-box;
@@ -2603,13 +2597,6 @@ button.theme-toggle i {
   opacity: 0.85;
 }
 
-.composition-segment.other,
-.composition-segment.small-cap,
-.legend-color.small-cap,
-.legend-color.other {
-  background: var(--warning);
-}
-
 .composition-legend {
   display: flex;
   flex-wrap: wrap;
@@ -3088,6 +3075,45 @@ button.theme-toggle i {
   margin-bottom: 0;
 }
 
+#pastFolioGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+#pastFolioGrid .capital-gains-section {
+  margin-bottom: 20px;
+  padding: 20px;
+}
+
+#pastFolioGrid .capital-gains-section:last-child {
+  margin-bottom: 0;
+}
+
+/* Ensure folio-grid inside sections displays properly */
+#pastFolioGrid .folio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+}
+
+/* Section headers styling */
+#pastFolioGrid .section-header {
+  margin-bottom: 15px;
+}
+
+#pastFolioGrid .section-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#pastFolioGrid .section-subtitle {
+  margin: 0;
+}
+
 @media (max-width: 1024px) {
   .mobile-header {
     display: flex;
@@ -3416,6 +3442,11 @@ button.theme-toggle i {
 
   #pastSection {
     display: none !important;
+  }
+
+  #pastFolioGrid .capital-gains-section {
+    margin-bottom: 15px;
+    padding: 16px;
   }
 }
 

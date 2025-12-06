@@ -1675,6 +1675,10 @@ async function loadFileFromTab() {
 
     localStorage.setItem("lastActiveUser", currentUser);
 
+    const hiddenFoliosKey = `hiddenFolios_${currentUser}`;
+    localStorage.removeItem(hiddenFoliosKey);
+    console.log(`🗑️ Cleared hidden folios for user: ${currentUser}`);
+
     await storageManager.savePortfolioData(
       portfolioData,
       mfStats,
@@ -1845,6 +1849,10 @@ async function loadFileFromTab() {
     }
 
     localStorage.setItem("lastActiveUser", currentUser);
+
+    const hiddenFoliosKey = `hiddenFolios_${currentUser}`;
+    localStorage.removeItem(hiddenFoliosKey);
+    console.log(`🗑️ Cleared hidden folios for user: ${currentUser}`);
 
     // Save to IndexedDB BEFORE updating UI
     await storageManager.savePortfolioData(
@@ -2051,7 +2059,7 @@ function calculateSummarySummary() {
     totalRemainingCost += fund.advancedMetrics.remainingCost;
   });
 
-  const overallGain = currentValue - totalInvested;
+  const overallGain = currentValue - totalRemainingCost + totalRealizedGain;
 
   return {
     totalInvested,
@@ -3477,7 +3485,7 @@ function calculateSummary() {
       const uniqueKey = `${folioNum}|${fund.scheme}`;
 
       if (hiddenFolios.includes(folioNum) || hiddenFolios.includes(uniqueKey)) {
-        console.log(`⏭️ Skipping hidden folio in cashflows: ${folioNum}`);
+        console.log(`⭐️ Skipping hidden folio in cashflows: ${folioNum}`);
         return;
       }
 
@@ -3487,13 +3495,15 @@ function calculateSummary() {
           folio: folioSummary.folio,
           type: cf.type === "Buy" ? "PURCHASE" : "REDEMPTION",
           date: new Date(cf.date),
-          amount: cf.amount,
+          amount: parseFloat(cf.amount), // Ensure it's a number
           nav: cf.nav,
           units: cf.units,
         };
 
+        // Add ALL cashflows to allTimeFlows (both purchases and redemptions)
         allTimeFlows.push(enriched);
 
+        // For active funds, add to activeFlows
         if (isActiveFund) {
           activeFlows.push(enriched);
         }
@@ -3507,7 +3517,7 @@ function calculateSummary() {
       folio: "Current",
       type: "VALUATION",
       date: new Date(),
-      amount: currentValue,
+      amount: parseFloat(currentValue),
       nav: null,
       units: null,
     };
@@ -3518,12 +3528,12 @@ function calculateSummary() {
   allTimeFlows.sort((a, b) => a.date - b.date);
   activeFlows.sort((a, b) => a.date - b.date);
 
-  const overallGain = currentValue - totalInvested + totalWithdrawn;
+  const overallGain = totalRealizedGain + totalUnrealizedGain;
 
   let allTimeXirr = null;
   if (allTimeFlows.length >= 2) {
     const cashFlowsSimple = allTimeFlows.map((cf) => ({
-      date: cf.date,
+      date: cf.date instanceof Date ? cf.date : new Date(cf.date),
       amount: cf.amount,
     }));
     allTimeXirr = calculatePortfolioXIRR(cashFlowsSimple);
@@ -3532,7 +3542,7 @@ function calculateSummary() {
   let activeXirr = null;
   if (activeFlows.length >= 2) {
     const cashFlowsSimple = activeFlows.map((cf) => ({
-      date: cf.date,
+      date: cf.date instanceof Date ? cf.date : new Date(cf.date),
       amount: cf.amount,
     }));
     activeXirr = calculatePortfolioXIRR(cashFlowsSimple);
@@ -4326,16 +4336,26 @@ function calculatePortfolioXIRR(cashFlows) {
     return null;
   }
 
-  // Use XIRRCalculator class instead
+  // Sort cashflows by date to ensure chronological order
+  const sortedCashFlows = [...cashFlows].sort((a, b) => a.date - b.date);
+
   const calc = new XIRRCalculator();
 
-  cashFlows.forEach((cf) => {
+  sortedCashFlows.forEach((cf) => {
     const type = cf.amount < 0 ? "buy" : "sell";
     calc.addTransaction(type, cf.date, Math.abs(cf.amount));
   });
 
   try {
-    return calc.calculateXIRR();
+    const xirr = calc.calculateXIRR();
+
+    // Validate result - reject unrealistic values
+    if (xirr && !isNaN(xirr) && Math.abs(xirr) < 10000) {
+      return xirr;
+    }
+
+    console.log("XIRR calculation returned unrealistic value:", xirr);
+    return null;
   } catch (error) {
     console.log("XIRR calculation failed:", error.message);
     return null;
@@ -5789,7 +5809,7 @@ function renderModalCompositionCharts(fundKey, extendedData) {
   const ps = extendedData?.portfolio_stats;
   if (!ps) return;
 
-  // Asset Allocation Chart
+  // ============ ASSET ALLOCATION CHART ============
   const assetContainer = document.getElementById("modalAssetAllocationChart");
   if (assetContainer) {
     const rawAsset = ps.asset_allocation || {};
@@ -5818,8 +5838,6 @@ function renderModalCompositionCharts(fundKey, extendedData) {
         } else {
           bucket = "debt";
         }
-      } else {
-        bucket = "debt";
       }
 
       switch (bucket) {
@@ -5838,44 +5856,44 @@ function renderModalCompositionCharts(fundKey, extendedData) {
     });
 
     const segments = [];
-    if (equity > 0)
-      segments.push({ key: "equity", label: "Equity", value: equity });
-    if (debt > 0) segments.push({ key: "debt", label: "Debt", value: debt });
-    if (gold > 0) segments.push({ key: "other", label: "Gold", value: gold });
-    if (silver > 0)
-      segments.push({ key: "other", label: "Silver", value: silver });
+    if (equity > 0) segments.push({ label: "Equity", value: equity });
+    if (debt > 0) segments.push({ label: "Debt", value: debt });
+    if (gold > 0) segments.push({ label: "Gold", value: gold });
+    if (silver > 0) segments.push({ label: "Silver", value: silver });
 
-    // Sort by value descending
+    // Sort largest first
     segments.sort((a, b) => b.value - a.value);
 
     if (segments.length > 0) {
       const total = segments.reduce((sum, s) => sum + s.value, 0);
-      const normalizedSegments = segments.map((s) => ({
+      const normalized = segments.map((s) => ({
         ...s,
         value: (s.value / total) * 100,
       }));
 
-      const barHTML = normalizedSegments
-        .map(
-          (s) => `
-          <div class="composition-segment ${s.key}"
-               style="width: ${s.value}%"
-               title="${s.label}: ${s.value.toFixed(1)}%">
-          </div>
-        `
-        )
+      // Apply theme-based colors
+      const barHTML = normalized
+        .map((s, i) => {
+          const color = themeColors[i % themeColors.length];
+          return `
+            <div class="composition-segment"
+                 style="width: ${s.value}%; background-color: ${color};"
+                 title="${s.label}: ${s.value.toFixed(1)}%">
+            </div>
+          `;
+        })
         .join("");
 
-      const legendHTML = normalizedSegments
-        .map(
-          (s) => `
-          <span class="legend-item">
-            <span class="legend-color ${s.key}"></span>${
-            s.label
-          }: ${s.value.toFixed(1)}%
-          </span>
-        `
-        )
+      const legendHTML = normalized
+        .map((s, i) => {
+          const color = themeColors[i % themeColors.length];
+          return `
+            <span class="legend-item">
+              <span class="legend-color" style="background-color: ${color};"></span>
+              ${s.label}: ${s.value.toFixed(1)}%
+            </span>
+          `;
+        })
         .join("");
 
       assetContainer.parentElement.innerHTML = `
@@ -5890,7 +5908,7 @@ function renderModalCompositionCharts(fundKey, extendedData) {
     }
   }
 
-  // Market Cap Chart
+  // ============ MARKET CAP CHART ============
   const mcapContainer = document.getElementById("modalMarketCapChart");
   if (mcapContainer) {
     let large = 0,
@@ -5913,41 +5931,37 @@ function renderModalCompositionCharts(fundKey, extendedData) {
 
     const total = large + mid + small;
     if (total > 0) {
-      large = (large / total) * 100;
-      mid = (mid / total) * 100;
-      small = (small / total) * 100;
+      const segments = [
+        { label: "Large", value: (large / total) * 100 },
+        { label: "Mid", value: (mid / total) * 100 },
+        { label: "Small", value: (small / total) * 100 },
+      ].filter((s) => s.value > 0);
 
-      const segments = [];
-      if (large > 0)
-        segments.push({ key: "large-cap", label: "Large", value: large });
-      if (mid > 0) segments.push({ key: "mid-cap", label: "Mid", value: mid });
-      if (small > 0)
-        segments.push({ key: "small-cap", label: "Small", value: small });
-
-      // Sort by value descending
+      // Sort largest first
       segments.sort((a, b) => b.value - a.value);
 
       const barHTML = segments
-        .map(
-          (s) => `
-          <div class="composition-segment ${s.key}"
-               style="width: ${s.value}%"
-               title="${s.label}: ${s.value.toFixed(1)}%">
-          </div>
-        `
-        )
+        .map((s, i) => {
+          const color = themeColors[i % themeColors.length];
+          return `
+            <div class="composition-segment"
+                 style="width: ${s.value}%; background-color: ${color};"
+                 title="${s.label}: ${s.value.toFixed(1)}%">
+            </div>
+          `;
+        })
         .join("");
 
       const legendHTML = segments
-        .map(
-          (s) => `
-          <span class="legend-item">
-            <span class="legend-color ${s.key}"></span>${
-            s.label
-          }: ${s.value.toFixed(1)}%
-          </span>
-        `
-        )
+        .map((s, i) => {
+          const color = themeColors[i % themeColors.length];
+          return `
+            <span class="legend-item">
+              <span class="legend-color" style="background-color: ${color};"></span>
+              ${s.label}: ${s.value.toFixed(1)}%
+            </span>
+          `;
+        })
         .join("");
 
       mcapContainer.parentElement.innerHTML = `
@@ -5962,74 +5976,139 @@ function renderModalCompositionCharts(fundKey, extendedData) {
     }
   }
 }
-
-function createFundCardForFolios(fund, fundKey, folios, isActive) {
+function createFundCardForFolios(
+  fund,
+  fundKey,
+  folios,
+  isActive,
+  redemptionStatus = "active"
+) {
   const folioNumbers = folios.map((f) => f.folioNum);
 
-  // Use advancedMetrics.folioSummaries for calculations
+  // Calculate metrics based on whether this is active or past
   let invested = 0;
   let withdrawn = 0;
   let current = 0;
   let cost = 0;
   let realizedGain = 0;
   let unrealizedGain = 0;
+  let remainingUnits = 0;
+  let averageHoldingDays = 0;
+  let averageRemainingCostPerUnit = 0;
 
   const advancedMetrics = fund.advancedMetrics;
-
-  let remainingUnits = parseFloat(advancedMetrics.totalUnitsRemaining).toFixed(
-    3
-  );
-  let averageHoldingDays = parseFloat(
-    advancedMetrics.averageHoldingDays
-  ).toFixed(1);
-  let averageRemainingCostPerUnit = parseFloat(
-    advancedMetrics.averageRemainingCostPerUnit
-  ).toFixed(3);
-
   const targetFolioSummaries = [];
 
   Object.values(advancedMetrics.folioSummaries).forEach((folioSummary) => {
     if (folioNumbers.includes(folioSummary.folio)) {
       targetFolioSummaries.push(folioSummary);
-      invested += folioSummary.invested;
-      withdrawn += folioSummary.withdrawn;
-      current += folioSummary.currentValue;
-      cost += folioSummary.remainingCost;
-      realizedGain += folioSummary.realizedGain;
-      unrealizedGain += folioSummary.unrealizedGain;
+
+      if (isActive) {
+        // For current holdings - show only active data
+        invested += folioSummary.remainingCost;
+        current += folioSummary.currentValue;
+        cost += folioSummary.remainingCost;
+        unrealizedGain += folioSummary.unrealizedGain;
+        remainingUnits += folioSummary.remainingUnits;
+
+        if (folioSummary.remainingUnits > 0) {
+          averageHoldingDays +=
+            folioSummary.averageHoldingDays * folioSummary.remainingUnits;
+        }
+      } else {
+        // For past holdings - calculate invested based on FIFO (what was actually sold)
+        // invested = total invested - remaining cost (what's still held)
+        const totalInvestedInFolio = folioSummary.invested;
+        const remainingCostInFolio = folioSummary.remainingCost;
+        const redeemedCost = totalInvestedInFolio - remainingCostInFolio;
+
+        invested += redeemedCost;
+        withdrawn += folioSummary.withdrawn;
+        realizedGain += folioSummary.realizedGain;
+      }
     }
   });
 
-  const overallGain = current - invested + withdrawn;
-
-  const investedAmountForRealized = invested - cost;
-  const realizedGainPercentage = parseFloat(
-    investedAmountForRealized > 0
-      ? (realizedGain / investedAmountForRealized) * 100
-      : 0
-  ).toFixed(2);
-  const unrealizedGainPercentage = parseFloat(
-    cost > 0 ? (unrealizedGain / cost) * 100 : 0
-  ).toFixed(2);
-
-  // Calculate XIRR using cashflows from folioSummaries
-  const calc = new XIRRCalculator();
-  targetFolioSummaries.forEach((folioSummary) => {
-    folioSummary.cashflows.forEach((cf) => {
-      calc.addTransaction(cf.type, cf.date, Math.abs(cf.amount));
-    });
-  });
-
-  if (current > 0) {
-    calc.addTransaction(
-      "Sell",
-      new Date().toISOString().split("T")[0] + "T00:00:00.000Z",
-      current
-    );
+  // Calculate averages for active holdings
+  if (isActive && remainingUnits > 0) {
+    averageRemainingCostPerUnit = (cost / remainingUnits).toFixed(3);
+    averageHoldingDays = (averageHoldingDays / remainingUnits).toFixed(1);
   }
 
+  const overallGain = isActive ? unrealizedGain : realizedGain;
+  const gainPercentage = isActive
+    ? cost > 0
+      ? ((unrealizedGain / cost) * 100).toFixed(2)
+      : 0
+    : invested > 0
+    ? ((realizedGain / invested) * 100).toFixed(2)
+    : 0;
+
+  // Calculate XIRR using cashflows from folioSummaries
   let xirr = null;
   try {
+    const calc = new XIRRCalculator();
+
+    if (isActive) {
+      // For active holdings - include all cashflows and add current value
+      targetFolioSummaries.forEach((folioSummary) => {
+        folioSummary.cashflows.forEach((cf) => {
+          calc.addTransaction(cf.type, cf.date, Math.abs(cf.amount));
+        });
+      });
+
+      if (current > 0) {
+        calc.addTransaction(
+          "Sell",
+          new Date().toISOString().split("T")[0] + "T00:00:00.000Z",
+          current
+        );
+      }
+    } else {
+      // For past holdings - only include redemption cashflows
+      targetFolioSummaries.forEach((folioSummary) => {
+        folioSummary.cashflows.forEach((cf) => {
+          if (cf.type === "Sell") {
+            // Only include sell transactions for past holdings XIRR
+            calc.addTransaction(cf.type, cf.date, Math.abs(cf.amount));
+          }
+        });
+      });
+
+      // For partially redeemed, we need to include the purchases that were sold (FIFO)
+      // We need to reconstruct which purchases correspond to the redemptions
+      targetFolioSummaries.forEach((folioSummary) => {
+        const buyCashflows = folioSummary.cashflows.filter(
+          (cf) => cf.type === "Buy"
+        );
+        const sellCashflows = folioSummary.cashflows.filter(
+          (cf) => cf.type === "Sell"
+        );
+
+        // Calculate total units sold
+        const totalSoldUnits = sellCashflows.reduce(
+          (sum, cf) => sum + cf.units,
+          0
+        );
+
+        // Use FIFO to determine which purchases were sold
+        let unitsSoldSoFar = 0;
+        for (const buyCf of buyCashflows) {
+          if (unitsSoldSoFar >= totalSoldUnits) break;
+
+          const unitsToInclude = Math.min(
+            buyCf.units,
+            totalSoldUnits - unitsSoldSoFar
+          );
+          const amountToInclude =
+            (unitsToInclude / buyCf.units) * Math.abs(buyCf.amount);
+
+          calc.addTransaction("Buy", buyCf.date, amountToInclude);
+          unitsSoldSoFar += unitsToInclude;
+        }
+      });
+    }
+
     xirr = calc.calculateXIRR();
   } catch (e) {
     console.debug("XIRR calculation failed for", fundKey, e);
@@ -6037,6 +6116,8 @@ function createFundCardForFolios(fund, fundKey, folios, isActive) {
 
   const xirrText =
     xirr == null || isNaN(xirr) ? "--" : `${parseFloat(xirr.toFixed(2))}%`;
+
+  const statusLabel = "";
 
   const modifiedFund = {
     ...fund,
@@ -6052,13 +6133,15 @@ function createFundCardForFolios(fund, fundKey, folios, isActive) {
     Math.round(cost),
     Math.round(overallGain),
     Math.round(realizedGain),
-    realizedGainPercentage,
+    gainPercentage,
     Math.round(unrealizedGain),
-    unrealizedGainPercentage,
-    remainingUnits,
+    gainPercentage,
+    remainingUnits.toFixed(3),
     averageRemainingCostPerUnit,
     averageHoldingDays,
-    xirrText
+    xirrText,
+    statusLabel,
+    isActive
   );
 }
 
@@ -6078,6 +6161,9 @@ function updateFundBreakdown() {
     return bVal - aVal;
   });
 
+  const partiallyRedeemedFunds = [];
+  const fullyRedeemedFunds = [];
+
   fundsArray.forEach(([fundKey, fund]) => {
     const totalInvested = fund.transactions
       .filter((t) => t.type === "PURCHASE")
@@ -6085,10 +6171,15 @@ function updateFundBreakdown() {
 
     if (totalInvested === 0) return;
 
+    // Separate folios into active, partially redeemed, and fully redeemed
     const activeFolios = [];
-    const inactiveFolios = [];
+    const partiallyRedeemedFolios = [];
+    const fullyRedeemedFolios = [];
 
     fund.folios.forEach((folioNum) => {
+      const folioSummary = fund.advancedMetrics?.folioSummaries?.[folioNum];
+      if (!folioSummary) return;
+
       const folioData = portfolioData.folios.find((f) => f.folio === folioNum);
       if (!folioData) return;
 
@@ -6096,37 +6187,53 @@ function updateFundBreakdown() {
         (s) => s.scheme.trim().toLowerCase() === fund.scheme.toLowerCase()
       );
 
-      if (schemeInFolio) {
-        const folioValue = schemeInFolio.valuation
-          ? parseFloat(schemeInFolio.valuation.value || 0)
-          : 0;
+      if (!schemeInFolio) return;
 
-        if (folioValue > 0) {
-          activeFolios.push({ folioNum, folioData: schemeInFolio });
-        } else {
-          inactiveFolios.push({ folioNum, folioData: schemeInFolio });
-        }
+      const hasCurrentValue = folioSummary.currentValue > 0;
+      const hasWithdrawn = folioSummary.withdrawn > 0;
+
+      if (hasCurrentValue && hasWithdrawn) {
+        // Partially redeemed folio
+        activeFolios.push({ folioNum, folioData: schemeInFolio });
+        partiallyRedeemedFolios.push({ folioNum, folioData: schemeInFolio });
+      } else if (hasCurrentValue && !hasWithdrawn) {
+        // Active only
+        activeFolios.push({ folioNum, folioData: schemeInFolio });
+      } else if (!hasCurrentValue && hasWithdrawn) {
+        // Fully redeemed
+        fullyRedeemedFolios.push({ folioNum, folioData: schemeInFolio });
       }
     });
 
+    // Create card for active folios (current holdings)
     if (activeFolios.length > 0) {
-      const activeCard = createFundCardForFolios(
+      const currentCard = createFundCardForFolios(
         fund,
         fundKey,
         activeFolios,
-        true
+        true,
+        "active"
       );
-      currentGrid.appendChild(activeCard);
+      currentGrid.appendChild(currentCard);
     }
 
-    if (inactiveFolios.length > 0) {
-      const inactiveCard = createFundCardForFolios(
-        fund,
+    // Add to partially redeemed list
+    if (partiallyRedeemedFolios.length > 0) {
+      partiallyRedeemedFunds.push({
         fundKey,
-        inactiveFolios,
-        false
-      );
-      pastGrid.appendChild(inactiveCard);
+        fund,
+        folios: partiallyRedeemedFolios,
+      });
+      hasPast = true;
+    }
+
+    // Add to fully redeemed list
+    if (fullyRedeemedFolios.length > 0) {
+      fullyRedeemedFunds.push({
+        fundKey,
+        fund,
+        folios: fullyRedeemedFolios,
+      });
       hasPast = true;
     }
   });
@@ -6142,14 +6249,73 @@ function updateFundBreakdown() {
     `;
   }
 
+  // Build past holdings with sections
   if (hasPast) {
     pastSection?.classList.remove("hidden");
     pastSectionMobile?.classList.remove("hidden");
+
+    // Partially Redeemed Section
+    if (partiallyRedeemedFunds.length > 0) {
+      const partialSection = document.createElement("div");
+      partialSection.style.marginBottom = "30px";
+
+      partialSection.innerHTML = `
+        <div class="section-header">
+          <h3>⚠️ Partially Redeemed</h3>
+          <p class="section-subtitle">${partiallyRedeemedFunds.length} fund${
+        partiallyRedeemedFunds.length > 1 ? "s" : ""
+      } with partial withdrawals</p>
+        </div>
+        <div class="folio-grid" id="partiallyRedeemedGrid"></div>
+      `;
+
+      pastGrid.appendChild(partialSection);
+
+      const partialGrid = document.getElementById("partiallyRedeemedGrid");
+      partiallyRedeemedFunds.forEach(({ fundKey, fund, folios }) => {
+        const card = createFundCardForFolios(
+          fund,
+          fundKey,
+          folios,
+          false,
+          "partial"
+        );
+        partialGrid.appendChild(card);
+      });
+    }
+
+    // Fully Redeemed Section
+    if (fullyRedeemedFunds.length > 0) {
+      const fullSection = document.createElement("div");
+
+      fullSection.innerHTML = `
+        <div class="section-header">
+          <h3>✓ Fully Redeemed</h3>
+          <p class="section-subtitle">${fullyRedeemedFunds.length} fund${
+        fullyRedeemedFunds.length > 1 ? "s" : ""
+      } completely exited</p>
+        </div>
+        <div class="folio-grid" id="fullyRedeemedGrid"></div>
+      `;
+
+      pastGrid.appendChild(fullSection);
+
+      const fullGrid = document.getElementById("fullyRedeemedGrid");
+      fullyRedeemedFunds.forEach(({ fundKey, fund, folios }) => {
+        const card = createFundCardForFolios(
+          fund,
+          fundKey,
+          folios,
+          false,
+          "full"
+        );
+        fullGrid.appendChild(card);
+      });
+    }
   } else {
     pastSection?.classList.remove("hidden");
     pastSectionMobile?.classList.remove("hidden");
 
-    // Show message when no past holdings
     pastGrid.innerHTML = `
       <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">
         <div style="font-size: 48px; margin-bottom: 20px;">📋</div>
@@ -6158,158 +6324,6 @@ function updateFundBreakdown() {
       </div>
     `;
   }
-}
-
-function createFundCompositionCharts(extendedData, fundKey) {
-  const ps = extendedData?.portfolio_stats;
-  if (!ps) return "";
-
-  let html = "";
-
-  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-
-  const buildChartHTML = (title, segments) => {
-    const hasData = segments.some((s) => s.value > 0);
-
-    if (!hasData) {
-      return `
-        <div class="folio-stat fund-card-separator-header"><span class="label">${title}:</span></div>
-        <div class="fund-composition-chart empty-composition">No Data</div>
-      `;
-    }
-
-    const barHTML = segments
-      .filter((s) => s.value > 0)
-      .map((s, index) => {
-        const color = themeColors[index % themeColors.length];
-        return `
-        <div class="composition-segment"
-             style="width: ${s.value}%; background-color: ${color};"
-             title="${cap(s.label)}: ${s.value.toFixed(1)}%">
-        </div>`;
-      })
-      .join("");
-
-    const legendHTML = segments
-      .filter((s) => s.value > 0)
-      .map((s, index) => {
-        const color = themeColors[index % themeColors.length];
-        return `
-        <span class="legend-item">
-          <span class="legend-color" style="background-color: ${color};"></span>${cap(
-          s.label
-        )}: ${s.value.toFixed(1)}%
-        </span>`;
-      })
-      .join("");
-
-    return `
-      <div class="folio-stat fund-card-separator-header"><span class="label">${title}:</span></div>
-      <div class="fund-composition-chart">
-        <div class="composition-bar">${barHTML}</div>
-        <div class="composition-legend">${legendHTML}</div>
-      </div>
-    `;
-  };
-
-  const normalizeAndSort = (segments) => {
-    const total = segments.reduce((sum, s) => sum + s.value, 0);
-    if (total <= 0) {
-      return segments.map((s) => ({ ...s, value: 0 }));
-    }
-
-    const normalized = segments.map((s) => ({
-      ...s,
-      value: (s.value / total) * 100,
-    }));
-
-    normalized.sort((a, b) => b.value - a.value);
-
-    return normalized;
-  };
-
-  const rawAsset = ps.asset_allocation || {};
-  let equity = 0,
-    debt = 0,
-    gold = 0,
-    silver = 0;
-
-  Object.entries(rawAsset).forEach(([key, value]) => {
-    const val = parseFloat(value);
-    if (isNaN(val) || val <= 0) return;
-    const k = key.toLowerCase();
-    let bucket = "debt";
-    if (k.includes("equity")) {
-      bucket = "equity";
-    } else if (k.includes("commodities")) {
-      const subcategory = extendedData?.sub_category?.toLowerCase?.() || "";
-      const name = fundKey?.toLowerCase?.() || "";
-      if (subcategory.includes("gold") || name.includes("gold")) {
-        bucket = "gold";
-      } else if (subcategory.includes("silver") || name.includes("silver")) {
-        bucket = "silver";
-      } else {
-        bucket = "debt";
-      }
-    } else {
-      bucket = "debt";
-    }
-    switch (bucket) {
-      case "equity":
-        equity += val;
-        break;
-      case "gold":
-        gold += val;
-        break;
-      case "silver":
-        silver += val;
-        break;
-      default:
-        debt += val;
-    }
-  });
-
-  const assetSegments = normalizeAndSort([
-    { key: "equity", label: "equity", value: equity },
-    { key: "gold", label: "gold", value: gold },
-    { key: "silver", label: "silver", value: silver },
-    { key: "debt", label: "debt", value: debt },
-  ]);
-
-  html += buildChartHTML("Asset Allocation", assetSegments);
-
-  let large = 0,
-    mid = 0,
-    small = 0;
-  const hasDirectMC =
-    ps.large_cap !== undefined ||
-    ps.mid_cap !== undefined ||
-    ps.small_cap !== undefined;
-  const hasMCPer =
-    ps.market_cap_per &&
-    (ps.market_cap_per.large ||
-      ps.market_cap_per.mid ||
-      ps.market_cap_per.small);
-
-  if (hasDirectMC) {
-    large = parseFloat(ps.large_cap || 0) || 0;
-    mid = parseFloat(ps.mid_cap || 0) || 0;
-    small = parseFloat(ps.small_cap || 0) || 0;
-  } else if (hasMCPer) {
-    large = parseFloat(ps.market_cap_per.large || 0) || 0;
-    mid = parseFloat(ps.market_cap_per.mid || 0) || 0;
-    small = parseFloat(ps.market_cap_per.small || 0) || 0;
-  }
-
-  const mcapSegments = normalizeAndSort([
-    { key: "large-cap", label: "large", value: large },
-    { key: "mid-cap", label: "mid", value: mid },
-    { key: "small-cap", label: "small", value: small },
-  ]);
-
-  html += buildChartHTML("Market Cap Split", mcapSegments);
-
-  return html;
 }
 
 function createFundCardWithTransactions(
@@ -6327,14 +6341,16 @@ function createFundCardWithTransactions(
   remainingUnits,
   averageRemainingCostPerUnit,
   averageHoldingDays,
-  xirrText
+  xirrText,
+  statusLabel,
+  isActive = true
 ) {
   const card = document.createElement("div");
   card.className = "folio-card";
 
   const extendedData = mfStats[fund.isin];
   const displayFolios = fund.folios.filter((folioNum) => {
-    if (current > 0) {
+    if (isActive) {
       const folioData = portfolioData.folios.find((f) => f.folio === folioNum);
       if (!folioData) return false;
       return folioData.schemes.some(
@@ -6354,9 +6370,12 @@ function createFundCardWithTransactions(
     return val;
   }
 
-  // Store folio numbers in data attribute for transaction viewing
   const folioNumbersStr = fund.folios.join(",");
   const displayName = fund.schemeDisplay || fund.scheme;
+
+  // Only show for fully redeemed (no current value at all)
+  // const showViewDetailsForPast = !isActive && current === 0 && withdrawn > 0;
+  const showViewDetailsForPast = false;
 
   card.innerHTML = `
     <h4 title="${displayName}">${displayName}</h4>
@@ -6366,8 +6385,9 @@ function createFundCardWithTransactions(
       ? " • " + displayFolios.map((f) => f.split("/")[0].trim()).join(", ")
       : ""
   }</div>
+  ${statusLabel}
     ${
-      current <= 0
+      !isActive
         ? `<div class="folio-stat fund-card-separator"><span class="label">Invested:</span><span class="value">₹${formatNumber(
             invested
           )}</span></div>
@@ -6377,7 +6397,7 @@ function createFundCardWithTransactions(
         : ""
     }
     ${
-      current <= 0
+      !isActive
         ? `<div class="folio-stat fund-card-separator-space"><span class="label">P&L:</span><span class="value ${
             realizedGain >= 0 ? "gain" : "loss"
           }">
@@ -6387,33 +6407,33 @@ function createFundCardWithTransactions(
         : ""
     }
     ${
-      current > 0
+      isActive
         ? `<div class="folio-stat"><span class="label">Current Value:</span><span class="value">₹${formatNumber(
             current
           )}</span></div>`
         : ""
     }
     ${
-      current > 0
+      isActive
         ? `<div class="folio-stat"><span class="label">Current Cost:</span><span class="value">₹${formatNumber(
             remainingCost
           )}</span></div>`
         : ""
     }
     ${
-      current > 0
+      isActive
         ? `<div class="folio-stat"><span class="label">P&L:</span><span class="value ${
             unrealizedGain >= 0 ? "gain" : "loss"
           }">
-          ₹${formatNumber(Math.abs(unrealizedGain))} (${
-            current > 0 ? unrealizedGainPercentage : realizedGainPercentage
-          }%)</span></div>`
+          ₹${formatNumber(
+            Math.abs(unrealizedGain)
+          )} (${unrealizedGainPercentage}%)</span></div>`
         : ""
     }
     <div class="folio-stat fund-card-separator-space"><span class="label">XIRR:</span><span class="value">${xirrText}</span></div>
     <div class="fund-card-actions">
       ${
-        current > 0
+        isActive && current > 0
           ? `
       <button class="fund-action-btn primary" onclick="showFundDetailsModal('${fundKey}', false)">
         <i class="fa-solid fa-chart-line"></i> View Details
@@ -6421,6 +6441,14 @@ function createFundCardWithTransactions(
       
       <button class="fund-action-btn secondary" onclick="event.stopPropagation(); showFundHoldings('${fundKey}')">
         <i class="fa-solid fa-eye"></i> Holdings (${fund.holdings.length})
+      </button>
+      `
+          : showViewDetailsForPast
+          ? `
+      <button class="fund-action-btn primary" onclick="showFundDetailsModal('${fundKey}', true, ['${fund.folios.join(
+              "','"
+            )}'])">
+        <i class="fa-solid fa-chart-line"></i> View Details
       </button>
       `
           : ""
@@ -8733,6 +8761,10 @@ async function deleteSingleUser(userName) {
 
     await storageManager.deleteUser(userName);
 
+    const hiddenFoliosKey = `hiddenFolios_${userName}`;
+    localStorage.removeItem(hiddenFoliosKey);
+    console.log(`🗑️ Cleared hidden folios for deleted user: ${userName}`);
+
     allUsers = storageManager.getAllUsers();
 
     // If deleted user was current user, switch to another user
@@ -8854,6 +8886,18 @@ async function deleteAllUsers() {
 
   try {
     await storageManager.deleteAllUsers();
+
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("hiddenFolios_")) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+    console.log(
+      `🗑️ Cleared hidden folios for all users (${keysToRemove.length} entries)`
+    );
 
     hideProcessingSplash();
     showToast("All users deleted, reloading...", "success");
@@ -10012,7 +10056,9 @@ function updateCompactPastDashboard() {
   const container = document.getElementById("compactPastDashboard");
   if (!container) return;
 
-  const inactiveFundData = {};
+  // Use the same logic as desktop cards
+  const partiallyRedeemedFunds = [];
+  const fullyRedeemedFunds = [];
 
   Object.entries(fundWiseData).forEach(([fundKey, fund]) => {
     const totalInvested = fund.transactions
@@ -10021,8 +10067,14 @@ function updateCompactPastDashboard() {
 
     if (totalInvested === 0) return;
 
-    // Check each folio for this fund
+    // Separate folios into active, partially redeemed, and fully redeemed
+    const partiallyRedeemedFolios = [];
+    const fullyRedeemedFolios = [];
+
     fund.folios.forEach((folioNum) => {
+      const folioSummary = fund.advancedMetrics?.folioSummaries?.[folioNum];
+      if (!folioSummary) return;
+
       const folioData = portfolioData.folios.find((f) => f.folio === folioNum);
       if (!folioData) return;
 
@@ -10030,44 +10082,43 @@ function updateCompactPastDashboard() {
         (s) => s.scheme.trim().toLowerCase() === fund.scheme.toLowerCase()
       );
 
-      if (schemeInFolio) {
-        const folioValue = schemeInFolio.valuation
-          ? parseFloat(schemeInFolio.valuation.value || 0)
-          : 0;
+      if (!schemeInFolio) return;
 
-        // Only include inactive folios (value = 0)
-        if (folioValue === 0) {
-          if (!inactiveFundData[fundKey]) {
-            inactiveFundData[fundKey] = {
-              fundKey,
-              fund,
-              folioNums: [],
-              totalInvested: 0,
-              totalWithdrawn: 0,
-              totalRealizedGain: 0,
-            };
-          }
+      const hasCurrentValue = folioSummary.currentValue > 0;
+      const hasWithdrawn = folioSummary.withdrawn > 0;
 
-          inactiveFundData[fundKey].folioNums.push(folioNum);
-
-          // Aggregate folio-level data
-          const folioSummary = fund.advancedMetrics?.folioSummaries?.[folioNum];
-          if (folioSummary) {
-            inactiveFundData[fundKey].totalInvested +=
-              folioSummary.invested || 0;
-            inactiveFundData[fundKey].totalWithdrawn +=
-              folioSummary.withdrawn || 0;
-            inactiveFundData[fundKey].totalRealizedGain +=
-              folioSummary.realizedGain || 0;
-          }
-        }
+      if (hasCurrentValue && hasWithdrawn) {
+        // Partially redeemed folio
+        partiallyRedeemedFolios.push({ folioNum, folioData: schemeInFolio });
+      } else if (!hasCurrentValue && hasWithdrawn) {
+        // Fully redeemed
+        fullyRedeemedFolios.push({ folioNum, folioData: schemeInFolio });
       }
     });
+
+    // Add to partially redeemed list
+    if (partiallyRedeemedFolios.length > 0) {
+      partiallyRedeemedFunds.push({
+        fundKey,
+        fund,
+        folios: partiallyRedeemedFolios,
+      });
+    }
+
+    // Add to fully redeemed list
+    if (fullyRedeemedFolios.length > 0) {
+      fullyRedeemedFunds.push({
+        fundKey,
+        fund,
+        folios: fullyRedeemedFolios,
+      });
+    }
   });
 
-  const inactiveFunds = Object.values(inactiveFundData);
+  const hasPast =
+    partiallyRedeemedFunds.length > 0 || fullyRedeemedFunds.length > 0;
 
-  if (inactiveFunds.length === 0) {
+  if (!hasPast) {
     container.innerHTML = `
       <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">
         <div style="font-size: 48px; margin-bottom: 20px;">📋</div>
@@ -10080,29 +10131,92 @@ function updateCompactPastDashboard() {
 
   container.style.display = "block";
 
+  // Calculate metrics for each fund using the same logic as createFundCardForFolios
+  const partiallyRedeemedWithMetrics = partiallyRedeemedFunds.map(
+    ({ fundKey, fund, folios }) => {
+      const folioNumbers = folios.map((f) => f.folioNum);
+
+      let invested = 0;
+      let withdrawn = 0;
+      let realizedGain = 0;
+
+      Object.values(fund.advancedMetrics.folioSummaries).forEach(
+        (folioSummary) => {
+          if (folioNumbers.includes(folioSummary.folio)) {
+            // For partially redeemed, calculate invested based on FIFO (what was actually sold)
+            const totalInvestedInFolio = folioSummary.invested;
+            const remainingCostInFolio = folioSummary.remainingCost;
+            const redeemedCost = totalInvestedInFolio - remainingCostInFolio;
+
+            invested += redeemedCost;
+            withdrawn += folioSummary.withdrawn;
+            realizedGain += folioSummary.realizedGain;
+          }
+        }
+      );
+
+      return {
+        fundKey,
+        fund,
+        invested,
+        withdrawn,
+        realizedGain,
+      };
+    }
+  );
+
+  const fullyRedeemedWithMetrics = fullyRedeemedFunds.map(
+    ({ fundKey, fund, folios }) => {
+      const folioNumbers = folios.map((f) => f.folioNum);
+
+      let invested = 0;
+      let withdrawn = 0;
+      let realizedGain = 0;
+
+      Object.values(fund.advancedMetrics.folioSummaries).forEach(
+        (folioSummary) => {
+          if (folioNumbers.includes(folioSummary.folio)) {
+            invested += folioSummary.invested;
+            withdrawn += folioSummary.withdrawn;
+            realizedGain += folioSummary.realizedGain;
+          }
+        }
+      );
+
+      return {
+        fundKey,
+        fund,
+        invested,
+        withdrawn,
+        realizedGain,
+      };
+    }
+  );
+
   // Calculate totals
   let totalInvested = 0;
   let totalWithdrawn = 0;
   let totalRealizedGain = 0;
 
-  inactiveFunds.forEach((fundData) => {
-    totalInvested += fundData.totalInvested;
-    totalWithdrawn += fundData.totalWithdrawn;
-    totalRealizedGain += fundData.totalRealizedGain;
-  });
+  [...partiallyRedeemedWithMetrics, ...fullyRedeemedWithMetrics].forEach(
+    (fundData) => {
+      totalInvested += fundData.invested;
+      totalWithdrawn += fundData.withdrawn;
+      totalRealizedGain += fundData.realizedGain;
+    }
+  );
 
-  const investedAmountForRealized = totalInvested;
   const realizedGainPercent =
-    investedAmountForRealized > 0
-      ? parseFloat(
-          (totalRealizedGain / investedAmountForRealized) * 100
-        ).toFixed(2)
+    totalInvested > 0
+      ? parseFloat((totalRealizedGain / totalInvested) * 100).toFixed(2)
       : 0;
+
+  const totalFunds = partiallyRedeemedFunds.length + fullyRedeemedFunds.length;
 
   container.innerHTML = `
     <div class="compact-summary-card">
       <div class="compact-header">
-        <h3>PAST HOLDINGS (<span>${inactiveFunds.length}</span>)</h3>
+        <h3>PAST HOLDINGS (<span>${totalFunds}</span>)</h3>
         <h2 class="compact-total-value">₹${formatNumber(totalWithdrawn)}</h2>
       </div>
 
@@ -10139,16 +10253,40 @@ function updateCompactPastDashboard() {
     <div class="compact-holdings-list" id="compactPastHoldingsList"></div>
   `;
 
-  populateCompactPastHoldings(inactiveFunds);
+  // Separate partially and fully redeemed
+  if (partiallyRedeemedWithMetrics.length > 0) {
+    container.innerHTML += `
+    <div style="padding: 12px 16px; background: rgba(251, 146, 60, 0.1); border-left: 3px solid #f97316; margin-top: 10px;">
+      <h4 style="margin: 0; color: #f97316; font-size: 13px; font-weight: 600;">⚠️ Partially Redeemed (${partiallyRedeemedWithMetrics.length})</h4>
+    </div>
+    <div class="compact-holdings-list" id="compactPartiallyRedeemedList"></div>
+  `;
+
+    const partialList = document.getElementById("compactPartiallyRedeemedList");
+    populateCompactPastHoldings(partiallyRedeemedWithMetrics, partialList);
+  }
+
+  if (fullyRedeemedWithMetrics.length > 0) {
+    container.innerHTML += `
+    <div style="padding: 12px 16px; background: rgba(239, 68, 68, 0.1); border-left: 3px solid #ef4444; margin-top: 10px;">
+      <h4 style="margin: 0; color: #ef4444; font-size: 13px; font-weight: 600;">✓ Fully Redeemed (${fullyRedeemedWithMetrics.length})</h4>
+    </div>
+    <div class="compact-holdings-list" id="compactFullyRedeemedList"></div>
+  `;
+
+    const fullList = document.getElementById("compactFullyRedeemedList");
+    populateCompactPastHoldings(fullyRedeemedWithMetrics, fullList);
+  }
 }
 
-function populateCompactPastHoldings(inactiveFunds) {
-  const list = document.getElementById("compactPastHoldingsList");
+function populateCompactPastHoldings(fundsWithMetrics, listElement = null) {
+  const list =
+    listElement || document.getElementById("compactPastHoldingsList");
   if (!list) return;
 
   list.innerHTML = "";
 
-  if (inactiveFunds.length === 0) {
+  if (fundsWithMetrics.length === 0) {
     list.innerHTML =
       '<div style="text-align: center; padding: 20px; color: var(--text-secondary);">No past holdings data available</div>';
     return;
@@ -10158,36 +10296,32 @@ function populateCompactPastHoldings(inactiveFunds) {
   let sortedFunds;
   switch (compactPastSortMode) {
     case "invested":
-      sortedFunds = [...inactiveFunds].sort(
-        (a, b) => b.totalInvested - a.totalInvested
+      sortedFunds = [...fundsWithMetrics].sort(
+        (a, b) => b.invested - a.invested
       );
       break;
     case "returns":
-      sortedFunds = [...inactiveFunds].sort(
-        (a, b) => b.totalRealizedGain - a.totalRealizedGain
+      sortedFunds = [...fundsWithMetrics].sort(
+        (a, b) => b.realizedGain - a.realizedGain
       );
       break;
     case "withdrawn":
     default:
-      sortedFunds = [...inactiveFunds].sort(
-        (a, b) => b.totalWithdrawn - a.totalWithdrawn
+      sortedFunds = [...fundsWithMetrics].sort(
+        (a, b) => b.withdrawn - a.withdrawn
       );
       break;
   }
 
   sortedFunds.forEach((fundData) => {
-    const { fundKey, fund, totalInvested, totalWithdrawn, totalRealizedGain } =
-      fundData;
+    const { fundKey, fund, invested, withdrawn, realizedGain } = fundData;
 
     const realizedGainPercent = parseFloat(
-      (totalRealizedGain / totalInvested) * 100
+      (realizedGain / invested) * 100
     ).toFixed(2);
 
     const item = document.createElement("div");
     item.className = "compact-holding-item";
-    // item.onclick = () => {
-    //   showFundDetailsModal(fundKey, true);
-    // };
 
     item.innerHTML = `
       <div class="compact-holding-info">
@@ -10198,15 +10332,13 @@ function populateCompactPastHoldings(inactiveFunds) {
       </div>
       <div class="compact-holding-values">
         <div class="compact-holding-current ${
-          totalWithdrawn <= totalInvested ? "red" : "green"
-        }">₹${formatNumber(totalWithdrawn)}</div>
-        <div class="compact-holding-invested">₹${formatNumber(
-          totalInvested
-        )}</div>
+          withdrawn <= invested ? "red" : "green"
+        }">₹${formatNumber(withdrawn)}</div>
+        <div class="compact-holding-invested">₹${formatNumber(invested)}</div>
         <div class="compact-holding-xirr">
           <span>Returns: </span>
-          <span class="${totalRealizedGain >= 0 ? "green" : "red"}">
-            ₹${formatNumber(Math.abs(totalRealizedGain))} (${parseFloat(
+          <span class="${realizedGain >= 0 ? "green" : "red"}">
+            ₹${formatNumber(Math.abs(realizedGain))} (${parseFloat(
       realizedGainPercent
     ).toFixed(2)}%)
           </span>
@@ -10249,8 +10381,9 @@ function toggleCompactPastSort() {
     }
   }
 
-  // Re-collect and aggregate inactive funds data
-  const inactiveFundData = {};
+  // Re-collect partially and fully redeemed funds with metrics
+  const partiallyRedeemedFunds = [];
+  const fullyRedeemedFunds = [];
 
   Object.entries(fundWiseData).forEach(([fundKey, fund]) => {
     const totalInvested = fund.transactions
@@ -10259,7 +10392,13 @@ function toggleCompactPastSort() {
 
     if (totalInvested === 0) return;
 
+    const partiallyRedeemedFolios = [];
+    const fullyRedeemedFolios = [];
+
     fund.folios.forEach((folioNum) => {
+      const folioSummary = fund.advancedMetrics?.folioSummaries?.[folioNum];
+      if (!folioSummary) return;
+
       const folioData = portfolioData.folios.find((f) => f.folio === folioNum);
       if (!folioData) return;
 
@@ -10267,43 +10406,96 @@ function toggleCompactPastSort() {
         (s) => s.scheme.trim().toLowerCase() === fund.scheme.toLowerCase()
       );
 
-      if (schemeInFolio) {
-        const folioValue = schemeInFolio.valuation
-          ? parseFloat(schemeInFolio.valuation.value || 0)
-          : 0;
+      if (!schemeInFolio) return;
 
-        if (folioValue === 0) {
-          if (!inactiveFundData[fundKey]) {
-            inactiveFundData[fundKey] = {
-              fundKey,
-              fund,
-              folioNums: [],
-              totalInvested: 0,
-              totalWithdrawn: 0,
-              totalRealizedGain: 0,
-            };
-          }
+      const hasCurrentValue = folioSummary.currentValue > 0;
+      const hasWithdrawn = folioSummary.withdrawn > 0;
 
-          inactiveFundData[fundKey].folioNums.push(folioNum);
-
-          const folioSummary = fund.advancedMetrics?.folioSummaries?.[folioNum];
-          if (folioSummary) {
-            inactiveFundData[fundKey].totalInvested +=
-              folioSummary.invested || 0;
-            inactiveFundData[fundKey].totalWithdrawn +=
-              folioSummary.withdrawn || 0;
-            inactiveFundData[fundKey].totalRealizedGain +=
-              folioSummary.realizedGain || 0;
-          }
-        }
+      if (hasCurrentValue && hasWithdrawn) {
+        partiallyRedeemedFolios.push({ folioNum, folioData: schemeInFolio });
+      } else if (!hasCurrentValue && hasWithdrawn) {
+        fullyRedeemedFolios.push({ folioNum, folioData: schemeInFolio });
       }
     });
+
+    if (partiallyRedeemedFolios.length > 0) {
+      partiallyRedeemedFunds.push({
+        fundKey,
+        fund,
+        folios: partiallyRedeemedFolios,
+      });
+    }
+
+    if (fullyRedeemedFolios.length > 0) {
+      fullyRedeemedFunds.push({
+        fundKey,
+        fund,
+        folios: fullyRedeemedFolios,
+      });
+    }
   });
 
-  const inactiveFunds = Object.values(inactiveFundData);
+  // Calculate metrics using same logic as updateCompactPastDashboard
+  const partiallyRedeemedWithMetrics = partiallyRedeemedFunds.map(
+    ({ fundKey, fund, folios }) => {
+      const folioNumbers = folios.map((f) => f.folioNum);
+      let invested = 0;
+      let withdrawn = 0;
+      let realizedGain = 0;
 
-  // Re-populate with sorted data
-  populateCompactPastHoldings(inactiveFunds);
+      Object.values(fund.advancedMetrics.folioSummaries).forEach(
+        (folioSummary) => {
+          if (folioNumbers.includes(folioSummary.folio)) {
+            const totalInvestedInFolio = folioSummary.invested;
+            const remainingCostInFolio = folioSummary.remainingCost;
+            const redeemedCost = totalInvestedInFolio - remainingCostInFolio;
+
+            invested += redeemedCost;
+            withdrawn += folioSummary.withdrawn;
+            realizedGain += folioSummary.realizedGain;
+          }
+        }
+      );
+
+      return { fundKey, fund, invested, withdrawn, realizedGain };
+    }
+  );
+
+  const fullyRedeemedWithMetrics = fullyRedeemedFunds.map(
+    ({ fundKey, fund, folios }) => {
+      const folioNumbers = folios.map((f) => f.folioNum);
+      let invested = 0;
+      let withdrawn = 0;
+      let realizedGain = 0;
+
+      Object.values(fund.advancedMetrics.folioSummaries).forEach(
+        (folioSummary) => {
+          if (folioNumbers.includes(folioSummary.folio)) {
+            invested += folioSummary.invested;
+            withdrawn += folioSummary.withdrawn;
+            realizedGain += folioSummary.realizedGain;
+          }
+        }
+      );
+
+      return { fundKey, fund, invested, withdrawn, realizedGain };
+    }
+  );
+
+  // Re-populate both lists with sorted data
+  if (partiallyRedeemedWithMetrics.length > 0) {
+    const partialList = document.getElementById("compactPartiallyRedeemedList");
+    if (partialList) {
+      populateCompactPastHoldings(partiallyRedeemedWithMetrics, partialList);
+    }
+  }
+
+  if (fullyRedeemedWithMetrics.length > 0) {
+    const fullList = document.getElementById("compactFullyRedeemedList");
+    if (fullList) {
+      populateCompactPastHoldings(fullyRedeemedWithMetrics, fullList);
+    }
+  }
 }
 
 function populateCompactHoldings(funds) {
@@ -10745,29 +10937,34 @@ async function loadFolioManagementData(userName) {
     const pastFoliosByAMC = {};
 
     casData.folios.forEach((folio) => {
-      const amc = folio.amc || "Unknown AMC";
-
       if (casData.cas_type === "SUMMARY") {
         const totalValue = parseFloat(folio.current_value || 0);
         const extendedData = folio.isin ? mfStatsUser[folio.isin] : null;
         const fundDisplayName = sanitizeSchemeName(folio.scheme);
 
+        // Use same AMC logic as fundWiseData - FIXED
+        const amcName =
+          extendedData?.amc?.trim() || folio.amc?.trim() || "Unknown AMC";
+
         const folioInfo = {
           folioNumber: folio.folio,
-          amc: amc,
+          amc: amcName, // Use the correctly resolved AMC name
           fundName: fundDisplayName,
           value: totalValue,
           isHidden: hiddenFolios.includes(folio.folio),
         };
 
         if (totalValue > 0) {
-          if (!activeFoliosByAMC[amc]) activeFoliosByAMC[amc] = [];
-          activeFoliosByAMC[amc].push(folioInfo);
+          if (!activeFoliosByAMC[amcName]) activeFoliosByAMC[amcName] = []; // Use amcName here
+          activeFoliosByAMC[amcName].push(folioInfo);
         } else {
-          if (!pastFoliosByAMC[amc]) pastFoliosByAMC[amc] = [];
-          pastFoliosByAMC[amc].push(folioInfo);
+          if (!pastFoliosByAMC[amcName]) pastFoliosByAMC[amcName] = []; // Use amcName here
+          pastFoliosByAMC[amcName].push(folioInfo);
         }
-      } else {
+      }
+
+      // And replace the Detailed CAS section:
+      else {
         // Detailed CAS - handle multiple schemes per folio
         if (folio.schemes && Array.isArray(folio.schemes)) {
           folio.schemes.forEach((scheme) => {
@@ -10789,6 +10986,14 @@ async function loadFolioManagementData(userName) {
               ? parseFloat(scheme.valuation.value || 0)
               : 0;
             const fundDisplayName = sanitizeSchemeName(scheme.scheme);
+            const extendedData = scheme.isin ? mfStatsUser[scheme.isin] : null;
+
+            // Use same AMC logic as fundWiseData - FIXED
+            const amcName =
+              extendedData?.amc?.trim() ||
+              scheme.amc?.trim() ||
+              folio.amc?.trim() ||
+              "Unknown AMC";
 
             // Create a unique key combining folio and scheme
             const uniqueKey = `${folio.folio}|${scheme.scheme}`;
@@ -10796,18 +11001,18 @@ async function loadFolioManagementData(userName) {
             const folioInfo = {
               folioNumber: folio.folio,
               uniqueKey: uniqueKey,
-              amc: amc,
+              amc: amcName, // Use the correctly resolved AMC name
               fundName: fundDisplayName,
               value: schemeValue,
               isHidden: hiddenFolios.includes(uniqueKey),
             };
 
             if (schemeValue > 0) {
-              if (!activeFoliosByAMC[amc]) activeFoliosByAMC[amc] = [];
-              activeFoliosByAMC[amc].push(folioInfo);
+              if (!activeFoliosByAMC[amcName]) activeFoliosByAMC[amcName] = []; // Use amcName here
+              activeFoliosByAMC[amcName].push(folioInfo);
             } else {
-              if (!pastFoliosByAMC[amc]) pastFoliosByAMC[amc] = [];
-              pastFoliosByAMC[amc].push(folioInfo);
+              if (!pastFoliosByAMC[amcName]) pastFoliosByAMC[amcName] = []; // Use amcName here
+              pastFoliosByAMC[amcName].push(folioInfo);
             }
           });
         }
