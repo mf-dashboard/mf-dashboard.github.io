@@ -149,25 +149,79 @@ function calculatePortfolioAnalytics() {
         if (v == null || isNaN(parseFloat(v)) || parseFloat(v) <= 0) return;
         const key = k.trim().toLowerCase();
 
-        let bucket = "debt";
-        if (key.includes("equity")) bucket = "equity";
-        else if (key.includes("commodities")) {
-          const subcategory = extended?.sub_category?.toLowerCase?.() || "";
-          const name = fund?.scheme?.toLowerCase?.() || "";
-          if (subcategory.includes("gold") || name.includes("gold"))
-            bucket = "gold";
-          else if (subcategory.includes("silver") || name.includes("silver"))
-            bucket = "silver";
-          else {
-            bucket = "debt";
+        if (key.includes("equity")) {
+          result.assetAllocation.equity =
+            (result.assetAllocation.equity || 0) +
+            (parseFloat(v) / 100) * weight * 100;
+        } else if (key.includes("commodities")) {
+          // Check holdings to split commodities between gold and silver
+          let goldWeight = 0;
+          let silverWeight = 0;
+
+          if (extended?.holdings && Array.isArray(extended.holdings)) {
+            extended.holdings.forEach((holding) => {
+              const companyName = (holding.company_name || "").toLowerCase();
+              const instrumentName = (
+                holding.instrument_name || ""
+              ).toLowerCase();
+              const holdingPercent = parseFloat(holding.corpus_per || 0);
+
+              if (
+                (companyName.includes("gold") ||
+                  instrumentName.includes("gold")) &&
+                (companyName.includes("etf") ||
+                  instrumentName.includes("mutual fund"))
+              ) {
+                goldWeight += holdingPercent;
+              } else if (
+                (companyName.includes("silver") ||
+                  instrumentName.includes("silver")) &&
+                (companyName.includes("etf") ||
+                  instrumentName.includes("mutual fund"))
+              ) {
+                silverWeight += holdingPercent;
+              }
+            });
+          }
+
+          const totalCommodityWeight = goldWeight + silverWeight;
+
+          if (totalCommodityWeight > 0) {
+            // Split commodities allocation proportionally
+            const goldProportion = goldWeight / totalCommodityWeight;
+            const silverProportion = silverWeight / totalCommodityWeight;
+
+            result.assetAllocation.gold =
+              (result.assetAllocation.gold || 0) +
+              (parseFloat(v) / 100) * weight * 100 * goldProportion;
+
+            result.assetAllocation.silver =
+              (result.assetAllocation.silver || 0) +
+              (parseFloat(v) / 100) * weight * 100 * silverProportion;
+          } else {
+            // Fallback to checking subcategory and name
+            const subcategory = extended?.sub_category?.toLowerCase?.() || "";
+            const name = fund?.scheme?.toLowerCase?.() || "";
+
+            let bucket = "debt";
+            if (subcategory.includes("gold") || name.includes("gold")) {
+              bucket = "gold";
+            } else if (
+              subcategory.includes("silver") ||
+              name.includes("silver")
+            ) {
+              bucket = "silver";
+            }
+
+            result.assetAllocation[bucket] =
+              (result.assetAllocation[bucket] || 0) +
+              (parseFloat(v) / 100) * weight * 100;
           }
         } else {
-          bucket = "debt";
+          result.assetAllocation.debt =
+            (result.assetAllocation.debt || 0) +
+            (parseFloat(v) / 100) * weight * 100;
         }
-
-        result.assetAllocation[bucket] =
-          (result.assetAllocation[bucket] || 0) +
-          (parseFloat(v) / 100) * weight * 100;
       });
     } else {
       const category = (fund.type || fund.category || "").toLowerCase();
@@ -2059,7 +2113,7 @@ function calculateSummarySummary() {
     totalRemainingCost += fund.advancedMetrics.remainingCost;
   });
 
-  const overallGain = currentValue - totalRemainingCost + totalRealizedGain;
+  const overallGain = totalRealizedGain + totalUnrealizedGain;
 
   return {
     totalInvested,
@@ -5823,35 +5877,67 @@ function renderModalCompositionCharts(fundKey, extendedData) {
       if (isNaN(val) || val <= 0) return;
 
       const k = key.toLowerCase();
-      let bucket = "debt";
 
       if (k.includes("equity")) {
-        bucket = "equity";
+        equity += val;
       } else if (k.includes("commodities")) {
-        const subcategory = extendedData?.sub_category?.toLowerCase?.() || "";
-        const name = fundKey?.toLowerCase?.() || "";
+        // Check holdings to split commodities between gold and silver
+        let goldWeight = 0;
+        let silverWeight = 0;
 
-        if (subcategory.includes("gold") || name.includes("gold")) {
-          bucket = "gold";
-        } else if (subcategory.includes("silver") || name.includes("silver")) {
-          bucket = "silver";
-        } else {
-          bucket = "debt";
+        if (extendedData?.holdings && Array.isArray(extendedData.holdings)) {
+          extendedData.holdings.forEach((holding) => {
+            const companyName = (holding.company_name || "").toLowerCase();
+            const instrumentName = (
+              holding.instrument_name || ""
+            ).toLowerCase();
+            const holdingPercent = parseFloat(holding.corpus_per || 0);
+
+            if (
+              (companyName.includes("gold") ||
+                instrumentName.includes("gold")) &&
+              (companyName.includes("etf") ||
+                instrumentName.includes("mutual fund"))
+            ) {
+              goldWeight += holdingPercent;
+            } else if (
+              (companyName.includes("silver") ||
+                instrumentName.includes("silver")) &&
+              (companyName.includes("etf") ||
+                instrumentName.includes("mutual fund"))
+            ) {
+              silverWeight += holdingPercent;
+            }
+          });
         }
-      }
 
-      switch (bucket) {
-        case "equity":
-          equity += val;
-          break;
-        case "gold":
-          gold += val;
-          break;
-        case "silver":
-          silver += val;
-          break;
-        default:
-          debt += val;
+        const totalCommodityWeight = goldWeight + silverWeight;
+
+        if (totalCommodityWeight > 0) {
+          // Split commodities allocation proportionally
+          const goldProportion = goldWeight / totalCommodityWeight;
+          const silverProportion = silverWeight / totalCommodityWeight;
+
+          gold += val * goldProportion;
+          silver += val * silverProportion;
+        } else {
+          // Fallback to checking subcategory and name
+          const subcategory = extendedData?.sub_category?.toLowerCase?.() || "";
+          const name = fundKey?.toLowerCase?.() || "";
+
+          if (subcategory.includes("gold") || name.includes("gold")) {
+            gold += val;
+          } else if (
+            subcategory.includes("silver") ||
+            name.includes("silver")
+          ) {
+            silver += val;
+          } else {
+            debt += val;
+          }
+        }
+      } else {
+        debt += val;
       }
     });
 
@@ -6555,19 +6641,30 @@ function updateGainCard(valueId, percentId, gain, percent, xirr) {
   const el = document.getElementById(valueId);
   el.textContent = (gain >= 0 ? "₹" : "-₹") + formatNumber(Math.abs(gain));
   el.parentElement.classList.add(gain >= 0 ? "positive" : "negative");
-  const xirrText =
-    xirr !== null ? ` | XIRR: ${xirr.toFixed(2)}%` : " | XIRR: --";
-  if (isSummaryCAS) {
-    document.getElementById(percentId).textContent =
-      "Absolute: " + (gain >= 0 ? "+" : "") + percent + "%";
-  } else {
-    document.getElementById(percentId).textContent =
+
+  const xirrText = xirr !== null ? `XIRR: ${xirr.toFixed(2)}%` : "XIRR: --";
+
+  let text = "";
+
+  // Special case for overallGainPercent → show ONLY XIRR
+  if (percentId === "overallGainPercent") {
+    text = xirrText;
+  }
+  // Summary CAS case
+  else if (isSummaryCAS) {
+    text = "Absolute: " + (gain >= 0 ? "+" : "") + percent + "%";
+  }
+  // Normal case
+  else {
+    text =
       "Absolute: " +
       (gain >= 0 ? "+" : "") +
       percent +
       "%" +
-      (percentId === "realizedGainPercent" ? "" : xirrText);
+      (percentId === "realizedGainPercent" ? "" : " | " + xirrText);
   }
+
+  document.getElementById(percentId).textContent = text;
 }
 
 function switchTab(tab) {
@@ -9298,22 +9395,84 @@ function calculateFamilyMetrics(allUserData) {
         Object.entries(fundAsset).forEach(([k, v]) => {
           if (v == null || isNaN(parseFloat(v)) || parseFloat(v) <= 0) return;
           const key = k.trim().toLowerCase();
-          let bucket = "debt";
-          if (key.includes("equity")) bucket = "equity";
-          else if (key.includes("commodities")) {
-            const subcategory =
-              extendedData?.sub_category?.toLowerCase?.() || "";
-            const name = fund?.scheme?.toLowerCase?.() || "";
-            if (subcategory.includes("gold") || name.includes("gold"))
-              bucket = "gold";
-            else if (subcategory.includes("silver") || name.includes("silver"))
-              bucket = "silver";
-            else bucket = "debt";
-          } else bucket = "debt";
 
-          metrics.assetAllocation[bucket] =
-            (metrics.assetAllocation[bucket] || 0) +
-            (parseFloat(v) / 100) * weight * 100;
+          if (key.includes("equity")) {
+            metrics.assetAllocation.equity =
+              (metrics.assetAllocation.equity || 0) +
+              (parseFloat(v) / 100) * weight * 100;
+          } else if (key.includes("commodities")) {
+            // Check holdings to split commodities between gold and silver
+            let goldWeight = 0;
+            let silverWeight = 0;
+
+            if (
+              extendedData?.holdings &&
+              Array.isArray(extendedData.holdings)
+            ) {
+              extendedData.holdings.forEach((holding) => {
+                const companyName = (holding.company_name || "").toLowerCase();
+                const instrumentName = (
+                  holding.instrument_name || ""
+                ).toLowerCase();
+                const holdingPercent = parseFloat(holding.corpus_per || 0);
+
+                if (
+                  (companyName.includes("gold") ||
+                    instrumentName.includes("gold")) &&
+                  (companyName.includes("etf") ||
+                    instrumentName.includes("mutual fund"))
+                ) {
+                  goldWeight += holdingPercent;
+                } else if (
+                  (companyName.includes("silver") ||
+                    instrumentName.includes("silver")) &&
+                  (companyName.includes("etf") ||
+                    instrumentName.includes("mutual fund"))
+                ) {
+                  silverWeight += holdingPercent;
+                }
+              });
+            }
+
+            const totalCommodityWeight = goldWeight + silverWeight;
+
+            if (totalCommodityWeight > 0) {
+              // Split commodities allocation proportionally
+              const goldProportion = goldWeight / totalCommodityWeight;
+              const silverProportion = silverWeight / totalCommodityWeight;
+
+              metrics.assetAllocation.gold =
+                (metrics.assetAllocation.gold || 0) +
+                (parseFloat(v) / 100) * weight * 100 * goldProportion;
+
+              metrics.assetAllocation.silver =
+                (metrics.assetAllocation.silver || 0) +
+                (parseFloat(v) / 100) * weight * 100 * silverProportion;
+            } else {
+              // Fallback to checking subcategory and name
+              const subcategory =
+                extendedData?.sub_category?.toLowerCase?.() || "";
+              const name = fund?.scheme?.toLowerCase?.() || "";
+
+              let bucket = "debt";
+              if (subcategory.includes("gold") || name.includes("gold")) {
+                bucket = "gold";
+              } else if (
+                subcategory.includes("silver") ||
+                name.includes("silver")
+              ) {
+                bucket = "silver";
+              }
+
+              metrics.assetAllocation[bucket] =
+                (metrics.assetAllocation[bucket] || 0) +
+                (parseFloat(v) / 100) * weight * 100;
+            }
+          } else {
+            metrics.assetAllocation.debt =
+              (metrics.assetAllocation.debt || 0) +
+              (parseFloat(v) / 100) * weight * 100;
+          }
         });
       } else {
         const category = (extendedData.category || "").toLowerCase();

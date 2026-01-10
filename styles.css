@@ -1500,6 +1500,11 @@ button:disabled {
   color: white;
   border-color: transparent;
 }
+:root[data-theme="dark"] .year-btn.active {
+  background: var(--scrollbar-thumb);
+  color: white;
+  border-color: transparent;
+}
 
 .gains-summary-grid {
   display: grid;
