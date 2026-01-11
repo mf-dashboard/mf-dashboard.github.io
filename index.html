@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
-    <link rel="stylesheet" href="styles.css?v=20260109" />
+    <link rel="stylesheet" href="styles.css?v=20260110" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -33,7 +33,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260109" />
+    <link rel="manifest" href="/manifest.json?v=20260110" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -572,6 +572,12 @@
         </section>
         <section id="charts">
           <div class="chart-section">
+            <div class="section-header">
+              <h3>📊 Portfolio History</h3>
+              <p class="section-subtitle">
+                Your Portfolio Journey - Investments & Withdrawals
+              </p>
+            </div>
             <div class="chart-tabs">
               <button class="tab-btn active" onclick="switchTab('growth')">
                 Portfolio Growth
@@ -593,8 +599,9 @@
               <canvas id="portfolioChart"></canvas>
             </div>
 
-            <div class="stats-grid" id="statsGrid"></div>
+            <div class="stats-grid hidden" id="statsGrid"></div>
           </div>
+          <div id="monthlySummarySection"></div>
         </section>
         <section id="transactions">
           <div class="excel"></div>
@@ -686,7 +693,7 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260109"></script>
-    <script src="script.js?v=20260109"></script>
+    <script src="indexeddb-helper.js?v=20260110"></script>
+    <script src="script.js?v=20260110"></script>
   </body>
 </html>

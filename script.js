@@ -2448,6 +2448,7 @@ function switchDashboardTab(tabId) {
   if (tabId === "charts") {
     if (!isSummaryCAS) {
       updateChart();
+      displayMonthlySummaryAndProjections();
     }
   } else if (tabId === "overlap-analysis") {
     displayOverlapAnalysis();
@@ -3287,13 +3288,34 @@ function getPortfolioGrowthData() {
   // Use original filtered data for actual calculations
   const dataToUse = filteredData;
 
+  // Ensure we have today's data
+  const lastDate = dataToUse[dataToUse.length - 1]?.date;
+  const today = new Date().toISOString().split("T")[0];
+
+  if (lastDate !== today) {
+    const currentValue = Object.values(fundWiseData).reduce(
+      (sum, fund) => sum + (fund.valuation?.value || 0),
+      0
+    );
+
+    const lastCost = dataToUse[dataToUse.length - 1]?.cost || 0;
+
+    dataToUse.push({
+      date: today,
+      value: currentValue,
+      cost: lastCost,
+      unrealizedGain: currentValue - lastCost,
+      unrealizedGainPercent:
+        lastCost > 0 ? ((currentValue - lastCost) / lastCost) * 100 : 0,
+    });
+  }
+
+  // Generate consistent labels - all in "MMM YY" format
   const labels = dataToUse.map((item) => {
-    // Parse the date string directly (YYYY-MM-DD format)
     const [year, month, day] = item.date.split("-").map(Number);
     const date = new Date(year, month - 1, day);
 
     return date.toLocaleDateString("en-IN", {
-      day: "2-digit",
       month: "short",
       year: "2-digit",
     });
@@ -7060,14 +7082,16 @@ function updateChart() {
       });
 
       const todayLabel = new Date().toLocaleDateString("en-IN", {
-        day: "2-digit",
         month: "short",
         year: "2-digit",
       });
+
       data.labels.push(todayLabel);
       data.values.push(currentValue);
       data.costs.push(lastCost);
     }
+
+    const colors = getChartColors();
 
     chart = new Chart(ctx, {
       type: "line",
@@ -7077,27 +7101,27 @@ function updateChart() {
           {
             label: "Portfolio Value",
             data: data.values,
-            borderColor: getChartColors().growthValuation,
+            borderColor: colors.growthValuation,
             fill: false,
             tension: 0.3,
             borderWidth: window.innerWidth <= 768 ? 1.5 : 2,
             pointRadius: 0,
             pointHoverRadius: window.innerWidth <= 768 ? 4 : 6,
-            pointHoverBackgroundColor: getChartColors().growthValuation,
+            pointHoverBackgroundColor: colors.growthValuation,
             pointHoverBorderColor: "#fff",
             pointHoverBorderWidth: window.innerWidth <= 768 ? 1 : 1.5,
           },
           {
             label: "Total Invested",
             data: data.costs,
-            borderColor: getChartColors().growthCost,
+            borderColor: colors.growthCost,
             borderDash: [6, 4],
             fill: false,
             tension: 0.3,
             borderWidth: window.innerWidth <= 768 ? 1.5 : 2,
             pointRadius: 0,
             pointHoverRadius: window.innerWidth <= 768 ? 4 : 6,
-            pointHoverBackgroundColor: getChartColors().growthCost,
+            pointHoverBackgroundColor: colors.growthCost,
             pointHoverBorderColor: "#fff",
             pointHoverBorderWidth: window.innerWidth <= 768 ? 1 : 1.5,
           },
@@ -7126,13 +7150,13 @@ function updateChart() {
               usePointStyle: true,
               pointStyle: "line",
               font: { size: 13, weight: "600" },
-              color: getChartColors().textColor,
+              color: colors.textColor,
             },
           },
           tooltip: {
             enabled: true,
-            backgroundColor: getChartColors().tooltipBg,
-            borderColor: getChartColors().tooltipBorder,
+            backgroundColor: colors.tooltipBg,
+            borderColor: colors.tooltipBorder,
             borderWidth: 2,
             cornerRadius: 8,
             titleFont: { size: 13, weight: "bold" },
@@ -7182,14 +7206,66 @@ function updateChart() {
             grid: {
               display: false,
               drawBorder: false,
-              borderColor: getChartColors().borderColor,
+              color: colors.gridColor,
+              borderColor: colors.borderColor,
               borderWidth: 2,
             },
-            ticks: { display: false },
+            ticks: {
+              display: true,
+              color: colors.textColor,
+              font: { size: 11 },
+              maxRotation: 45, // Changed from 0
+              minRotation: 0,
+              autoSkip: true,
+              autoSkipPadding: 15, // Added padding
+              maxTicksLimit: window.innerWidth <= 768 ? 6 : 12, // Increased limits
+              callback: function (value, index, ticks) {
+                const label = this.getLabelForValue(value);
+                const dataLength = this.chart.data.labels.length;
+
+                // Always show first and last
+                if (index === 0 || index === ticks.length - 1) {
+                  return label;
+                }
+
+                // Show evenly spaced labels based on data density
+                const interval = Math.ceil(
+                  dataLength / (window.innerWidth <= 768 ? 6 : 12)
+                );
+                if (index % interval === 0) {
+                  return label;
+                }
+
+                return null;
+              },
+            },
           },
           y: {
-            display: false,
-            grid: { display: false, drawBorder: false },
+            display: true,
+            grid: {
+              display: true,
+              drawBorder: true,
+              color: colors.gridColor,
+              borderColor: colors.borderColor,
+              borderWidth: 2,
+            },
+            ticks: {
+              display: true,
+              color: colors.textColor,
+              font: { size: 11 },
+              callback: (value) => {
+                if (value >= 10000000) {
+                  return "₹" + (value / 10000000).toFixed(1) + "Cr";
+                }
+                if (value >= 100000) {
+                  return "₹" + (value / 100000).toFixed(1) + "L";
+                }
+                if (value >= 1000) {
+                  return "₹" + (value / 1000).toFixed(0) + "K";
+                }
+                return "₹" + value;
+              },
+            },
           },
         },
       },
@@ -10995,6 +11071,81 @@ function toggleFolioInPending(userName, folioNumber) {
   }
 }
 
+function toggleAllFoliosInAMC(userName, amcName, category) {
+  if (!pendingFolioChanges[userName]) {
+    pendingFolioChanges[userName] = getHiddenFolios(userName);
+  }
+
+  // Find the specific AMC group by both AMC name and category
+  const amcGroups = document.querySelectorAll(".amc-group");
+  let amcGroup = null;
+
+  amcGroups.forEach((group) => {
+    const bulkToggle = group.querySelector(".amc-bulk-toggle-switch");
+    if (
+      bulkToggle &&
+      bulkToggle.dataset.amc === amcName &&
+      bulkToggle.dataset.category === category
+    ) {
+      amcGroup = group;
+    }
+  });
+
+  if (!amcGroup) return;
+
+  const folioSwitches = amcGroup.querySelectorAll(".folio-toggle-switch");
+
+  // Check if all are currently active
+  let allActive = true;
+  folioSwitches.forEach((toggle) => {
+    const folioKey = toggle.dataset.folio;
+    if (pendingFolioChanges[userName].includes(folioKey)) {
+      allActive = false;
+    }
+  });
+
+  // Toggle all folios in this AMC
+  folioSwitches.forEach((toggle) => {
+    const folioKey = toggle.dataset.folio;
+    const isCurrentlyHidden = pendingFolioChanges[userName].includes(folioKey);
+
+    if (allActive) {
+      // Hide all
+      if (!isCurrentlyHidden) {
+        pendingFolioChanges[userName].push(folioKey);
+        toggle.classList.remove("active");
+        toggle.closest(".folio-toggle-item").classList.add("will-hide");
+      }
+    } else {
+      // Show all
+      if (isCurrentlyHidden) {
+        const index = pendingFolioChanges[userName].indexOf(folioKey);
+        pendingFolioChanges[userName].splice(index, 1);
+        toggle.classList.add("active");
+        toggle.closest(".folio-toggle-item").classList.remove("will-hide");
+      }
+    }
+  });
+
+  // Update bulk toggle button appearance
+  const bulkToggle = amcGroup.querySelector(".amc-bulk-toggle-switch");
+
+  // Check new state - if any folio is hidden, mark bulk toggle as inactive
+  let anyHidden = false;
+  folioSwitches.forEach((toggle) => {
+    const folioKey = toggle.dataset.folio;
+    if (pendingFolioChanges[userName].includes(folioKey)) {
+      anyHidden = true;
+    }
+  });
+
+  if (anyHidden) {
+    bulkToggle.classList.remove("active");
+  } else {
+    bulkToggle.classList.add("active");
+  }
+}
+
 function saveFolioChanges(userName) {
   if (!pendingFolioChanges[userName]) {
     closeFolioManagementModal();
@@ -11204,38 +11355,46 @@ async function loadFolioManagementData(userName) {
         const totalValue = folios.reduce((sum, f) => sum + f.value, 0);
 
         html += `
-          <div class="amc-group">
-            <div class="amc-group-header">
-              <span class="amc-name">${standardizeTitle(amc)}</span>
-              <span class="amc-total">₹${formatNumber(totalValue)}</span>
-            </div>
-            <div class="amc-folios">
-        `;
+      <div class="amc-group" data-category="current">
+        <div class="amc-group-header">
+          <div class="amc-header-left">
+            <span class="amc-name">${standardizeTitle(amc)}</span>
+            <span class="amc-total">₹${formatNumber(totalValue)}</span>
+          </div>
+          <div class="amc-bulk-toggle-switch active" 
+               data-amc="${amc.replace(/"/g, "&quot;")}"
+               data-category="current"
+               onclick="event.stopPropagation(); toggleAllFoliosInAMC('${userName}', '${amc.replace(
+          /'/g,
+          "\\'"
+        )}', 'current')">
+          </div>
+        </div>
+        <div class="amc-folios">
+    `;
 
         folios.forEach((folio) => {
           const folioKey = folio.uniqueKey || folio.folioNumber;
           html += `
-            <div class="folio-toggle-item ${folio.isHidden ? "will-hide" : ""}">
-              <div class="folio-toggle-info">
-                <div class="folio-toggle-name">${folio.fundName}</div>
-                <div class="folio-toggle-meta">${
-                  folio.folioNumber
-                } • ₹${formatNumber(folio.value)}</div>
-              </div>
-              <div class="folio-toggle-switch ${
-                !folio.isHidden ? "active" : ""
-              }" 
-                   data-folio="${folioKey}"
-                   onclick="toggleFolioInPending('${userName}', '${folioKey}')">
-              </div>
-            </div>
-          `;
+        <div class="folio-toggle-item ${folio.isHidden ? "will-hide" : ""}">
+          <div class="folio-toggle-info">
+            <div class="folio-toggle-name">${folio.fundName}</div>
+            <div class="folio-toggle-meta">${
+              folio.folioNumber
+            } • ₹${formatNumber(folio.value)}</div>
+          </div>
+          <div class="folio-toggle-switch ${!folio.isHidden ? "active" : ""}" 
+               data-folio="${folioKey}"
+               onclick="toggleFolioInPending('${userName}', '${folioKey}')">
+          </div>
+        </div>
+      `;
         });
 
         html += `
-            </div>
-          </div>
-        `;
+        </div>
+      </div>
+    `;
       });
 
       html += "</div>";
@@ -11251,36 +11410,44 @@ async function loadFolioManagementData(userName) {
         const folios = pastFoliosByAMC[amc];
 
         html += `
-          <div class="amc-group">
-            <div class="amc-group-header">
-              <span class="amc-name">${standardizeTitle(amc)}</span>
-              <span class="amc-total">Fully Redeemed</span>
-            </div>
-            <div class="amc-folios">
-        `;
+      <div class="amc-group" data-category="past">
+        <div class="amc-group-header">
+          <div class="amc-header-left">
+            <span class="amc-name">${standardizeTitle(amc)}</span>
+            <span class="amc-total">Fully Redeemed</span>
+          </div>
+          <div class="amc-bulk-toggle-switch active" 
+               data-amc="${amc.replace(/"/g, "&quot;")}"
+               data-category="past"
+               onclick="event.stopPropagation(); toggleAllFoliosInAMC('${userName}', '${amc.replace(
+          /'/g,
+          "\\'"
+        )}', 'past')">
+          </div>
+        </div>
+        <div class="amc-folios">
+    `;
 
         folios.forEach((folio) => {
           const folioKey = folio.uniqueKey || folio.folioNumber;
           html += `
-            <div class="folio-toggle-item ${folio.isHidden ? "will-hide" : ""}">
-              <div class="folio-toggle-info">
-                <div class="folio-toggle-name">${folio.fundName}</div>
-                <div class="folio-toggle-meta">${folio.folioNumber}</div>
-              </div>
-              <div class="folio-toggle-switch ${
-                !folio.isHidden ? "active" : ""
-              }" 
-                   data-folio="${folioKey}"
-                   onclick="toggleFolioInPending('${userName}', '${folioKey}')">
-              </div>
-            </div>
-          `;
+        <div class="folio-toggle-item ${folio.isHidden ? "will-hide" : ""}">
+          <div class="folio-toggle-info">
+            <div class="folio-toggle-name">${folio.fundName}</div>
+            <div class="folio-toggle-meta">${folio.folioNumber}</div>
+          </div>
+          <div class="folio-toggle-switch ${!folio.isHidden ? "active" : ""}" 
+               data-folio="${folioKey}"
+               onclick="toggleFolioInPending('${userName}', '${folioKey}')">
+          </div>
+        </div>
+      `;
         });
 
         html += `
-            </div>
-          </div>
-        `;
+        </div>
+      </div>
+    `;
       });
 
       html += "</div>";
@@ -11295,6 +11462,30 @@ async function loadFolioManagementData(userName) {
       `;
     }
 
+    setTimeout(() => {
+      document
+        .querySelectorAll(".amc-bulk-toggle-switch")
+        .forEach((bulkToggle) => {
+          const amcGroup = bulkToggle.closest(".amc-group");
+          const folioSwitches = amcGroup.querySelectorAll(
+            ".folio-toggle-switch"
+          );
+
+          let anyHidden = false;
+          folioSwitches.forEach((toggle) => {
+            if (!toggle.classList.contains("active")) {
+              anyHidden = true;
+            }
+          });
+
+          if (anyHidden) {
+            bulkToggle.classList.remove("active");
+          } else {
+            bulkToggle.classList.add("active");
+          }
+        });
+    }, 100);
+
     content.innerHTML = html;
   } catch (err) {
     console.error("Error loading folio data:", err);
@@ -11305,6 +11496,777 @@ async function loadFolioManagementData(userName) {
       </div>
     `;
   }
+}
+
+function calculateMonthlySummary() {
+  if (!fundWiseData || Object.keys(fundWiseData).length === 0) {
+    return null;
+  }
+
+  const hiddenFolios = currentUser ? getHiddenFolios(currentUser) : [];
+
+  // Get all transactions
+  const allTransactions = [];
+  Object.values(fundWiseData).forEach((fund) => {
+    fund.transactions.forEach((tx) => {
+      const txFolio = tx.folio || "unknown";
+      const uniqueKey = `${txFolio}|${fund.scheme}`;
+
+      // Skip hidden folios
+      if (hiddenFolios.includes(txFolio) || hiddenFolios.includes(uniqueKey)) {
+        return;
+      }
+
+      allTransactions.push({
+        date: new Date(tx.date),
+        type: tx.type,
+        amount: Math.abs(parseFloat(tx.nav * tx.units) || 0),
+      });
+    });
+  });
+
+  if (allTransactions.length === 0) {
+    return null;
+  }
+
+  const now = new Date();
+  const endDate = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  function calculateAveragesForPeriod(periodMonths) {
+    const startDate = new Date(endDate);
+    startDate.setMonth(startDate.getMonth() - periodMonths + 1);
+
+    // Create monthly buckets (same as netinvest chart)
+    const monthlyData = {};
+    const current = new Date(startDate);
+
+    while (current <= endDate) {
+      const key = current.toLocaleDateString("en-IN", {
+        year: "2-digit",
+        month: "short",
+      });
+      monthlyData[key] = { investment: 0, withdrawal: 0 };
+      current.setMonth(current.getMonth() + 1);
+    }
+
+    // Fill in transaction data
+    allTransactions.forEach((tx) => {
+      if (tx.date >= startDate && tx.date <= now) {
+        const key = tx.date.toLocaleDateString("en-IN", {
+          year: "2-digit",
+          month: "short",
+        });
+
+        if (monthlyData[key]) {
+          if (tx.type === "PURCHASE") {
+            monthlyData[key].investment += tx.amount;
+          } else if (tx.type === "REDEMPTION") {
+            monthlyData[key].withdrawal += tx.amount;
+          }
+        }
+      }
+    });
+
+    // Calculate totals and averages
+    let totalBuy = 0;
+    let totalSell = 0;
+
+    Object.values(monthlyData).forEach((data) => {
+      totalBuy += data.investment;
+      totalSell += data.withdrawal;
+    });
+
+    const monthCount = Object.keys(monthlyData).length;
+
+    return {
+      avgBuy: totalBuy / monthCount,
+      avgSell: totalSell / monthCount,
+      avgNetInflow: (totalBuy - totalSell) / monthCount,
+    };
+  }
+
+  const summary6M = calculateAveragesForPeriod(6);
+  const summary12M = calculateAveragesForPeriod(12);
+
+  return {
+    sixMonths: summary6M,
+    twelveMonths: summary12M,
+  };
+}
+
+function calculateProjections(
+  currentValue,
+  monthlyInflow,
+  cagr = 12,
+  stepup = 0,
+  years = [5, 10, 15, 20]
+) {
+  const monthlyRate = cagr / 100 / 12; // Monthly interest rate
+  const annualStepup = stepup / 100; // Annual step-up rate
+
+  return years.map((year) => {
+    const months = year * 12;
+
+    // Future value of current lump sum
+    const fvLumpSum = currentValue * Math.pow(1 + monthlyRate, months);
+
+    let fvSIP = 0;
+    let totalInvestedSIP = 0;
+
+    if (stepup === 0) {
+      // No step-up: use standard formula
+      // Future value of monthly SIP (beginning of month)
+      // FV = P × [(1 + r)^n - 1] / r × (1 + r)
+      fvSIP =
+        monthlyInflow *
+        ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) *
+        (1 + monthlyRate);
+
+      totalInvestedSIP = monthlyInflow * months;
+    } else {
+      // With step-up: calculate year by year
+      let currentSIP = monthlyInflow;
+
+      for (let y = 0; y < year; y++) {
+        const monthsInYear = 12;
+        const monthsRemaining = months - y * 12;
+        const actualMonths = Math.min(monthsInYear, monthsRemaining);
+
+        // FV of this year's SIP at the end of investment period
+        const yearsToGrow = year - y;
+        const monthsToGrow = yearsToGrow * 12;
+
+        // SIP for this year
+        const sipFVThisYear =
+          currentSIP *
+          ((Math.pow(1 + monthlyRate, actualMonths) - 1) / monthlyRate) *
+          (1 + monthlyRate);
+
+        // Grow this to the end of the period
+        fvSIP += sipFVThisYear * Math.pow(1 + monthlyRate, monthsToGrow);
+
+        // Track total invested
+        totalInvestedSIP += currentSIP * actualMonths;
+
+        // Step up for next year
+        currentSIP = currentSIP * (1 + annualStepup);
+      }
+    }
+
+    const futureValue = fvLumpSum + fvSIP;
+    const totalInvested = currentValue + totalInvestedSIP;
+    const gains = futureValue - totalInvested;
+
+    return {
+      year,
+      futureValue: Math.round(futureValue),
+      totalInvested: Math.round(totalInvested),
+      gains: Math.round(gains),
+      gainsPercent: ((gains / totalInvested) * 100).toFixed(2),
+    };
+  });
+}
+
+function displayMonthlySummaryAndProjections() {
+  const container = document.getElementById("monthlySummarySection");
+  if (!container) return;
+
+  const summary = calculateMonthlySummary();
+
+  if (!summary) {
+    container.innerHTML =
+      '<p class="no-data">No transaction data available for monthly summary</p>';
+    return;
+  }
+
+  const currentValue = Object.values(fundWiseData).reduce(
+    (sum, fund) => sum + (fund.advancedMetrics?.currentValue || 0),
+    0
+  );
+
+  const defaultCAGR = 12;
+  const defaultStepup = 0;
+  const defaultCustomSIP =
+    Math.ceil(
+      Math.max(
+        summary.sixMonths.avgNetInflow,
+        summary.twelveMonths.avgNetInflow
+      ) / 10000
+    ) * 10000;
+
+  const projections6M = calculateProjections(
+    currentValue,
+    summary.sixMonths.avgNetInflow,
+    defaultCAGR,
+    defaultStepup
+  );
+  const projections12M = calculateProjections(
+    currentValue,
+    summary.twelveMonths.avgNetInflow,
+    defaultCAGR,
+    defaultStepup
+  );
+  const projectionsCustom = calculateProjections(
+    currentValue,
+    defaultCustomSIP,
+    defaultCAGR,
+    defaultStepup
+  );
+
+  let html = `
+    <div class="monthly-summary-container">
+      <div class="section-header">
+        <h3>📊 Average Monthly Summary</h3>
+        <p class="section-subtitle">Your investment patterns over recent months</p>
+      </div>
+      
+      <div class="summary-table-wrapper">
+        <table class="gains-table">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Avg Buy</th>
+              <th>Avg Sell</th>
+              <th>Avg Net Inflow</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Last 6 Months</strong></td>
+              <td>₹${formatNumber(Math.round(summary.sixMonths.avgBuy))}</td>
+              <td>₹${formatNumber(Math.round(summary.sixMonths.avgSell))}</td>
+              <td class="${
+                summary.sixMonths.avgNetInflow >= 0 ? "gain" : "loss"
+              }">
+                ₹${formatNumber(
+                  Math.round(Math.abs(summary.sixMonths.avgNetInflow))
+                )}
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Last 12 Months</strong></td>
+              <td>₹${formatNumber(Math.round(summary.twelveMonths.avgBuy))}</td>
+              <td>₹${formatNumber(
+                Math.round(summary.twelveMonths.avgSell)
+              )}</td>
+              <td class="${
+                summary.twelveMonths.avgNetInflow >= 0 ? "gain" : "loss"
+              }">
+                ₹${formatNumber(
+                  Math.round(Math.abs(summary.twelveMonths.avgNetInflow))
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section-header" style="margin-top: 40px;">
+        <h3>🚀 Portfolio Projection</h3>
+        <p class="section-subtitle">Future value based on your average monthly investment pattern</p>
+      </div>
+
+      <div class="projection-controls">
+        <div class="cagr-selector">
+          <label for="cagrInput">Expected Annual Returns (CAGR):</label>
+          <div class="cagr-input-group">
+            <input 
+              type="number" 
+              id="cagrInput" 
+              value="${defaultCAGR}" 
+              min="1" 
+              max="30" 
+              step="0.5"
+              onchange="updateProjections()"
+            />
+            <span class="cagr-suffix">%</span>
+          </div>
+        </div>
+
+        <div class="cagr-selector">
+          <label for="stepupInput">Annual Step-up:</label>
+          <div class="cagr-input-group">
+            <input 
+              type="number" 
+              id="stepupInput" 
+              value="0" 
+              min="0" 
+              max="20" 
+              step="1"
+              onchange="updateProjections()"
+            />
+            <span class="cagr-suffix">%</span>
+          </div>
+        </div>
+
+        <div class="cagr-selector">
+          <label for="customSipInput">Custom SIP Amount:</label>
+          <div class="cagr-input-group">
+            <span class="cagr-prefix">₹</span>
+            <input 
+              type="text" 
+              id="customSipInput" 
+              value="${formatNumber(defaultCustomSIP)}" 
+              oninput="formatSipInput(this)"
+              onchange="updateProjections()"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="projection-chart-container">
+        <canvas id="projectionChart"></canvas>
+      </div>
+
+      <div class="projection-tables" id="projectionTablesContainer">
+        <div class="projection-table-card">
+          <h4>Based on 6M Average (₹${formatNumber(
+            Math.round(summary.sixMonths.avgNetInflow)
+          )}/month)</h4>
+          <table class="gains-table" id="projection6MTable">
+            <thead>
+              <tr>
+                <th>Years</th>
+                <th>Future Value</th>
+                <th>Total Invested</th>
+                <th>Gains</th>
+                <th>Returns %</th>
+              </tr>
+            </thead>
+            <tbody>
+  `;
+
+  projections6M.forEach((p) => {
+    html += `
+      <tr>
+        <td><strong>${p.year} Years</strong></td>
+        <td class="gain">₹${formatNumber(p.futureValue)}</td>
+        <td>₹${formatNumber(p.totalInvested)}</td>
+        <td class="gain">₹${formatNumber(p.gains)}</td>
+        <td class="gain">${p.gainsPercent}%</td>
+      </tr>
+    `;
+  });
+
+  html += `
+            </tbody>
+          </table>
+        </div>
+
+        <div class="projection-table-card">
+          <h4>Based on 12M Average (₹${formatNumber(
+            Math.round(summary.twelveMonths.avgNetInflow)
+          )}/month)</h4>
+          <table class="gains-table" id="projection12MTable">
+            <thead>
+              <tr>
+                <th>Years</th>
+                <th>Future Value</th>
+                <th>Total Invested</th>
+                <th>Gains</th>
+                <th>Returns %</th>
+              </tr>
+            </thead>
+            <tbody>
+  `;
+
+  projections12M.forEach((p) => {
+    html += `
+      <tr>
+        <td><strong>${p.year} Years</strong></td>
+        <td class="gain">₹${formatNumber(p.futureValue)}</td>
+        <td>₹${formatNumber(p.totalInvested)}</td>
+        <td class="gain">₹${formatNumber(p.gains)}</td>
+        <td class="gain">${p.gainsPercent}%</td>
+      </tr>
+    `;
+  });
+
+  html += `
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="projection-table-card custom-sip-projection">
+          <h4>Custom SIP (₹${formatNumber(
+            Math.round(defaultCustomSIP)
+          )}/month)</h4>
+          <table class="gains-table" id="projectionCustomTable">
+            <thead>
+              <tr>
+                <th>Years</th>
+                <th>Future Value</th>
+                <th>Total Invested</th>
+                <th>Gains</th>
+                <th>Returns %</th>
+              </tr>
+            </thead>
+            <tbody>
+  `;
+
+  projectionsCustom.forEach((p) => {
+    html += `
+      <tr>
+        <td><strong>${p.year} Years</strong></td>
+        <td class="gain">₹${formatNumber(p.futureValue)}</td>
+        <td>₹${formatNumber(p.totalInvested)}</td>
+        <td class="gain">₹${formatNumber(p.gains)}</td>
+        <td class="gain">${p.gainsPercent}%</td>
+      </tr>
+    `;
+  });
+
+  html += `
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = html;
+
+  // Store summary data globally for updates
+  window.monthlySummaryData = summary;
+
+  // Render projection chart
+  renderProjectionChart(
+    projections6M,
+    projections12M,
+    projectionsCustom,
+    summary,
+    defaultCustomSIP
+  );
+}
+
+function formatSipInput(input) {
+  // Remove all non-digit characters
+  let value = input.value.replace(/[^\d]/g, "");
+
+  // Store cursor position
+  const cursorPos = input.selectionStart;
+  const oldLength = input.value.length;
+
+  // Format with commas
+  if (value) {
+    input.value = formatNumber(parseInt(value));
+  } else {
+    input.value = "";
+  }
+
+  // Restore cursor position accounting for added commas
+  const newLength = input.value.length;
+  const diff = newLength - oldLength;
+  input.setSelectionRange(cursorPos + diff, cursorPos + diff);
+}
+
+let projectionChartInstance = null;
+
+function renderProjectionChart(
+  projections6M,
+  projections12M,
+  projectionsCustom,
+  summary,
+  customSIP
+) {
+  const canvas = document.getElementById("projectionChart");
+  if (!canvas) return;
+
+  // Destroy existing chart
+  if (projectionChartInstance) {
+    projectionChartInstance.destroy();
+  }
+
+  const colors = getChartColors();
+  const ctx = canvas.getContext("2d");
+
+  // Get current portfolio value
+  const currentValue = Object.values(fundWiseData).reduce(
+    (sum, fund) => sum + (fund.advancedMetrics?.currentValue || 0),
+    0
+  );
+
+  // Add 0Y data point at the beginning
+  const labels = ["0Y", ...projections6M.map((p) => `${p.year}Y`)];
+
+  // Prepend current value to all datasets
+  const data6M = [currentValue, ...projections6M.map((p) => p.futureValue)];
+  const data12M = [currentValue, ...projections12M.map((p) => p.futureValue)];
+  const dataCustom = [
+    currentValue,
+    ...projectionsCustom.map((p) => p.futureValue),
+  ];
+
+  function formatLegendLabel(amount, suffix) {
+    const isMobile = window.innerWidth <= 768;
+    suffix = isMobile ? "" : " " + suffix;
+
+    if (!isMobile) {
+      return `₹${formatNumber(Math.round(amount))}/month` + suffix;
+    }
+
+    // Mobile formatting
+    if (amount >= 100000) {
+      return `₹${(amount / 100000).toFixed(2)}L/month` + suffix;
+    } else if (amount >= 1000) {
+      return `₹${(amount / 1000).toFixed(2)}K/month` + suffix;
+    } else {
+      return `₹${Math.round(amount)}/month` + suffix;
+    }
+  }
+
+  projectionChartInstance = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: `${formatLegendLabel(
+            summary.sixMonths.avgNetInflow,
+            "(6M Avg)"
+          )}`,
+          data: data6M,
+          borderColor: "#667eea",
+          backgroundColor: "rgba(102, 126, 234, 0.1)",
+          fill: false,
+          tension: 0.4,
+          borderWidth: 3,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+        },
+        {
+          label: `${formatLegendLabel(
+            summary.twelveMonths.avgNetInflow,
+            "(12M Avg)"
+          )}`,
+          data: data12M,
+          borderColor: "#10b981",
+          backgroundColor: "rgba(16, 185, 129, 0.1)",
+          fill: false,
+          tension: 0.4,
+          borderWidth: 3,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+        },
+        {
+          label: `${formatLegendLabel(customSIP, "(Custom)")}`,
+          data: dataCustom,
+          borderColor: "#f59e0b",
+          backgroundColor: "rgba(245, 158, 11, 0.1)",
+          fill: false,
+          tension: 0.4,
+          borderWidth: 3,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: 2,
+      plugins: {
+        legend: {
+          display: true,
+          position: "top",
+          labels: {
+            usePointStyle: true,
+            pointStyle: "line",
+            font: { size: window.innerWidth <= 768 ? 10 : 12, weight: "600" },
+            color: colors.textColor,
+            padding: window.innerWidth <= 768 ? 10 : 15,
+          },
+        },
+        tooltip: {
+          backgroundColor: colors.tooltipBg,
+          borderColor: colors.tooltipBorder,
+          borderWidth: 2,
+          titleColor: "#fff",
+          bodyColor: "#fff",
+          padding: 12,
+          titleFont: { size: 13, weight: "bold" },
+          bodyFont: { size: 12 },
+          callbacks: {
+            title: (items) => {
+              const label = items[0].label;
+              return label === "0Y"
+                ? "Current Value"
+                : `After ${label.replace("Y", " Years")}`;
+            },
+            label: (ctx) => {
+              const value = ctx.parsed.y;
+              if (ctx.dataIndex === 0) {
+                return `Current: ₹${formatNumber(value)}`;
+              }
+              return `${ctx.dataset.label}: ₹${formatNumber(value)}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            font: { size: 11, weight: "600" },
+            color: colors.textColor,
+          },
+        },
+        y: {
+          beginAtZero: false,
+          grid: {
+            display: true,
+            color: colors.gridColor,
+          },
+          ticks: {
+            font: { size: 11 },
+            color: colors.textColor,
+            callback: (value) => {
+              if (value >= 10000000)
+                return "₹" + (value / 10000000).toFixed(1) + "Cr";
+              if (value >= 100000)
+                return "₹" + (value / 100000).toFixed(1) + "L";
+              if (value >= 1000) return "₹" + (value / 1000).toFixed(0) + "K";
+              return "₹" + value;
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+function updateProjections() {
+  const cagrInput = document.getElementById("cagrInput");
+  const stepupInput = document.getElementById("stepupInput");
+  const customSipInput = document.getElementById("customSipInput");
+
+  if (
+    !cagrInput ||
+    !stepupInput ||
+    !customSipInput ||
+    !window.monthlySummaryData
+  )
+    return;
+
+  const cagr = parseFloat(cagrInput.value) || 12;
+  const stepup = parseFloat(stepupInput.value) || 0;
+  const customSIP = parseFloat(customSipInput.value.replace(/,/g, "")) || 0;
+
+  // Validate inputs
+  if (cagr < 1 || cagr > 30) {
+    showToast("Please enter a CAGR between 1% and 30%", "warning");
+    cagrInput.value = 12;
+    return;
+  }
+
+  if (stepup < 0 || stepup > 20) {
+    showToast("Please enter a step-up between 0% and 20%", "warning");
+    stepupInput.value = 0;
+    return;
+  }
+
+  if (customSIP < 0) {
+    showToast("Custom SIP cannot be negative", "warning");
+    customSipInput.value = 0;
+    return;
+  }
+
+  const summary = window.monthlySummaryData;
+  const currentValue = Object.values(fundWiseData).reduce(
+    (sum, fund) => sum + (fund.advancedMetrics?.currentValue || 0),
+    0
+  );
+
+  const projections6M = calculateProjections(
+    currentValue,
+    summary.sixMonths.avgNetInflow,
+    cagr,
+    stepup
+  );
+  const projections12M = calculateProjections(
+    currentValue,
+    summary.twelveMonths.avgNetInflow,
+    cagr,
+    stepup
+  );
+  const projectionsCustom = calculateProjections(
+    currentValue,
+    customSIP,
+    cagr,
+    stepup
+  );
+
+  // Update tables
+  const table6M = document.getElementById("projection6MTable");
+  const table12M = document.getElementById("projection12MTable");
+  const tableCustom = document.getElementById("projectionCustomTable");
+
+  if (table6M) {
+    const tbody = table6M.querySelector("tbody");
+    tbody.innerHTML = "";
+    projections6M.forEach((p) => {
+      tbody.innerHTML += `
+        <tr>
+          <td><strong>${p.year} Years</strong></td>
+          <td class="gain">₹${formatNumber(p.futureValue)}</td>
+          <td>₹${formatNumber(p.totalInvested)}</td>
+          <td class="gain">₹${formatNumber(p.gains)}</td>
+          <td class="gain">${p.gainsPercent}%</td>
+        </tr>
+      `;
+    });
+  }
+
+  if (table12M) {
+    const tbody = table12M.querySelector("tbody");
+    tbody.innerHTML = "";
+    projections12M.forEach((p) => {
+      tbody.innerHTML += `
+        <tr>
+          <td><strong>${p.year} Years</strong></td>
+          <td class="gain">₹${formatNumber(p.futureValue)}</td>
+          <td>₹${formatNumber(p.totalInvested)}</td>
+          <td class="gain">₹${formatNumber(p.gains)}</td>
+          <td class="gain">${p.gainsPercent}%</td>
+        </tr>
+      `;
+    });
+  }
+
+  if (tableCustom) {
+    const tbody = tableCustom.querySelector("tbody");
+    tbody.innerHTML = "";
+    projectionsCustom.forEach((p) => {
+      tbody.innerHTML += `
+        <tr>
+          <td><strong>${p.year} Years</strong></td>
+          <td class="gain">₹${formatNumber(p.futureValue)}</td>
+          <td>₹${formatNumber(p.totalInvested)}</td>
+          <td class="gain">₹${formatNumber(p.gains)}</td>
+          <td class="gain">${p.gainsPercent}%</td>
+        </tr>
+      `;
+    });
+
+    // Update table header with new custom SIP value
+    const customTableCard = tableCustom.closest(".projection-table-card");
+    if (customTableCard) {
+      const header = customTableCard.querySelector("h4");
+      if (header) {
+        header.textContent = `Custom SIP (₹${formatNumber(
+          Math.round(customSIP)
+        )}/month)`;
+      }
+    }
+  }
+
+  // Update chart
+  renderProjectionChart(
+    projections6M,
+    projections12M,
+    projectionsCustom,
+    summary,
+    customSIP
+  );
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
