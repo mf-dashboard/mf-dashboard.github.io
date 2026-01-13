@@ -129,18 +129,38 @@ function calculatePortfolioAnalytics() {
     weightedReturns: { return1y: null, return3y: null, return5y: null },
   };
 
+  // Get additional assets
+  const additionalAssets = getAdditionalAssets();
+  let additionalGoldValue = 0;
+  let additionalSilverValue = 0;
+  let additionalCashValue = 0;
+
+  if (additionalAssets) {
+    additionalGoldValue =
+      additionalAssets.gold.quantity * additionalAssets.gold.rate;
+    additionalSilverValue =
+      additionalAssets.silver.quantity * additionalAssets.silver.rate;
+    additionalCashValue = additionalAssets.cash;
+  }
+
   Object.values(fundWiseData).forEach((fund) => {
     const value = fund.valuation ? parseFloat(fund.valuation.value || 0) : 0;
     if (value > 0) result.totalValue += value;
   });
 
-  if (result.totalValue === 0) return result;
+  // Add additional assets to total
+  const totalAdditionalAssets =
+    additionalGoldValue + additionalSilverValue + additionalCashValue;
+  const totalWithAdditional = result.totalValue + totalAdditionalAssets;
 
+  if (totalWithAdditional === 0) return result;
+
+  // Process MF funds
   Object.values(fundWiseData).forEach((fund) => {
     const value = parseFloat(fund.advancedMetrics.currentValue || 0);
     if (!(value > 0)) return;
 
-    const weight = value / result.totalValue;
+    const weight = value / totalWithAdditional;
     const extended = fund.isin ? mfStats[fund.isin] : null;
 
     const fundAsset = extended?.portfolio_stats?.asset_allocation;
@@ -154,7 +174,6 @@ function calculatePortfolioAnalytics() {
             (result.assetAllocation.equity || 0) +
             (parseFloat(v) / 100) * weight * 100;
         } else if (key.includes("commodities")) {
-          // Check holdings to split commodities between gold and silver
           let goldWeight = 0;
           let silverWeight = 0;
 
@@ -187,7 +206,6 @@ function calculatePortfolioAnalytics() {
           const totalCommodityWeight = goldWeight + silverWeight;
 
           if (totalCommodityWeight > 0) {
-            // Split commodities allocation proportionally
             const goldProportion = goldWeight / totalCommodityWeight;
             const silverProportion = silverWeight / totalCommodityWeight;
 
@@ -199,7 +217,6 @@ function calculatePortfolioAnalytics() {
               (result.assetAllocation.silver || 0) +
               (parseFloat(v) / 100) * weight * 100 * silverProportion;
           } else {
-            // Fallback to checking subcategory and name
             const subcategory = extended?.sub_category?.toLowerCase?.() || "";
             const name = fund?.scheme?.toLowerCase?.() || "";
 
@@ -355,6 +372,76 @@ function calculatePortfolioAnalytics() {
     }
   });
 
+  // NOW add additional assets to allocation (ONLY ONCE, AT THE END)
+  if (additionalGoldValue > 0) {
+    const goldWeight = (additionalGoldValue / totalWithAdditional) * 100;
+
+    // Store breakdown info
+    if (!result.assetAllocation._breakdown) {
+      result.assetAllocation._breakdown = {};
+    }
+    if (!result.assetAllocation._breakdown.gold) {
+      result.assetAllocation._breakdown.gold = { mf: 0, physical: 0 };
+    }
+
+    // Store MF gold percentage BEFORE adding physical
+    result.assetAllocation._breakdown.gold.mf =
+      result.assetAllocation.gold || 0;
+
+    // Add physical gold
+    result.assetAllocation.gold =
+      (result.assetAllocation.gold || 0) + goldWeight;
+
+    // Store physical gold percentage
+    result.assetAllocation._breakdown.gold.physical = goldWeight;
+  }
+
+  if (additionalSilverValue > 0) {
+    const silverWeight = (additionalSilverValue / totalWithAdditional) * 100;
+
+    // Store breakdown info
+    if (!result.assetAllocation._breakdown) {
+      result.assetAllocation._breakdown = {};
+    }
+    if (!result.assetAllocation._breakdown.silver) {
+      result.assetAllocation._breakdown.silver = { mf: 0, physical: 0 };
+    }
+
+    // Store MF silver percentage BEFORE adding physical
+    result.assetAllocation._breakdown.silver.mf =
+      result.assetAllocation.silver || 0;
+
+    // Add physical silver
+    result.assetAllocation.silver =
+      (result.assetAllocation.silver || 0) + silverWeight;
+
+    // Store physical silver percentage
+    result.assetAllocation._breakdown.silver.physical = silverWeight;
+  }
+
+  if (additionalCashValue > 0) {
+    const cashWeight = (additionalCashValue / totalWithAdditional) * 100;
+
+    // Store breakdown info
+    if (!result.assetAllocation._breakdown) {
+      result.assetAllocation._breakdown = {};
+    }
+    if (!result.assetAllocation._breakdown.cash) {
+      result.assetAllocation._breakdown.cash = { mf: 0, physical: 0 };
+    }
+
+    // Store MF cash percentage BEFORE adding physical
+    result.assetAllocation._breakdown.cash.mf =
+      result.assetAllocation.cash || 0;
+
+    // Add physical cash
+    result.assetAllocation.cash =
+      (result.assetAllocation.cash || 0) + cashWeight;
+
+    // Store physical cash percentage
+    result.assetAllocation._breakdown.cash.physical = cashWeight;
+  }
+
   result.assetAllocation.equity = result.assetAllocation.equity || 0;
   result.assetAllocation.debt = result.assetAllocation.debt || 0;
   result.assetAllocation.cash = result.assetAllocation.cash || 0;
@@ -382,7 +469,12 @@ function calculatePortfolioAnalytics() {
   function roundMap(m) {
     const out = {};
     Object.entries(m).forEach(([k, v]) => {
-      out[k] = Math.round((v + Number.EPSILON) * 100) / 100;
+      if (k === "_breakdown") {
+        // Don't round the breakdown object itself
+        out[k] = v;
+      } else {
+        out[k] = Math.round((v + Number.EPSILON) * 100) / 100;
+      }
     });
     return out;
   }
@@ -683,7 +775,7 @@ function displayAssetAllocation(assetAllocation) {
   });
 
   Object.keys(assetAllocation).forEach((k) => {
-    if (!preferred.includes(k)) {
+    if (!preferred.includes(k) && k !== "_breakdown") {
       const val = parseFloat(assetAllocation[k]);
       if (!isNaN(val) && val > 0) {
         labels.push(k.charAt(0).toUpperCase() + k.slice(1));
@@ -701,13 +793,29 @@ function displayAssetAllocation(assetAllocation) {
     const chartCanvas = document.getElementById("assetAllocationChart");
     if (!chartCanvas) return;
 
+    const additionalAssets = getAdditionalAssets();
+    const hasAdditionalAssets =
+      additionalAssets &&
+      (additionalAssets.gold.quantity * additionalAssets.gold.rate > 0 ||
+        additionalAssets.silver.quantity * additionalAssets.silver.rate > 0 ||
+        additionalAssets.cash > 0);
+
+    // Calculate total value for tooltip
+    const totalValue = Object.values(fundWiseData).reduce(
+      (sum, fund) => sum + (fund.advancedMetrics?.currentValue || 0),
+      0
+    );
+
     const barHTML = sortedLabels
       .map((label, i) => {
         const color = themeColors[i % themeColors.length];
+        const rupeeValue = (totalValue * sortedData[i]) / 100;
         return `
           <div class="composition-segment"
                style="width: ${sortedData[i]}%; background-color: ${color};"
-               title="${label}: ${sortedData[i].toFixed(1)}%">
+               title="${label}: ₹${formatNumber(
+          Math.round(rupeeValue)
+        )} (${sortedData[i].toFixed(1)}%)">
           </div>`;
       })
       .join("");
@@ -715,11 +823,12 @@ function displayAssetAllocation(assetAllocation) {
     const legendHTML = sortedLabels
       .map((label, i) => {
         const color = themeColors[i % themeColors.length];
+        let displayText = `${label} ${sortedData[i].toFixed(1)}%`;
+
         return `
           <span class="legend-item">
-            <span class="legend-color" style="background-color: ${color};"></span>${label}: ${sortedData[
-          i
-        ].toFixed(1)}%
+            <span class="legend-color" style="background-color: ${color};"></span>
+            ${displayText}
           </span>`;
       })
       .join("");
@@ -752,13 +861,22 @@ function displayMarketCapSplit(marketCap) {
     const chartCanvas = document.getElementById("marketCapChart");
     if (!chartCanvas) return;
 
+    // Calculate total value for tooltip
+    const totalValue = Object.values(fundWiseData).reduce(
+      (sum, fund) => sum + (fund.advancedMetrics?.currentValue || 0),
+      0
+    );
+
     const barHTML = sortedLabels
       .map((label, i) => {
         const color = themeColors[i % themeColors.length];
+        const rupeeValue = (totalValue * sortedData[i]) / 100;
         return `
           <div class="composition-segment"
                style="width: ${sortedData[i]}%; background-color: ${color};"
-               title="${label}: ${sortedData[i].toFixed(1)}%">
+               title="${label}: ₹${formatNumber(
+          Math.round(rupeeValue)
+        )} (${sortedData[i].toFixed(1)}%)">
           </div>`;
       })
       .join("");
@@ -6584,16 +6702,53 @@ function downloadFundTransactions(fundKey) {
 }
 
 function updateSummaryCards(summary) {
+  // Get additional assets
+  const assets = getAdditionalAssets();
+  const hasAdditionalAssets =
+    assets &&
+    (assets.gold.quantity * assets.gold.rate > 0 ||
+      assets.silver.quantity * assets.silver.rate > 0 ||
+      assets.cash > 0);
+
+  const goldValue = assets ? assets.gold.quantity * assets.gold.rate : 0;
+  const silverValue = assets ? assets.silver.quantity * assets.silver.rate : 0;
+  const cashValue = assets ? assets.cash : 0;
+  const totalAdditional = goldValue + silverValue + cashValue;
+  const combinedValue = summary.currentValue + totalAdditional;
+
+  // Dynamically update first card based on additional assets
+  const summaryCardsContainer = document.querySelector("#main .summary-cards");
+  const firstCard = summaryCardsContainer.querySelector(".card:first-child");
+
+  if (hasAdditionalAssets) {
+    // Show Total Portfolio card
+    firstCard.innerHTML = `
+      <h3>Total Portfolio Value</h3>
+      <div class="value">₹${formatNumber(combinedValue)}</div>
+      <div class="subtext">MF: ₹${formatNumber(
+        summary.currentValue
+      )} + Additional: ₹${formatNumber(totalAdditional)}</div>
+    `;
+  } else {
+    // Show Current Value card
+    firstCard.innerHTML = `
+      <h3>Current Value</h3>
+      <div class="value">₹<span id="currentValue">${formatNumber(
+        summary.currentValue
+      )}</span></div>
+      <div class="subtext">MF Holdings Value</div>
+    `;
+  }
+
+  // Update all other cards (existing code)
   document.getElementById("totalInvested").textContent = formatNumber(
     summary.totalInvested
   );
-  document.getElementById("currentValue").textContent = formatNumber(
-    summary.currentValue
-  );
-  document.getElementById("totalWithdrawn").textContent = formatNumber(
-    summary.totalWithdrawn
-  );
-
+  if (!hasAdditionalAssets) {
+    document.getElementById("currentValue").textContent = formatNumber(
+      summary.currentValue
+    );
+  }
   document.getElementById("costBasis").textContent = formatNumber(
     summary.costPrice
   );
@@ -8906,6 +9061,8 @@ function switchToUser(userName) {
 
   console.log("Switching to user:", userName);
 
+  loadAdditionalAssetsForm();
+
   showToast(`Switching to ${investorName}...`, "success");
   toggleFamilyDashboard();
 
@@ -8937,6 +9094,10 @@ async function deleteSingleUser(userName) {
     const hiddenFoliosKey = `hiddenFolios_${userName}`;
     localStorage.removeItem(hiddenFoliosKey);
     console.log(`🗑️ Cleared hidden folios for deleted user: ${userName}`);
+
+    const additionalAssetsKey = `additionalAssets_${userName}`;
+    localStorage.removeItem(additionalAssetsKey);
+    console.log(`🗑️ Cleared additional assets for deleted user: ${userName}`);
 
     allUsers = storageManager.getAllUsers();
 
@@ -9064,6 +9225,10 @@ async function deleteAllUsers() {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith("hiddenFolios_")) {
+        keysToRemove.push(key);
+      }
+
+      if (key && key.startsWith("additionalAssets_")) {
         keysToRemove.push(key);
       }
     }
@@ -9637,6 +9802,114 @@ function calculateFamilyMetrics(allUserData) {
     }
   });
 
+  // After processing all funds, add additional assets for all family members
+  Object.keys(allUserData).forEach((userName) => {
+    const additionalAssets = getAdditionalAssets(userName);
+    if (additionalAssets) {
+      const additionalGoldValue =
+        additionalAssets.gold.quantity * additionalAssets.gold.rate;
+      const additionalSilverValue =
+        additionalAssets.silver.quantity * additionalAssets.silver.rate;
+      const additionalCashValue = additionalAssets.cash;
+
+      const additionalTotal =
+        additionalGoldValue + additionalSilverValue + additionalCashValue;
+
+      if (additionalTotal > 0) {
+        // Update total value to include additional assets
+        const userTotalMF = metrics.userBreakdown[userName]?.currentValue || 0;
+        const userNewTotal = userTotalMF + additionalTotal;
+
+        // Recalculate total with additional assets
+        const oldTotal = metrics.totalCurrentValue;
+        const newTotal = oldTotal + additionalTotal;
+
+        // Update metrics totals
+        metrics.totalCurrentValue = newTotal;
+
+        // Add additional assets to allocation with breakdown
+        if (!metrics.assetAllocation._breakdown) {
+          metrics.assetAllocation._breakdown = {};
+        }
+
+        if (additionalGoldValue > 0) {
+          const goldWeight = (additionalGoldValue / newTotal) * 100;
+
+          if (!metrics.assetAllocation._breakdown.gold) {
+            metrics.assetAllocation._breakdown.gold = { mf: 0, physical: 0 };
+          }
+          metrics.assetAllocation._breakdown.gold.mf =
+            metrics.assetAllocation.gold || 0;
+          metrics.assetAllocation.gold =
+            (metrics.assetAllocation.gold || 0) + goldWeight;
+          metrics.assetAllocation._breakdown.gold.physical =
+            (metrics.assetAllocation._breakdown.gold.physical || 0) +
+            goldWeight;
+        }
+
+        if (additionalSilverValue > 0) {
+          const silverWeight = (additionalSilverValue / newTotal) * 100;
+
+          if (!metrics.assetAllocation._breakdown.silver) {
+            metrics.assetAllocation._breakdown.silver = { mf: 0, physical: 0 };
+          }
+          metrics.assetAllocation._breakdown.silver.mf =
+            metrics.assetAllocation.silver || 0;
+          metrics.assetAllocation.silver =
+            (metrics.assetAllocation.silver || 0) + silverWeight;
+          metrics.assetAllocation._breakdown.silver.physical =
+            (metrics.assetAllocation._breakdown.silver.physical || 0) +
+            silverWeight;
+        }
+
+        if (additionalCashValue > 0) {
+          const cashWeight = (additionalCashValue / newTotal) * 100;
+
+          if (!metrics.assetAllocation._breakdown.cash) {
+            metrics.assetAllocation._breakdown.cash = { mf: 0, physical: 0 };
+          }
+          metrics.assetAllocation._breakdown.cash.mf =
+            metrics.assetAllocation.cash || 0;
+          metrics.assetAllocation.cash =
+            (metrics.assetAllocation.cash || 0) + cashWeight;
+          metrics.assetAllocation._breakdown.cash.physical =
+            (metrics.assetAllocation._breakdown.cash.physical || 0) +
+            cashWeight;
+        }
+
+        // Update user breakdown to include additional assets
+        if (metrics.userBreakdown[userName]) {
+          metrics.userBreakdown[userName].currentValue = userNewTotal;
+          metrics.userBreakdown[userName].unrealizedGain =
+            userNewTotal - metrics.userBreakdown[userName].cost;
+        }
+      }
+    }
+  });
+
+  // Normalize all percentages after adding additional assets
+  const totalAssetPercent = Object.entries(metrics.assetAllocation)
+    .filter(([key]) => key !== "_breakdown")
+    .reduce((sum, [, val]) => sum + val, 0);
+
+  if (totalAssetPercent > 0 && Math.abs(totalAssetPercent - 100) > 0.01) {
+    const scaleFactor = 100 / totalAssetPercent;
+    Object.keys(metrics.assetAllocation).forEach((key) => {
+      if (key !== "_breakdown") {
+        metrics.assetAllocation[key] *= scaleFactor;
+
+        // Scale breakdown too
+        if (
+          metrics.assetAllocation._breakdown &&
+          metrics.assetAllocation._breakdown[key]
+        ) {
+          metrics.assetAllocation._breakdown[key].mf *= scaleFactor;
+          metrics.assetAllocation._breakdown[key].physical *= scaleFactor;
+        }
+      }
+    });
+  }
+
   const mcSum =
     metrics.marketCap.large + metrics.marketCap.mid + metrics.marketCap.small;
   if (mcSum > 0) {
@@ -9685,41 +9958,100 @@ function calculateFamilyMetrics(allUserData) {
 function displayFamilySummaryCards(metrics) {
   const container = document.getElementById("familySummaryCards");
 
+  // Calculate additional assets for all family members
+  const users = storageManager.getAllUsers();
+  let totalAdditionalAssets = 0;
+
+  users.forEach((userName) => {
+    const assets = getAdditionalAssets(userName);
+    if (assets) {
+      const goldValue = assets.gold.quantity * assets.gold.rate;
+      const silverValue = assets.silver.quantity * assets.silver.rate;
+      const cashValue = assets.cash;
+      totalAdditionalAssets += goldValue + silverValue + cashValue;
+    }
+  });
+
+  const hasAdditionalAssets = totalAdditionalAssets > 0;
+  const combinedFamilyValue = metrics.totalCurrentValue + totalAdditionalAssets;
+
   const unrealizedGainPercent =
     metrics.totalCost > 0
       ? ((metrics.totalUnrealizedGain / metrics.totalCost) * 100).toFixed(2)
       : 0;
 
-  container.innerHTML = `
-    <div class="card">
-      <h3>Total Family Value</h3>
-      <div class="value">₹${formatNumber(metrics.totalCurrentValue)}</div>
-      <div class="subtext">Combined Portfolio Value</div>
-    </div>
-    <div class="card">
-      <h3>Total Cost</h3>
-      <div class="value">₹${formatNumber(metrics.totalCost)}</div>
-      <div class="subtext">Combined Investment</div>
-    </div>
-    <div class="card ${
-      metrics.totalUnrealizedGain >= 0 ? "positive" : "negative"
-    }">
-      <h3>Total P&L</h3>
-      <div class="value">${
-        metrics.totalUnrealizedGain >= 0 ? "₹" : "-₹"
-      }${formatNumber(Math.abs(metrics.totalUnrealizedGain))}</div>
-      <div class="subtext">Absolute: ${
-        metrics.totalUnrealizedGain >= 0 ? "+" : ""
-      }${unrealizedGainPercent}%</div>
-    </div>
-    <div class="card">
-      <h3>Total Unique Holdings</h3>
-      <div class="value">${metrics.totalHoldings}</div>
-      <div class="subtext">Across ${
-        Object.keys(metrics.userBreakdown).length
-      } Family Members</div>
-    </div>
-  `;
+  if (hasAdditionalAssets) {
+    // Show Total Family Value card
+    container.innerHTML = `
+      <div class="card">
+        <h3>Total Family Value</h3>
+        <div class="value">₹${formatNumber(combinedFamilyValue)}</div>
+        <div class="subtext">MF: ₹${formatNumber(
+          metrics.totalCurrentValue
+        )} + Additional: ₹${formatNumber(totalAdditionalAssets)}</div>
+      </div>
+      <div class="card">
+        <h3>MF Current Value</h3>
+        <div class="value">₹${formatNumber(metrics.totalCurrentValue)}</div>
+        <div class="subtext">Combined MF Holdings</div>
+      </div>
+      <div class="card">
+        <h3>Total Cost</h3>
+        <div class="value">₹${formatNumber(metrics.totalCost)}</div>
+        <div class="subtext">Combined Investment</div>
+      </div>
+      <div class="card ${
+        metrics.totalUnrealizedGain >= 0 ? "positive" : "negative"
+      }">
+        <h3>Total P&L</h3>
+        <div class="value">${
+          metrics.totalUnrealizedGain >= 0 ? "₹" : "-₹"
+        }${formatNumber(Math.abs(metrics.totalUnrealizedGain))}</div>
+        <div class="subtext">Absolute: ${
+          metrics.totalUnrealizedGain >= 0 ? "+" : ""
+        }${unrealizedGainPercent}%</div>
+      </div>
+      <div class="card">
+        <h3>Total Unique Holdings</h3>
+        <div class="value">${metrics.totalHoldings}</div>
+        <div class="subtext">Across ${
+          Object.keys(metrics.userBreakdown).length
+        } Family Members</div>
+      </div>
+    `;
+  } else {
+    // Show MF Current Value card (no Total Family Value)
+    container.innerHTML = `
+      <div class="card">
+        <h3>Total Family Value</h3>
+        <div class="value">₹${formatNumber(metrics.totalCurrentValue)}</div>
+        <div class="subtext">Combined Portfolio Value</div>
+      </div>
+      <div class="card">
+        <h3>Total Cost</h3>
+        <div class="value">₹${formatNumber(metrics.totalCost)}</div>
+        <div class="subtext">Combined Investment</div>
+      </div>
+      <div class="card ${
+        metrics.totalUnrealizedGain >= 0 ? "positive" : "negative"
+      }">
+        <h3>Total P&L</h3>
+        <div class="value">${
+          metrics.totalUnrealizedGain >= 0 ? "₹" : "-₹"
+        }${formatNumber(Math.abs(metrics.totalUnrealizedGain))}</div>
+        <div class="subtext">Absolute: ${
+          metrics.totalUnrealizedGain >= 0 ? "+" : ""
+        }${unrealizedGainPercent}%</div>
+      </div>
+      <div class="card">
+        <h3>Total Unique Holdings</h3>
+        <div class="value">${metrics.totalHoldings}</div>
+        <div class="subtext">Across ${
+          Object.keys(metrics.userBreakdown).length
+        } Family Members</div>
+      </div>
+    `;
+  }
 }
 
 function updateCompactFamilyDashboard(metrics) {
@@ -9728,10 +10060,36 @@ function updateCompactFamilyDashboard(metrics) {
   const container = document.getElementById("compactFamilyDashboard");
   if (!container) return;
 
+  // Calculate additional assets for all family members
+  const users = storageManager.getAllUsers();
+  let totalAdditionalAssets = 0;
+
+  users.forEach((userName) => {
+    const assets = getAdditionalAssets(userName);
+    if (assets) {
+      const goldValue = assets.gold.quantity * assets.gold.rate;
+      const silverValue = assets.silver.quantity * assets.silver.rate;
+      const cashValue = assets.cash;
+      totalAdditionalAssets += goldValue + silverValue + cashValue;
+    }
+  });
+
+  const hasAdditionalAssets = totalAdditionalAssets > 0;
+  const combinedFamilyValue = metrics.totalCurrentValue + totalAdditionalAssets;
+
   const unrealizedGainPercent =
     metrics.totalCost > 0
       ? ((metrics.totalUnrealizedGain / metrics.totalCost) * 100).toFixed(2)
       : 0;
+
+  const displayValue = hasAdditionalAssets
+    ? combinedFamilyValue
+    : metrics.totalCurrentValue;
+  const subtitle = hasAdditionalAssets
+    ? `MF: ₹${formatNumber(
+        metrics.totalCurrentValue
+      )} + Additional: ₹${formatNumber(totalAdditionalAssets)}`
+    : `Combined Portfolio Value`;
 
   container.innerHTML = `
     <div class="compact-summary-card">
@@ -9739,9 +10097,12 @@ function updateCompactFamilyDashboard(metrics) {
         <h3>FAMILY PORTFOLIO (<span>${
           Object.keys(metrics.userBreakdown).length
         }</span> MEMBERS)</h3>
-        <h2 class="compact-total-value">₹${formatNumber(
-          metrics.totalCurrentValue
-        )}</h2>
+        <h2 class="compact-total-value">₹${formatNumber(displayValue)}</h2>
+        ${
+          hasAdditionalAssets
+            ? `<p style="font-size: 11px; color: var(--text-tertiary); margin-top: 5px;">${subtitle}</p>`
+            : ""
+        }
       </div>
 
       <div class="compact-stats">
@@ -9943,7 +10304,7 @@ function displayFamilyAssetAllocation(metrics) {
   });
 
   Object.keys(metrics.assetAllocation || {}).forEach((k) => {
-    if (!preferred.includes(k)) {
+    if (!preferred.includes(k) && k !== "_breakdown") {
       const val = parseFloat(metrics.assetAllocation[k]);
       if (!isNaN(val) && val > 0) {
         assetLabels.push(k.charAt(0).toUpperCase() + k.slice(1));
@@ -9966,13 +10327,37 @@ function displayFamilyAssetAllocation(metrics) {
 
   const [sortedLabels, sortedData] = sortData(assetLabels, assetData);
 
+  const users = storageManager.getAllUsers();
+  let hasAnyAdditionalAssets = false;
+  users.forEach((user) => {
+    const assets = getAdditionalAssets(user);
+    if (
+      assets &&
+      (assets.gold.quantity * assets.gold.rate > 0 ||
+        assets.silver.quantity * assets.silver.rate > 0 ||
+        assets.cash > 0)
+    ) {
+      hasAnyAdditionalAssets = true;
+    }
+  });
+
+  const assetBreakdown = hasAnyAdditionalAssets
+    ? metrics.assetAllocation._breakdown || {}
+    : {};
+
+  // Calculate total value for tooltip
+  const totalValue = metrics.totalCurrentValue;
+
   const barHTML = sortedLabels
     .map((label, i) => {
       const color = themeColors[i % themeColors.length];
+      const rupeeValue = (totalValue * sortedData[i]) / 100;
       return `
       <div class="composition-segment"
            style="width: ${sortedData[i]}%; background-color: ${color};"
-           title="${label}: ${sortedData[i].toFixed(1)}%">
+           title="${label}: ₹${formatNumber(
+        Math.round(rupeeValue)
+      )} (${sortedData[i].toFixed(1)}%)">
       </div>`;
     })
     .join("");
@@ -9980,10 +10365,23 @@ function displayFamilyAssetAllocation(metrics) {
   const legendHTML = sortedLabels
     .map((label, i) => {
       const color = themeColors[i % themeColors.length];
+      const labelKey = label.toLowerCase();
+
+      const breakdown = assetBreakdown[labelKey];
+      let displayText = `${label}: ${sortedData[i].toFixed(1)}%`;
+
+      if (breakdown && hasAnyAdditionalAssets) {
+        const mfPercent = breakdown.mf || 0;
+        const physicalPercent = breakdown.physical || 0;
+        displayText = `${label}: ${sortedData[i].toFixed(
+          1
+        )}% (${mfPercent.toFixed(1)}% + ${physicalPercent.toFixed(1)}%)`;
+      }
+
       return `
       <span class="legend-item">
         <span class="legend-color" style="background-color: ${color};"></span>
-        ${label}: ${sortedData[i].toFixed(1)}%
+        ${displayText}
       </span>`;
     })
     .join("");
@@ -10024,13 +10422,19 @@ function displayFamilyMarketCapSplit(metrics) {
 
   const [sortedLabels, sortedData] = sortData(mcLabels, mcData);
 
+  // Calculate total value for tooltip
+  const totalValue = metrics.totalCurrentValue;
+
   const barHTML = sortedLabels
     .map((label, i) => {
       const color = themeColors[i % themeColors.length];
+      const rupeeValue = (totalValue * sortedData[i]) / 100;
       return `
       <div class="composition-segment"
            style="width: ${sortedData[i]}%; background-color: ${color};"
-           title="${label}: ${sortedData[i].toFixed(1)}%">
+           title="${label}: ₹${formatNumber(
+        Math.round(rupeeValue)
+      )} (${sortedData[i].toFixed(1)}%)">
       </div>`;
     })
     .join("");
@@ -10131,8 +10535,30 @@ function updateCompactDashboard() {
     return;
   }
 
+  // Calculate additional assets
+  const assets = getAdditionalAssets();
+  const hasAdditionalAssets =
+    assets &&
+    (assets.gold.quantity * assets.gold.rate > 0 ||
+      assets.silver.quantity * assets.silver.rate > 0 ||
+      assets.cash > 0);
+
+  const goldValue = assets ? assets.gold.quantity * assets.gold.rate : 0;
+  const silverValue = assets ? assets.silver.quantity * assets.silver.rate : 0;
+  const cashValue = assets ? assets.cash : 0;
+  const totalAdditional = goldValue + silverValue + cashValue;
+  const mfValue = summary.currentValue;
+  const combinedValue = mfValue + totalAdditional;
+
   elements.compactHoldingsCount.textContent = activeFunds.length;
-  elements.compactTotalValue.textContent = formatNumber(summary.currentValue);
+
+  // Update total value display based on whether additional assets exist
+  if (hasAdditionalAssets) {
+    elements.compactTotalValue.textContent = formatNumber(combinedValue);
+  } else {
+    elements.compactTotalValue.textContent = formatNumber(summary.currentValue);
+  }
+
   elements.compactInvested.textContent = "₹" + formatNumber(summary.costPrice);
   elements.compactXIRR.textContent =
     summary.activeXirr !== null ? summary.activeXirr.toFixed(2) + "%" : "--";
@@ -10153,7 +10579,43 @@ function updateCompactDashboard() {
   elements.compact1DReturns.className =
     "stat-value " + (oneDayReturns.value >= 0 ? "positive" : "negative");
 
+  // Update the compact header subtitle to show breakdown
+  updateCompactHeaderSubtitle(hasAdditionalAssets, mfValue, totalAdditional);
+
   populateCompactHoldings(activeFunds);
+}
+
+function updateCompactHeaderSubtitle(
+  hasAdditionalAssets,
+  mfValue,
+  totalAdditional
+) {
+  // Find or create subtitle element in compact dashboard
+  const compactHeader = document.querySelector(
+    "#compactDashboard .compact-header"
+  );
+  if (!compactHeader) return;
+
+  // Remove existing subtitle if present
+  let subtitle = compactHeader.querySelector(".compact-subtitle");
+
+  if (hasAdditionalAssets) {
+    if (!subtitle) {
+      subtitle = document.createElement("p");
+      subtitle.className = "compact-subtitle";
+      subtitle.style.cssText =
+        "font-size: 11px; color: var(--text-tertiary); margin-top: 5px;";
+      compactHeader.appendChild(subtitle);
+    }
+    subtitle.textContent = `MF: ₹${formatNumber(
+      mfValue
+    )} + Additional: ₹${formatNumber(totalAdditional)}`;
+  } else {
+    // Remove subtitle if no additional assets
+    if (subtitle) {
+      subtitle.remove();
+    }
+  }
 }
 
 function calculateOneDayReturns() {
@@ -12269,6 +12731,99 @@ function updateProjections() {
   );
 }
 
+// Additional Assets Management
+function getAdditionalAssets(userName = null) {
+  const user = userName || currentUser;
+  if (!user) return null;
+
+  const key = `additionalAssets_${user}`;
+  const stored = localStorage.getItem(key);
+  return stored
+    ? JSON.parse(stored)
+    : {
+        gold: { quantity: 0, rate: 0 },
+        silver: { quantity: 0, rate: 0 },
+        cash: 0,
+      };
+}
+
+function saveAdditionalAssets() {
+  if (!currentUser) return;
+
+  const goldQty =
+    parseFloat(document.getElementById("goldQuantity").value) || 0;
+  const goldRate = parseFloat(document.getElementById("goldRate").value) || 0;
+  const silverQty =
+    parseFloat(document.getElementById("silverQuantity").value) || 0;
+  const silverRate =
+    parseFloat(document.getElementById("silverRate").value) || 0;
+  const cash = parseFloat(document.getElementById("cashAmount").value) || 0;
+
+  const assets = {
+    gold: { quantity: goldQty, rate: goldRate },
+    silver: { quantity: silverQty, rate: silverRate },
+    cash: cash,
+  };
+
+  const key = `additionalAssets_${currentUser}`;
+  localStorage.setItem(key, JSON.stringify(assets));
+
+  updateAdditionalAssetsDisplay();
+
+  // Update main dashboard if we have portfolio data
+  if (portfolioData && fundWiseData) {
+    calculateAndDisplayPortfolioAnalytics();
+  }
+}
+
+function updateAdditionalAssetsDisplay() {
+  const assets = getAdditionalAssets();
+  if (!assets) return;
+
+  const goldValue = assets.gold.quantity * assets.gold.rate;
+  const silverValue = assets.silver.quantity * assets.silver.rate;
+  const cashValue = assets.cash;
+  const totalAdditional = goldValue + silverValue + cashValue;
+
+  document.getElementById("goldValue").textContent =
+    "₹" + formatNumber(Math.round(goldValue));
+  document.getElementById("silverValue").textContent =
+    "₹" + formatNumber(Math.round(silverValue));
+  document.getElementById("cashValue").textContent =
+    "₹" + formatNumber(Math.round(cashValue));
+  document.getElementById("totalAdditionalAssets").textContent =
+    "₹" + formatNumber(Math.round(totalAdditional));
+
+  // Calculate combined value
+  const mfValue = Object.values(fundWiseData || {}).reduce(
+    (sum, fund) => sum + (fund.advancedMetrics?.currentValue || 0),
+    0
+  );
+  const combinedValue = mfValue + totalAdditional;
+  document.getElementById("combinedPortfolioValue").textContent =
+    "₹" + formatNumber(Math.round(combinedValue));
+
+  // Trigger summary cards update
+  if (portfolioData && fundWiseData) {
+    const summary = calculateSummary();
+    updateSummaryCards(summary);
+  }
+}
+
+function loadAdditionalAssetsForm() {
+  const assets = getAdditionalAssets();
+  if (!assets) return;
+
+  document.getElementById("goldQuantity").value = assets.gold.quantity || "";
+  document.getElementById("goldRate").value = assets.gold.rate || "";
+  document.getElementById("silverQuantity").value =
+    assets.silver.quantity || "";
+  document.getElementById("silverRate").value = assets.silver.rate || "";
+  document.getElementById("cashAmount").value = assets.cash || "";
+
+  updateAdditionalAssetsDisplay();
+}
+
 window.addEventListener("DOMContentLoaded", async () => {
   initializeTheme();
   const dashboard = document.getElementById("dashboard");
@@ -12288,6 +12843,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (storedFileInfo) {
       lastUploadedFileInfo = storedFileInfo;
     }
+
+    loadAdditionalAssetsForm();
   }
 
   try {
@@ -12334,6 +12891,8 @@ window.addEventListener("DOMContentLoaded", async () => {
 
       updateFooterInfo();
       enableAllTabs();
+
+      updateAdditionalAssetsDisplay();
 
       if (isSummaryCAS) {
         disableSummaryIncompatibleTabs();
