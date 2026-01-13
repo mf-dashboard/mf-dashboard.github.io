@@ -11681,6 +11681,285 @@ function closeFolioManagementModal() {
   pendingFolioChanges = {};
 }
 
+// async function loadFolioManagementData(userName) {
+//   const content = document.getElementById("folioManagementContent");
+
+//   try {
+//     const stored = await storageManager.loadPortfolioData(userName);
+
+//     if (!stored) {
+//       content.innerHTML = `
+//         <div class="folio-management-empty">
+//           <i class="fa-solid fa-folder-open"></i>
+//           <p>No data found for this user</p>
+//         </div>
+//       `;
+//       return;
+//     }
+
+//     const casData = stored.casData;
+//     const mfStatsUser = stored.mfStats;
+//     const hiddenFolios = getHiddenFolios(userName);
+
+//     // Initialize pending changes with current state
+//     pendingFolioChanges[userName] = [...hiddenFolios];
+
+//     // Group folios by AMC and fund
+//     const activeFoliosByAMC = {};
+//     const pastFoliosByAMC = {};
+
+//     casData.folios.forEach((folio) => {
+//       if (casData.cas_type === "SUMMARY") {
+//         const totalValue = parseFloat(folio.current_value || 0);
+//         const extendedData = folio.isin ? mfStatsUser[folio.isin] : null;
+//         const fundDisplayName = sanitizeSchemeName(folio.scheme);
+
+//         // Use same AMC logic as fundWiseData - FIXED
+//         const amcName =
+//           extendedData?.amc?.trim() || folio.amc?.trim() || "Unknown AMC";
+
+//         const folioInfo = {
+//           folioNumber: folio.folio,
+//           amc: amcName, // Use the correctly resolved AMC name
+//           fundName: fundDisplayName,
+//           value: totalValue,
+//           isHidden: hiddenFolios.includes(folio.folio),
+//         };
+
+//         if (totalValue > 0) {
+//           if (!activeFoliosByAMC[amcName]) activeFoliosByAMC[amcName] = []; // Use amcName here
+//           activeFoliosByAMC[amcName].push(folioInfo);
+//         } else {
+//           if (!pastFoliosByAMC[amcName]) pastFoliosByAMC[amcName] = []; // Use amcName here
+//           pastFoliosByAMC[amcName].push(folioInfo);
+//         }
+//       }
+
+//       // And replace the Detailed CAS section:
+//       else {
+//         // Detailed CAS - handle multiple schemes per folio
+//         if (folio.schemes && Array.isArray(folio.schemes)) {
+//           folio.schemes.forEach((scheme) => {
+//             const schemeLower = scheme.scheme.toLowerCase();
+//             if (
+//               !schemeLower.includes("fund") &&
+//               !schemeLower.includes("fof") &&
+//               !schemeLower.includes("etf")
+//             )
+//               return;
+
+//             if (
+//               !Array.isArray(scheme.transactions) ||
+//               scheme.transactions.length === 0
+//             )
+//               return;
+
+//             const schemeValue = scheme.valuation
+//               ? parseFloat(scheme.valuation.value || 0)
+//               : 0;
+//             const fundDisplayName = sanitizeSchemeName(scheme.scheme);
+//             const extendedData = scheme.isin ? mfStatsUser[scheme.isin] : null;
+
+//             // Use same AMC logic as fundWiseData - FIXED
+//             const amcName =
+//               extendedData?.amc?.trim() ||
+//               scheme.amc?.trim() ||
+//               folio.amc?.trim() ||
+//               "Unknown AMC";
+
+//             // Create a unique key combining folio and scheme
+//             const uniqueKey = `${folio.folio}|${scheme.scheme}`;
+
+//             const folioInfo = {
+//               folioNumber: folio.folio,
+//               uniqueKey: uniqueKey,
+//               amc: amcName, // Use the correctly resolved AMC name
+//               fundName: fundDisplayName,
+//               value: schemeValue,
+//               isHidden: hiddenFolios.includes(uniqueKey),
+//             };
+
+//             if (schemeValue > 0) {
+//               if (!activeFoliosByAMC[amcName]) activeFoliosByAMC[amcName] = []; // Use amcName here
+//               activeFoliosByAMC[amcName].push(folioInfo);
+//             } else {
+//               if (!pastFoliosByAMC[amcName]) pastFoliosByAMC[amcName] = []; // Use amcName here
+//               pastFoliosByAMC[amcName].push(folioInfo);
+//             }
+//           });
+//         }
+//       }
+//     });
+
+//     // Sort AMCs by total value
+//     const sortedActiveAMCs = Object.keys(activeFoliosByAMC).sort((a, b) => {
+//       const totalA = activeFoliosByAMC[a].reduce((sum, f) => sum + f.value, 0);
+//       const totalB = activeFoliosByAMC[b].reduce((sum, f) => sum + f.value, 0);
+//       return totalB - totalA;
+//     });
+
+//     const sortedPastAMCs = Object.keys(pastFoliosByAMC).sort();
+
+//     // Sort folios within each AMC by value (descending)
+//     sortedActiveAMCs.forEach((amc) => {
+//       activeFoliosByAMC[amc].sort((a, b) => b.value - a.value);
+//     });
+
+//     let html = "";
+
+//     // Current Holdings
+//     if (sortedActiveAMCs.length > 0) {
+//       html += '<div class="folio-category">';
+//       html += '<h4><i class="fa-solid fa-briefcase"></i> Current Holdings</h4>';
+
+//       sortedActiveAMCs.forEach((amc) => {
+//         const folios = activeFoliosByAMC[amc];
+//         const totalValue = folios.reduce((sum, f) => sum + f.value, 0);
+
+//         html += `
+//       <div class="amc-group" data-category="current">
+//         <div class="amc-group-header">
+//           <div class="amc-header-left">
+//             <span class="amc-name">${standardizeTitle(amc)}</span>
+//             <span class="amc-total">₹${formatNumber(totalValue)}</span>
+//           </div>
+//           <div class="amc-bulk-toggle-switch active"
+//                data-amc="${amc.replace(/"/g, "&quot;")}"
+//                data-category="current"
+//                onclick="event.stopPropagation(); toggleAllFoliosInAMC('${userName}', '${amc.replace(
+//           /'/g,
+//           "\\'"
+//         )}', 'current')">
+//           </div>
+//         </div>
+//         <div class="amc-folios">
+//     `;
+
+//         folios.forEach((folio) => {
+//           const folioKey = folio.uniqueKey || folio.folioNumber;
+//           html += `
+//         <div class="folio-toggle-item ${folio.isHidden ? "will-hide" : ""}">
+//           <div class="folio-toggle-info">
+//             <div class="folio-toggle-name">${folio.fundName}</div>
+//             <div class="folio-toggle-meta">${
+//               folio.folioNumber
+//             } • ₹${formatNumber(folio.value)}</div>
+//           </div>
+//           <div class="folio-toggle-switch ${!folio.isHidden ? "active" : ""}"
+//                data-folio="${folioKey}"
+//                onclick="toggleFolioInPending('${userName}', '${folioKey}')">
+//           </div>
+//         </div>
+//       `;
+//         });
+
+//         html += `
+//         </div>
+//       </div>
+//     `;
+//       });
+
+//       html += "</div>";
+//     }
+
+//     // Past Holdings
+//     if (sortedPastAMCs.length > 0) {
+//       html += '<div class="folio-category">';
+//       html +=
+//         '<h4><i class="fa-solid fa-clock-rotate-left"></i> Past Holdings</h4>';
+
+//       sortedPastAMCs.forEach((amc) => {
+//         const folios = pastFoliosByAMC[amc];
+
+//         html += `
+//       <div class="amc-group" data-category="past">
+//         <div class="amc-group-header">
+//           <div class="amc-header-left">
+//             <span class="amc-name">${standardizeTitle(amc)}</span>
+//             <span class="amc-total">Fully Redeemed</span>
+//           </div>
+//           <div class="amc-bulk-toggle-switch active"
+//                data-amc="${amc.replace(/"/g, "&quot;")}"
+//                data-category="past"
+//                onclick="event.stopPropagation(); toggleAllFoliosInAMC('${userName}', '${amc.replace(
+//           /'/g,
+//           "\\'"
+//         )}', 'past')">
+//           </div>
+//         </div>
+//         <div class="amc-folios">
+//     `;
+
+//         folios.forEach((folio) => {
+//           const folioKey = folio.uniqueKey || folio.folioNumber;
+//           html += `
+//         <div class="folio-toggle-item ${folio.isHidden ? "will-hide" : ""}">
+//           <div class="folio-toggle-info">
+//             <div class="folio-toggle-name">${folio.fundName}</div>
+//             <div class="folio-toggle-meta">${folio.folioNumber}</div>
+//           </div>
+//           <div class="folio-toggle-switch ${!folio.isHidden ? "active" : ""}"
+//                data-folio="${folioKey}"
+//                onclick="toggleFolioInPending('${userName}', '${folioKey}')">
+//           </div>
+//         </div>
+//       `;
+//         });
+
+//         html += `
+//         </div>
+//       </div>
+//     `;
+//       });
+
+//       html += "</div>";
+//     }
+
+//     if (sortedActiveAMCs.length === 0 && sortedPastAMCs.length === 0) {
+//       html = `
+//         <div class="folio-management-empty">
+//           <i class="fa-solid fa-folder-open"></i>
+//           <p>No folios found for this user</p>
+//         </div>
+//       `;
+//     }
+
+//     setTimeout(() => {
+//       document
+//         .querySelectorAll(".amc-bulk-toggle-switch")
+//         .forEach((bulkToggle) => {
+//           const amcGroup = bulkToggle.closest(".amc-group");
+//           const folioSwitches = amcGroup.querySelectorAll(
+//             ".folio-toggle-switch"
+//           );
+
+//           let anyHidden = false;
+//           folioSwitches.forEach((toggle) => {
+//             if (!toggle.classList.contains("active")) {
+//               anyHidden = true;
+//             }
+//           });
+
+//           if (anyHidden) {
+//             bulkToggle.classList.remove("active");
+//           } else {
+//             bulkToggle.classList.add("active");
+//           }
+//         });
+//     }, 100);
+
+//     content.innerHTML = html;
+//   } catch (err) {
+//     console.error("Error loading folio data:", err);
+//     content.innerHTML = `
+//       <div class="folio-management-empty">
+//         <i class="fa-solid fa-triangle-exclamation"></i>
+//         <p style="color: var(--danger);">Error loading folio data</p>
+//       </div>
+//     `;
+//   }
+// }
+
 async function loadFolioManagementData(userName) {
   const content = document.getElementById("folioManagementContent");
 
@@ -11714,29 +11993,25 @@ async function loadFolioManagementData(userName) {
         const extendedData = folio.isin ? mfStatsUser[folio.isin] : null;
         const fundDisplayName = sanitizeSchemeName(folio.scheme);
 
-        // Use same AMC logic as fundWiseData - FIXED
         const amcName =
           extendedData?.amc?.trim() || folio.amc?.trim() || "Unknown AMC";
 
         const folioInfo = {
           folioNumber: folio.folio,
-          amc: amcName, // Use the correctly resolved AMC name
+          amc: amcName,
           fundName: fundDisplayName,
           value: totalValue,
           isHidden: hiddenFolios.includes(folio.folio),
         };
 
         if (totalValue > 0) {
-          if (!activeFoliosByAMC[amcName]) activeFoliosByAMC[amcName] = []; // Use amcName here
+          if (!activeFoliosByAMC[amcName]) activeFoliosByAMC[amcName] = [];
           activeFoliosByAMC[amcName].push(folioInfo);
         } else {
-          if (!pastFoliosByAMC[amcName]) pastFoliosByAMC[amcName] = []; // Use amcName here
+          if (!pastFoliosByAMC[amcName]) pastFoliosByAMC[amcName] = [];
           pastFoliosByAMC[amcName].push(folioInfo);
         }
-      }
-
-      // And replace the Detailed CAS section:
-      else {
+      } else {
         // Detailed CAS - handle multiple schemes per folio
         if (folio.schemes && Array.isArray(folio.schemes)) {
           folio.schemes.forEach((scheme) => {
@@ -11760,30 +12035,28 @@ async function loadFolioManagementData(userName) {
             const fundDisplayName = sanitizeSchemeName(scheme.scheme);
             const extendedData = scheme.isin ? mfStatsUser[scheme.isin] : null;
 
-            // Use same AMC logic as fundWiseData - FIXED
             const amcName =
               extendedData?.amc?.trim() ||
               scheme.amc?.trim() ||
               folio.amc?.trim() ||
               "Unknown AMC";
 
-            // Create a unique key combining folio and scheme
             const uniqueKey = `${folio.folio}|${scheme.scheme}`;
 
             const folioInfo = {
               folioNumber: folio.folio,
               uniqueKey: uniqueKey,
-              amc: amcName, // Use the correctly resolved AMC name
+              amc: amcName,
               fundName: fundDisplayName,
               value: schemeValue,
               isHidden: hiddenFolios.includes(uniqueKey),
             };
 
             if (schemeValue > 0) {
-              if (!activeFoliosByAMC[amcName]) activeFoliosByAMC[amcName] = []; // Use amcName here
+              if (!activeFoliosByAMC[amcName]) activeFoliosByAMC[amcName] = [];
               activeFoliosByAMC[amcName].push(folioInfo);
             } else {
-              if (!pastFoliosByAMC[amcName]) pastFoliosByAMC[amcName] = []; // Use amcName here
+              if (!pastFoliosByAMC[amcName]) pastFoliosByAMC[amcName] = [];
               pastFoliosByAMC[amcName].push(folioInfo);
             }
           });
@@ -11807,112 +12080,154 @@ async function loadFolioManagementData(userName) {
 
     let html = "";
 
-    // Current Holdings
+    // Current Holdings - COLLAPSIBLE
     if (sortedActiveAMCs.length > 0) {
-      html += '<div class="folio-category">';
-      html += '<h4><i class="fa-solid fa-briefcase"></i> Current Holdings</h4>';
+      const totalCurrentFolios = sortedActiveAMCs.reduce(
+        (sum, amc) => sum + activeFoliosByAMC[amc].length,
+        0
+      );
+      const totalCurrentValue = sortedActiveAMCs.reduce(
+        (sum, amc) =>
+          sum + activeFoliosByAMC[amc].reduce((s, f) => s + f.value, 0),
+        0
+      );
+
+      html += `
+      <div class="folio-category collapsible-section">
+        <div class="folio-category-header" onclick="toggleFolioSection('currentHoldings')">
+          <div class="folio-category-title">
+            <i class="fa-solid fa-briefcase"></i>
+            <h4>Current Holdings</h4>
+            <span class="folio-count-badge">${totalCurrentFolios} Holdings • ₹${formatNumber(
+        totalCurrentValue
+      )}</span>
+          </div>
+          <i class="fa-solid fa-chevron-down collapse-icon rotated" id="currentHoldingsIcon"></i>
+        </div>
+        <div class="folio-category-content" id="currentHoldingsContent">
+      `;
 
       sortedActiveAMCs.forEach((amc) => {
         const folios = activeFoliosByAMC[amc];
         const totalValue = folios.reduce((sum, f) => sum + f.value, 0);
 
         html += `
-      <div class="amc-group" data-category="current">
-        <div class="amc-group-header">
-          <div class="amc-header-left">
-            <span class="amc-name">${standardizeTitle(amc)}</span>
-            <span class="amc-total">₹${formatNumber(totalValue)}</span>
-          </div>
-          <div class="amc-bulk-toggle-switch active" 
-               data-amc="${amc.replace(/"/g, "&quot;")}"
-               data-category="current"
-               onclick="event.stopPropagation(); toggleAllFoliosInAMC('${userName}', '${amc.replace(
+        <div class="amc-group" data-category="current">
+          <div class="amc-group-header">
+            <div class="amc-header-left">
+              <span class="amc-name">${standardizeTitle(amc)}</span>
+              <span class="amc-total">₹${formatNumber(totalValue)}</span>
+            </div>
+            <div class="amc-bulk-toggle-switch active" 
+                 data-amc="${amc.replace(/"/g, "&quot;")}"
+                 data-category="current"
+                 onclick="event.stopPropagation(); toggleAllFoliosInAMC('${userName}', '${amc.replace(
           /'/g,
           "\\'"
         )}', 'current')">
+            </div>
           </div>
-        </div>
-        <div class="amc-folios">
-    `;
+          <div class="amc-folios">
+      `;
 
         folios.forEach((folio) => {
           const folioKey = folio.uniqueKey || folio.folioNumber;
           html += `
-        <div class="folio-toggle-item ${folio.isHidden ? "will-hide" : ""}">
-          <div class="folio-toggle-info">
-            <div class="folio-toggle-name">${folio.fundName}</div>
-            <div class="folio-toggle-meta">${
-              folio.folioNumber
-            } • ₹${formatNumber(folio.value)}</div>
+          <div class="folio-toggle-item ${folio.isHidden ? "will-hide" : ""}">
+            <div class="folio-toggle-info">
+              <div class="folio-toggle-name">${folio.fundName}</div>
+              <div class="folio-toggle-meta">${
+                folio.folioNumber
+              } • ₹${formatNumber(folio.value)}</div>
+            </div>
+            <div class="folio-toggle-switch ${!folio.isHidden ? "active" : ""}" 
+                 data-folio="${folioKey}"
+                 onclick="toggleFolioInPending('${userName}', '${folioKey}')">
+            </div>
           </div>
-          <div class="folio-toggle-switch ${!folio.isHidden ? "active" : ""}" 
-               data-folio="${folioKey}"
-               onclick="toggleFolioInPending('${userName}', '${folioKey}')">
-          </div>
-        </div>
-      `;
+        `;
         });
 
         html += `
+          </div>
         </div>
-      </div>
-    `;
+      `;
       });
 
-      html += "</div>";
+      html += `
+        </div>
+      </div>
+      `;
     }
 
-    // Past Holdings
+    // Past Holdings - COLLAPSIBLE (COLLAPSED BY DEFAULT)
     if (sortedPastAMCs.length > 0) {
-      html += '<div class="folio-category">';
-      html +=
-        '<h4><i class="fa-solid fa-clock-rotate-left"></i> Past Holdings</h4>';
+      const totalPastFolios = sortedPastAMCs.reduce(
+        (sum, amc) => sum + pastFoliosByAMC[amc].length,
+        0
+      );
+
+      html += `
+      <div class="folio-category collapsible-section">
+        <div class="folio-category-header" onclick="toggleFolioSection('pastHoldings')">
+          <div class="folio-category-title">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            <h4>Past Holdings</h4>
+            <span class="folio-count-badge">${totalPastFolios} Holdings • Fully Redeemed</span>
+          </div>
+          <i class="fa-solid fa-chevron-down collapse-icon" id="pastHoldingsIcon"></i>
+        </div>
+        <div class="folio-category-content collapsed" id="pastHoldingsContent">
+      `;
 
       sortedPastAMCs.forEach((amc) => {
         const folios = pastFoliosByAMC[amc];
 
         html += `
-      <div class="amc-group" data-category="past">
-        <div class="amc-group-header">
-          <div class="amc-header-left">
-            <span class="amc-name">${standardizeTitle(amc)}</span>
-            <span class="amc-total">Fully Redeemed</span>
-          </div>
-          <div class="amc-bulk-toggle-switch active" 
-               data-amc="${amc.replace(/"/g, "&quot;")}"
-               data-category="past"
-               onclick="event.stopPropagation(); toggleAllFoliosInAMC('${userName}', '${amc.replace(
+        <div class="amc-group" data-category="past">
+          <div class="amc-group-header">
+            <div class="amc-header-left">
+              <span class="amc-name">${standardizeTitle(amc)}</span>
+              <span class="amc-total">Fully Redeemed</span>
+            </div>
+            <div class="amc-bulk-toggle-switch active" 
+                 data-amc="${amc.replace(/"/g, "&quot;")}"
+                 data-category="past"
+                 onclick="event.stopPropagation(); toggleAllFoliosInAMC('${userName}', '${amc.replace(
           /'/g,
           "\\'"
         )}', 'past')">
+            </div>
           </div>
-        </div>
-        <div class="amc-folios">
-    `;
+          <div class="amc-folios">
+      `;
 
         folios.forEach((folio) => {
           const folioKey = folio.uniqueKey || folio.folioNumber;
           html += `
-        <div class="folio-toggle-item ${folio.isHidden ? "will-hide" : ""}">
-          <div class="folio-toggle-info">
-            <div class="folio-toggle-name">${folio.fundName}</div>
-            <div class="folio-toggle-meta">${folio.folioNumber}</div>
+          <div class="folio-toggle-item ${folio.isHidden ? "will-hide" : ""}">
+            <div class="folio-toggle-info">
+              <div class="folio-toggle-name">${folio.fundName}</div>
+              <div class="folio-toggle-meta">${folio.folioNumber}</div>
+            </div>
+            <div class="folio-toggle-switch ${!folio.isHidden ? "active" : ""}" 
+                 data-folio="${folioKey}"
+                 onclick="toggleFolioInPending('${userName}', '${folioKey}')">
+            </div>
           </div>
-          <div class="folio-toggle-switch ${!folio.isHidden ? "active" : ""}" 
-               data-folio="${folioKey}"
-               onclick="toggleFolioInPending('${userName}', '${folioKey}')">
-          </div>
-        </div>
-      `;
+        `;
         });
 
         html += `
+          </div>
         </div>
-      </div>
-    `;
+      `;
       });
 
-      html += "</div>";
+      html += `
+        </div>
+      </div>
+      `;
     }
 
     if (sortedActiveAMCs.length === 0 && sortedPastAMCs.length === 0) {
@@ -11958,6 +12273,16 @@ async function loadFolioManagementData(userName) {
       </div>
     `;
   }
+}
+
+function toggleFolioSection(sectionId) {
+  const content = document.getElementById(`${sectionId}Content`);
+  const icon = document.getElementById(`${sectionId}Icon`);
+
+  if (!content || !icon) return;
+
+  content.classList.toggle("collapsed");
+  icon.classList.toggle("rotated");
 }
 
 function calculateMonthlySummary() {
