@@ -3677,8 +3677,6 @@ button.theme-toggle i {
 }
 
 .folio-category-content {
-  max-height: 2000px;
-  overflow: hidden;
   transition: max-height 0.4s ease, opacity 0.3s ease, padding 0.3s ease;
   opacity: 1;
   padding: 16px;
