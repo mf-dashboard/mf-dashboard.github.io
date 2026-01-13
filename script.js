@@ -149,18 +149,18 @@ function calculatePortfolioAnalytics() {
   });
 
   // Add additional assets to total
-  const totalAdditionalAssets =
+  const totalAdditional =
     additionalGoldValue + additionalSilverValue + additionalCashValue;
-  const totalWithAdditional = result.totalValue + totalAdditionalAssets;
+  const totalWithAdditional = result.totalValue + totalAdditional;
 
   if (totalWithAdditional === 0) return result;
 
-  // Process MF funds
+  // Process MF funds with totalWithAdditional as base
   Object.values(fundWiseData).forEach((fund) => {
     const value = parseFloat(fund.advancedMetrics.currentValue || 0);
     if (!(value > 0)) return;
 
-    const weight = value / totalWithAdditional;
+    const weight = value / totalWithAdditional; // CHANGED: Use totalWithAdditional instead of result.totalValue
     const extended = fund.isin ? mfStats[fund.isin] : null;
 
     const fundAsset = extended?.portfolio_stats?.asset_allocation;
@@ -447,6 +447,7 @@ function calculatePortfolioAnalytics() {
   result.assetAllocation.cash = result.assetAllocation.cash || 0;
   result.assetAllocation.other = result.assetAllocation.other || 0;
 
+  // Rest of the function remains the same...
   const mcSum =
     result.marketCap.large + result.marketCap.mid + result.marketCap.small;
   if (mcSum > 0) {
@@ -763,9 +764,11 @@ function displayAssetAllocation(assetAllocation) {
     "cash",
     "other",
   ];
-  const labels = [],
-    data = [];
 
+  const labels = [];
+  const data = [];
+
+  // Preferred order first
   preferred.forEach((k) => {
     const val = parseFloat(assetAllocation[k]);
     if (!isNaN(val) && val > 0) {
@@ -774,6 +777,7 @@ function displayAssetAllocation(assetAllocation) {
     }
   });
 
+  // Any extra asset types (excluding _breakdown)
   Object.keys(assetAllocation).forEach((k) => {
     if (!preferred.includes(k) && k !== "_breakdown") {
       const val = parseFloat(assetAllocation[k]);
@@ -794,22 +798,26 @@ function displayAssetAllocation(assetAllocation) {
     if (!chartCanvas) return;
 
     const additionalAssets = getAdditionalAssets();
-    const hasAdditionalAssets =
-      additionalAssets &&
-      (additionalAssets.gold.quantity * additionalAssets.gold.rate > 0 ||
-        additionalAssets.silver.quantity * additionalAssets.silver.rate > 0 ||
-        additionalAssets.cash > 0);
 
-    // Calculate total value for tooltip
-    const totalValue = Object.values(fundWiseData).reduce(
+    // Total value from funds
+    let totalValue = Object.values(fundWiseData).reduce(
       (sum, fund) => sum + (fund.advancedMetrics?.currentValue || 0),
       0
     );
+
+    // Add manual assets (gold, silver, cash)
+    if (additionalAssets) {
+      totalValue +=
+        additionalAssets.gold.quantity * additionalAssets.gold.rate +
+        additionalAssets.silver.quantity * additionalAssets.silver.rate +
+        additionalAssets.cash;
+    }
 
     const barHTML = sortedLabels
       .map((label, i) => {
         const color = themeColors[i % themeColors.length];
         const rupeeValue = (totalValue * sortedData[i]) / 100;
+
         return `
           <div class="composition-segment"
                style="width: ${sortedData[i]}%; background-color: ${color};"
@@ -823,12 +831,11 @@ function displayAssetAllocation(assetAllocation) {
     const legendHTML = sortedLabels
       .map((label, i) => {
         const color = themeColors[i % themeColors.length];
-        let displayText = `${label} ${sortedData[i].toFixed(1)}%`;
 
         return `
           <span class="legend-item">
             <span class="legend-color" style="background-color: ${color};"></span>
-            ${displayText}
+            ${label} ${sortedData[i].toFixed(1)}%
           </span>`;
       })
       .join("");
@@ -839,10 +846,6 @@ function displayAssetAllocation(assetAllocation) {
         <div class="composition-legend">${legendHTML}</div>
       </div>
     `;
-
-    setTimeout(() => {
-      container.classList.remove("loading");
-    }, 150);
   }, 50);
 }
 
@@ -10295,6 +10298,7 @@ function displayFamilyAssetAllocation(metrics) {
   const assetLabels = [];
   const assetData = [];
 
+  // Preferred order first
   preferred.forEach((k) => {
     const val = parseFloat(metrics.assetAllocation?.[k]);
     if (!isNaN(val) && val > 0) {
@@ -10303,6 +10307,7 @@ function displayFamilyAssetAllocation(metrics) {
     }
   });
 
+  // Any extra asset types (excluding _breakdown)
   Object.keys(metrics.assetAllocation || {}).forEach((k) => {
     if (!preferred.includes(k) && k !== "_breakdown") {
       const val = parseFloat(metrics.assetAllocation[k]);
@@ -10327,62 +10332,43 @@ function displayFamilyAssetAllocation(metrics) {
 
   const [sortedLabels, sortedData] = sortData(assetLabels, assetData);
 
+  // Calculate total value INCLUDING additional assets
   const users = storageManager.getAllUsers();
-  let hasAnyAdditionalAssets = false;
+  let totalValue = metrics.totalCurrentValue || 0;
+
   users.forEach((user) => {
     const assets = getAdditionalAssets(user);
-    if (
-      assets &&
-      (assets.gold.quantity * assets.gold.rate > 0 ||
-        assets.silver.quantity * assets.silver.rate > 0 ||
-        assets.cash > 0)
-    ) {
-      hasAnyAdditionalAssets = true;
+    if (assets) {
+      totalValue +=
+        assets.gold.quantity * assets.gold.rate +
+        assets.silver.quantity * assets.silver.rate +
+        assets.cash;
     }
   });
-
-  const assetBreakdown = hasAnyAdditionalAssets
-    ? metrics.assetAllocation._breakdown || {}
-    : {};
-
-  // Calculate total value for tooltip
-  const totalValue = metrics.totalCurrentValue;
 
   const barHTML = sortedLabels
     .map((label, i) => {
       const color = themeColors[i % themeColors.length];
       const rupeeValue = (totalValue * sortedData[i]) / 100;
+
       return `
-      <div class="composition-segment"
-           style="width: ${sortedData[i]}%; background-color: ${color};"
-           title="${label}: ₹${formatNumber(
+        <div class="composition-segment"
+             style="width: ${sortedData[i]}%; background-color: ${color};"
+             title="${label}: ₹${formatNumber(
         Math.round(rupeeValue)
       )} (${sortedData[i].toFixed(1)}%)">
-      </div>`;
+        </div>`;
     })
     .join("");
 
   const legendHTML = sortedLabels
     .map((label, i) => {
       const color = themeColors[i % themeColors.length];
-      const labelKey = label.toLowerCase();
-
-      const breakdown = assetBreakdown[labelKey];
-      let displayText = `${label}: ${sortedData[i].toFixed(1)}%`;
-
-      if (breakdown && hasAnyAdditionalAssets) {
-        const mfPercent = breakdown.mf || 0;
-        const physicalPercent = breakdown.physical || 0;
-        displayText = `${label}: ${sortedData[i].toFixed(
-          1
-        )}% (${mfPercent.toFixed(1)}% + ${physicalPercent.toFixed(1)}%)`;
-      }
-
       return `
-      <span class="legend-item">
-        <span class="legend-color" style="background-color: ${color};"></span>
-        ${displayText}
-      </span>`;
+        <span class="legend-item">
+          <span class="legend-color" style="background-color: ${color};"></span>
+          ${label} ${sortedData[i].toFixed(1)}%
+        </span>`;
     })
     .join("");
 
