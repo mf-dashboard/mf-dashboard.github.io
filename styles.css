@@ -3708,6 +3708,212 @@ button.theme-toggle i {
   margin-bottom: 0;
 }
 
+/* Tax Planning Styles */
+.tax-planning-container {
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  padding: 25px;
+  border-radius: 16px;
+  margin-bottom: 25px;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.tax-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.tax-summary-card {
+  background: var(--bg-gradiant);
+  padding: 20px;
+  border-radius: 12px;
+  border: 2px solid var(--primary-gradient-start);
+  text-align: center;
+}
+
+.tax-summary-card h4 {
+  margin: 0 0 10px 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tax-summary-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 5px;
+}
+
+.tax-summary-subtext {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.holdings-split-section {
+  background: var(--bg-white);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.holdings-split-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  padding: 16px;
+  background: var(--bg-gradiant);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+}
+
+.holdings-split-header:hover {
+  background: rgba(102, 126, 234, 0.15);
+}
+
+.holdings-split-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.holdings-split-title h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.holdings-split-summary {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.holdings-split-stat {
+  text-align: right;
+}
+
+.holdings-split-stat .label {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  display: block;
+}
+
+.holdings-split-stat .value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.collapse-icon {
+  font-size: 16px;
+  color: var(--text-secondary);
+  transition: transform 0.3s ease;
+}
+
+.collapse-icon.rotated {
+  transform: rotate(-180deg);
+}
+
+.holdings-split-content {
+  transition: max-height 0.4s ease, opacity 0.3s ease, padding 0.3s ease;
+  opacity: 1;
+  overflow: hidden;
+}
+
+.holdings-split-content.collapsed {
+  max-height: 0 !important;
+  opacity: 0;
+  padding: 0;
+}
+
+.tax-holding-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--bg-offwhite);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border-light);
+  transition: all 0.2s ease;
+}
+
+.tax-holding-item:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--primary-gradient-start);
+}
+
+.tax-holding-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.tax-holding-meta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.tax-holding-values {
+  text-align: right;
+}
+
+.tax-holding-value {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.tax-holding-percentage {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.tax-note {
+  background: var(--bg-gradiant);
+  padding: 20px;
+  border-radius: 12px;
+  border-left: 4px solid #667eea;
+  display: flex;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.tax-note i {
+  font-size: 24px;
+  color: #667eea;
+  flex-shrink: 0;
+}
+
+.tax-note strong {
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 8px;
+}
+
+.tax-note ul {
+  margin: 8px 0 0 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.tax-note li {
+  margin-bottom: 4px;
+}
+
 @media (max-width: 1024px) {
   .mobile-header {
     display: flex;
@@ -4018,6 +4224,25 @@ button.theme-toggle i {
 
   .folio-category-content.collapsed {
     padding: 0 12px;
+  }
+
+  .tax-planning-container {
+    padding: 15px;
+  }
+
+  .holdings-split-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .holdings-split-summary {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .tax-summary-value {
+    font-size: 24px;
   }
 }
 
