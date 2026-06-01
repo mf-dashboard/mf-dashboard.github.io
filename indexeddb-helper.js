@@ -255,7 +255,7 @@ class StorageManager {
     casData,
     mfStats,
     isNewUpload = false,
-    userName = null
+    userName = null,
   ) {
     const user = userName || currentUser;
     if (!user) {
@@ -377,7 +377,7 @@ class StorageManager {
       now.getMonth() !== lastUpdate.getMonth() ||
       now.getFullYear() !== lastUpdate.getFullYear()
     ) {
-      return now.getDate() >= 10;
+      return now.getDate() >= 15;
     }
 
     return false;

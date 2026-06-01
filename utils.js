@@ -77,7 +77,7 @@ function sanitizeSchemeName(schemeName) {
   const secondPart = parts[1].trim();
 
   let cleaned = fixCapitalization(
-    /fund/i.test(secondPart) ? `${firstPart} - ${secondPart}` : firstPart
+    /fund/i.test(secondPart) ? `${firstPart} - ${secondPart}` : firstPart,
   );
   return cleaned;
 }
@@ -88,7 +88,7 @@ function fixCapitalization(text) {
   const words = text.split(" ");
 
   const allUpperCase = words.every(
-    (word) => word === word.toUpperCase() && word.length > 0
+    (word) => word === word.toUpperCase() && word.length > 0,
   );
 
   const uppercaseWords = [
@@ -339,13 +339,13 @@ function buildDoughnutChart(canvasId, labels, data) {
                 totalValue = Object.values(window.fundWiseData || {}).reduce(
                   (sum, fund) =>
                     sum + (fund.advancedMetrics?.currentValue || 0),
-                  0
+                  0,
                 );
               }
 
               const rupeeValue = (totalValue * val) / 100;
               return `₹${formatNumber(Math.round(rupeeValue))} (${val.toFixed(
-                2
+                2,
               )}%)`;
             },
           },
@@ -364,7 +364,7 @@ function buildDoughnutChart(canvasId, labels, data) {
   });
 }
 
-function buildBarChart(canvasId, labels, data) {
+function buildBarChart(canvasId, labels, data, totalValue = null) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) {
     console.warn(`Canvas element '${canvasId}' not found`);
@@ -416,20 +416,22 @@ function buildBarChart(canvasId, labels, data) {
               const percent = ctx.parsed.x;
               const isFamilyChart = ctx.chart.canvas.id.startsWith("family");
 
-              let totalValue;
-              if (isFamilyChart && window.familyDashboardCache) {
-                totalValue = window.familyDashboardCache.totalCurrentValue;
+              let resolvedTotal;
+              if (totalValue != null) {
+                resolvedTotal = totalValue;
+              } else if (isFamilyChart && window.familyDashboardCache) {
+                resolvedTotal = window.familyDashboardCache.totalCurrentValue;
               } else {
-                totalValue = Object.values(window.fundWiseData || {}).reduce(
+                resolvedTotal = Object.values(window.fundWiseData || {}).reduce(
                   (sum, fund) =>
                     sum + (fund.advancedMetrics?.currentValue || 0),
-                  0
+                  0,
                 );
               }
 
-              const rupeeValue = (totalValue * percent) / 100;
+              const rupeeValue = (resolvedTotal * percent) / 100;
               return `₹${formatNumber(
-                Math.round(rupeeValue)
+                Math.round(rupeeValue),
               )} (${percent.toFixed(2)}%)`;
             },
           },
@@ -478,7 +480,7 @@ function adjustXAxisLabels(chart) {
     chart.options.scales.x.ticks.font?.family || "sans-serif"
   }`;
   const labelWidth = Math.max(
-    ...ticks.map((t) => ctx.measureText(t.label).width)
+    ...ticks.map((t) => ctx.measureText(t.label).width),
   );
 
   const tickDistance = xAxis.width / (ticks.length - 1) || 1;
@@ -780,7 +782,7 @@ function initializeModalSwipe(modalElement) {
         modalContent.style.transition = "none";
       }
     },
-    { passive: true }
+    { passive: true },
   );
 
   modalContent.addEventListener(
@@ -795,7 +797,7 @@ function initializeModalSwipe(modalElement) {
         modalContent.style.transform = `translateY(${deltaY}px)`;
       }
     },
-    { passive: true }
+    { passive: true },
   );
 
   modalContent.addEventListener("touchend", () => {
@@ -823,7 +825,7 @@ function closeActiveModal() {
   const fundTxModal = document.getElementById("fundTransactionModal");
   const fundHoldingsModal = document.getElementById("fundHoldingsModal");
   const portfolioHoldingsModal = document.getElementById(
-    "portfolioHoldingsModal"
+    "portfolioHoldingsModal",
   );
   const fundDetailsModal = document.getElementById("fundDetailsModal");
 
@@ -854,7 +856,7 @@ function normalizeBenchmarkName(name) {
   const filtered = parts.filter((p) => !/^TRI$/i.test(p));
 
   filtered.sort((a, b) =>
-    a.localeCompare(b, undefined, { sensitivity: "base" })
+    a.localeCompare(b, undefined, { sensitivity: "base" }),
   );
 
   if (hasTRI) filtered.push("TRI");
@@ -963,7 +965,7 @@ function calculateProjections(
   monthlyInflow,
   cagr = 12,
   stepup = 0,
-  years = [5, 10, 15, 20]
+  years = [5, 10, 15, 20],
 ) {
   const monthlyRate = cagr / 100 / 12;
   const annualStepup = stepup / 100;

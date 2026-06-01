@@ -62,7 +62,6 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 - The application automatically keeps your portfolio data fresh:
 
 - **Daily NAV Updates ⏰**:
-
   - **Automatic**: Every day when you load the app, the latest NAV is fetched automatically
   - **Manual**: Trigger updates from the Upload CAS tab
   - **Restriction**: Once per day to avoid unnecessary API calls (allows one manual update)
@@ -70,15 +69,13 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
   - **Silent Operation**: Updates happen seamlessly in the background
 
 - **Monthly Fund Statistics Updates 📅**
-
-  - **Automatic**: After the 10th of every month, complete fund statistics are updated
+  - **Automatic**: After the 15th of every month, complete fund statistics are updated
   - **Comprehensive Data**: Portfolio composition, returns, ratings, holdings, expense ratios
   - **Manual Trigger**: Available from Upload CAS tab
-  - **Restriction**: Once per month (after 10th & allows one manual update)
+  - **Restriction**: Once per month (after 15th & allows one manual update)
   - **Background Process**: Non-blocking updates for smooth user experience
 
 - **Smart Update Tracking**: The dashboard footer displays:
-
   - **Last CAS Parsed**: When you last uploaded a CAS file
   - **Stats Updated**: When fund statistics were last updated
   - **NAV Updated**: When NAV values were last refreshed
@@ -86,14 +83,12 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 ### 🔍 Advanced Analysis Tools
 
 - **Overlap Analysis**: Identify duplicate holdings across funds
-
   - Pairwise fund overlap calculation
   - Common stocks across multiple funds
   - Overlap percentage visualization
   - Helps eliminate redundancy in portfolio
 
 - **Expense Impact Analysis**: Understand the cost of fund management
-
   - Weighted expense ratio calculation
   - Annual and lifetime cost projections
   - Fund-wise expense breakdown
@@ -287,19 +282,16 @@ The backend uses:
 ### Step-by-Step Guide
 
 1. **Visit CAMS Portal**
-
    - Go to [CAMS Online](https://www.camsonline.com/Investors/Statements/Consolidated-Account-Statement)
    - Or use the **myCAMS mobile app**
 
 2. **Request CAS**
-
    - Select **"Detailed Statement"** option
    - Choose either **"With Zero Balance"** or **"Without Zero Balance"**
    - Provide your **email address**
    - Set a **password** for the CAS file
 
 3. **Receive CAS**
-
    - You'll receive the password-protected PDF via email within minutes
    - Download the CAS file to your device
 
@@ -419,7 +411,7 @@ Management options:
 
 - **Upload New CAS**: Fresh portfolio upload
 - **Update NAV**: Daily NAV refresh (once per day)
-- **Update Fund Statistics**: Monthly full update (after 10th)
+- **Update Fund Statistics**: Monthly full update (after 15th)
 - **Clear Cache**: Remove all stored data
 - **Instructions**: Detailed guide for getting CAS
 
@@ -824,7 +816,7 @@ Calculated for:
 **Stats Updates**:
 
 - Maximum once per month
-- Only after 10th of month
+- Only after 15th of month
 - Aligns with fund house reporting
 
 ## 🐛 Troubleshooting
