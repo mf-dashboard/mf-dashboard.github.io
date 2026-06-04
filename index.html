@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
-    <link rel="stylesheet" href="styles.css?v=20260601" />
+    <link rel="stylesheet" href="styles.css?v=20260602" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -33,7 +33,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260601" />
+    <link rel="manifest" href="/manifest.json?v=20260602" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -327,144 +327,285 @@
           </div>
         </div>
         <section id="cas-upload-tab">
-          <div class="upload-tab-content">
-            <div class="upload-card">
-              <div class="upload-icon">📄</div>
-              <h3>Upload New CAS</h3>
-              <p
-                id="currentUserDisplay"
-                class="hidden"
-                style="font-weight: 600; color: #667eea; margin-bottom: 10px"
-              ></p>
-              <p>Upload a fresh CAS to add/update an user and view dashboard</p>
-              <div class="file-input-container">
-                <input
-                  type="file"
-                  id="fileInputTab"
-                  placeholder="Select CAS"
-                  accept=".json,application/json,.pdf,application/pdf"
-                />
-                <input
-                  type="password"
-                  id="filePasswordTab"
-                  placeholder="Enter CAS password"
-                />
-                <button type="button" class="load" onclick="loadFileFromTab()">
-                  Load Portfolio
-                </button>
+          <div class="cas-panels-row">
+            <!-- ── Left panel: all actions as rows ── -->
+            <div class="cas-panel">
+              <!-- Panel header -->
+              <div class="cas-panel-header">
+                <i class="fa-solid fa-upload cas-panel-header-icon"></i>
+                <span class="cas-panel-header-title">Manage CAS</span>
               </div>
-            </div>
-            <div class="upload-card user-management-card">
-              <div class="upload-icon"><i class="fa-solid fa-users"></i></div>
-              <h3>Manage Users</h3>
-              <p>View and manage all user portfolios</p>
-              <div class="user-list-container" id="userListContainer"></div>
-              <button
-                type="button"
-                class="danger-btn"
-                onclick="deleteAllUsers()"
-                style="width: 100%; margin-top: 10px"
-              >
-                <i class="fa-solid fa-trash"></i>
-                Delete All Users
-              </button>
-            </div>
-            <div class="upload-card update-nav">
-              <div class="upload-icon">🔄</div>
-              <h3>Update NAV</h3>
-              <p>Fetch latest NAV (Net Asset Value) for all your funds</p>
-              <p class="update-info">
-                <small
-                  >Updates daily. Last updated:
-                  <span id="lastNavUpdateDate">--</span></small
-                >
-              </p>
-              <button
-                type="button"
-                class="primary-btn"
-                onclick="updateNavManually()"
-                style="width: 100%"
-              >
-                Update NAV
-              </button>
-            </div>
 
-            <div class="upload-card update-stats">
-              <div class="upload-icon">📊</div>
-              <h3>Update Fund Statistics</h3>
-              <p>
-                Fetch latest portfolio composition, returns, and ratings
-                (updates monthly after 15th)
-              </p>
-              <p class="update-info">
-                <small
-                  >Updates monthly. Last updated:
-                  <span id="lastStatsUpdateDate">--</span></small
-                >
-              </p>
-              <button
-                type="button"
-                class="primary-btn"
-                onclick="updateMFStats()"
-                style="width: 100%"
-              >
-                Update Stats
-              </button>
-            </div>
-            <div class="upload-card instructions-card">
-              <div class="upload-icon">📋</div>
-              <h3>How to Get Your CAS File</h3>
-              <div class="instructions-list">
-                <ol>
-                  <li>
-                    Visit
-                    <a
-                      href="https://www.camsonline.com/Investors/Statements/Consolidated-Account-Statement"
-                      target="_blank"
-                      rel="noopener"
-                      >CAMS Online</a
+              <!-- Upload CAS row -->
+              <div class="cas-panel-row">
+                <div class="cas-row-meta">
+                  <span class="cas-row-icon">📄</span>
+                  <div>
+                    <div class="cas-row-title">Upload New CAS</div>
+                    <div class="cas-row-sub">
+                      Add or update a user portfolio
+                    </div>
+                    <p
+                      id="currentUserDisplay"
+                      class="hidden"
+                      style="
+                        font-weight: 600;
+                        color: #667eea;
+                        margin: 4px 0 0;
+                        font-size: 12px;
+                      "
+                    ></p>
+                  </div>
+                </div>
+                <div class="cas-row-action">
+                  <div class="file-input-container cas-file-inputs">
+                    <input
+                      type="file"
+                      id="fileInputTab"
+                      placeholder="Select CAS"
+                      accept=".json,application/json,.pdf,application/pdf"
+                    />
+                    <input
+                      type="password"
+                      id="filePasswordTab"
+                      placeholder="Enter CAS password"
+                    />
+                    <button
+                      type="button"
+                      class="load"
+                      onclick="loadFileFromTab()"
                     >
-                    or use myCAMS mobile app
-                  </li>
-                  <li>Select <strong>"Detailed Statement"</strong> option</li>
-                  <li>
-                    Choose either <strong>"With Zero Balance"</strong> or
-                    <strong>"Without Zero Balance"</strong> (both work)
-                  </li>
-                  <li>
-                    Provide your <strong>email address</strong> and set a
-                    <strong>password</strong> for the CAS file
-                  </li>
-                  <li>
-                    You'll receive the CAS PDF via email within a few minutes
-                  </li>
-                  <li>
-                    Upload the PDF here and enter the same password you set
-                    during generation
-                  </li>
-                </ol>
+                      Load Portfolio
+                    </button>
+                  </div>
+                </div>
               </div>
-              <p class="instructions-note">
-                Currently supports CAMS CAS files.
-              </p>
+
+              <!-- Manage Users row -->
+              <div class="cas-panel-row">
+                <div class="cas-row-meta">
+                  <span class="cas-row-icon"
+                    ><i class="fa-solid fa-users"></i
+                  ></span>
+                  <div>
+                    <div class="cas-row-title">Manage Users</div>
+                    <div class="cas-row-sub">
+                      View and manage all user portfolios
+                    </div>
+                  </div>
+                </div>
+                <div class="cas-row-action">
+                  <div class="user-list-container" id="userListContainer"></div>
+                  <button
+                    type="button"
+                    class="danger-btn cas-row-btn"
+                    onclick="deleteAllUsers()"
+                  >
+                    <i class="fa-solid fa-trash"></i> Delete All Users
+                  </button>
+                </div>
+              </div>
+
+              <!-- Update NAV row -->
+              <div class="cas-panel-row">
+                <div class="cas-row-meta">
+                  <span class="cas-row-icon">🔄</span>
+                  <div>
+                    <div class="cas-row-title">Update NAV</div>
+                    <div class="cas-row-sub">
+                      Fetch latest Net Asset Values for all funds
+                    </div>
+                    <div class="cas-row-info">
+                      Updates daily · Last:
+                      <span id="lastNavUpdateDate">--</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="cas-row-action">
+                  <button
+                    type="button"
+                    class="primary-btn cas-row-btn"
+                    onclick="updateNavManually()"
+                  >
+                    Update NAV
+                  </button>
+                </div>
+              </div>
+
+              <!-- Update Stats row -->
+              <div class="cas-panel-row cas-panel-row--last">
+                <div class="cas-row-meta">
+                  <span class="cas-row-icon">📊</span>
+                  <div>
+                    <div class="cas-row-title">Update Fund Statistics</div>
+                    <div class="cas-row-sub">
+                      Fetch composition, returns &amp; ratings
+                    </div>
+                    <div class="cas-row-info">
+                      Updates monthly after 15th · Last:
+                      <span id="lastStatsUpdateDate">--</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="cas-row-action">
+                  <button
+                    type="button"
+                    class="primary-btn cas-row-btn"
+                    onclick="updateMFStats()"
+                  >
+                    Update Stats
+                  </button>
+                </div>
+              </div>
+
+              <!-- Debug: Inject Parsed CAS JSON row (only in DEBUG_MODE) -->
+              <div
+                class="cas-panel-row debug-cas-inject-row hidden"
+                id="debugCASInjectRow"
+              >
+                <div class="cas-row-meta">
+                  <span class="cas-row-icon">🐛</span>
+                  <div>
+                    <div class="cas-row-title">
+                      Inject Parsed CAS
+                      <span class="debug-badge">DEBUG</span>
+                    </div>
+                    <div class="cas-row-sub">
+                      Paste parsed CAS JSON directly to populate portfolio. MF
+                      stats will be fetched if not present.
+                    </div>
+                  </div>
+                </div>
+                <div class="cas-row-action">
+                  <div class="debug-cas-upload-row">
+                    <label class="debug-cas-file-label" for="debugCASFileInput">
+                      <i class="fa-solid fa-file-arrow-up"></i>
+                      <span id="debugCASFileName">Upload JSON file…</span>
+                    </label>
+                    <input
+                      type="file"
+                      id="debugCASFileInput"
+                      accept=".json,application/json"
+                      style="display: none"
+                      onchange="debugCASFileSelected(this)"
+                    />
+                  </div>
+                  <textarea
+                    id="debugCASJsonInput"
+                    class="debug-cas-textarea"
+                    placeholder='…or paste parsed CAS JSON here {"investor_info": {…}, "folios": […]}'
+                    rows="6"
+                    spellcheck="false"
+                  ></textarea>
+                  <div class="debug-cas-actions">
+                    <button
+                      type="button"
+                      class="primary-btn cas-row-btn"
+                      onclick="loadParsedCASJson()"
+                    >
+                      <i class="fa-solid fa-code"></i> Load CAS JSON
+                    </button>
+                    <button
+                      type="button"
+                      class="secondary-btn cas-row-btn"
+                      onclick="debugCASClear()"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
+            <!-- /.cas-panel -->
+
+            <!-- ── Right panel: How to get CAS ── -->
+            <div class="cas-panel cas-panel--instructions">
+              <!-- Desktop: shown as panel header -->
+              <div class="cas-panel-header">
+                <span class="cas-panel-header-icon">📋</span>
+                <span class="cas-panel-header-title"
+                  >How to Get Your CAS File</span
+                >
+              </div>
+
+              <!-- Works as single row on desktop, plain content on mobile -->
+              <div
+                class="cas-panel-row cas-panel-row--last cas-instructions-row"
+              >
+                <div class="cas-row-meta cas-instructions-meta">
+                  <!-- Mobile: title shown here; hidden on desktop via CSS -->
+                  <span class="cas-row-icon">📋</span>
+                  <div class="cas-row-title">How to Get Your CAS File</div>
+                </div>
+                <div class="cas-row-action cas-instructions-action">
+                  <div class="cas-instructions-body">
+                    <ol class="cas-steps">
+                      <li>
+                        Visit
+                        <a
+                          href="https://www.camsonline.com/Investors/Statements/Consolidated-Account-Statement"
+                          target="_blank"
+                          rel="noopener"
+                          >CAMS Online</a
+                        >
+                        or use the myCAMS mobile app
+                      </li>
+                      <li>Select <strong>"Detailed Statement"</strong></li>
+                      <li>
+                        Choose <strong>"With Zero Balance"</strong> or
+                        <strong>"Without Zero Balance"</strong>
+                      </li>
+                      <li>
+                        Enter your <strong>email address</strong> and set a
+                        <strong>password</strong>
+                      </li>
+                      <li>
+                        You'll receive the CAS PDF via email within minutes
+                      </li>
+                      <li>Upload it here and enter the same password</li>
+                    </ol>
+                    <p class="cas-note">Currently supports CAMS CAS files.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- /.cas-panel -->
           </div>
+          <!-- /.cas-panels-row -->
         </section>
         <section id="additional-assets">
           <div class="additional-assets-container">
-            <div class="section-header">
-              <h3>💰 Additional Assets</h3>
-              <p class="section-subtitle">
-                Manually track your non-MF investments
-              </p>
+            <!-- Header bar — same as folio-card-header -->
+            <div class="aa-header">
+              <span class="aa-header-icon">💰</span>
+              <span class="aa-header-title">Additional Assets</span>
+              <span class="aa-header-sub"
+                >Manually track non-MF investments</span
+              >
             </div>
 
-            <div class="assets-grid">
-              <!-- Gold Card -->
-              <div class="asset-card">
-                <div class="asset-header">
+            <!-- Summary row — cells like .summary-cards / .card -->
+            <div class="aa-summary-row">
+              <div class="aa-summary-cell">
+                <span class="aa-cell-label">Total Additional</span>
+                <span class="aa-cell-value" id="totalAdditionalAssets">₹0</span>
+              </div>
+              <div class="aa-summary-cell">
+                <span class="aa-cell-label">Combined Portfolio</span>
+                <span class="aa-cell-value" id="combinedPortfolioValue"
+                  >₹0</span
+                >
+                <span class="aa-cell-sub">MF + Additional</span>
+              </div>
+            </div>
+
+            <!-- Asset input rows — one per asset, divided by 1px lines -->
+            <div class="aa-assets-body">
+              <!-- Gold row -->
+              <div class="aa-asset-row">
+                <div class="aa-asset-identity">
                   <div
-                    class="asset-icon"
+                    class="aa-asset-icon"
                     style="
                       background: linear-gradient(
                         135deg,
@@ -475,39 +616,41 @@
                   >
                     <i class="fa-solid fa-coins"></i>
                   </div>
-                  <h4>Gold</h4>
+                  <span class="aa-asset-name">Gold</span>
                 </div>
-                <div class="asset-input-group">
-                  <label>Quantity</label>
-                  <input
-                    type="number"
-                    id="goldQuantity"
-                    placeholder="0"
-                    step="0.01"
-                    onchange="saveAdditionalAssets()"
-                  />
+                <div class="aa-asset-fields">
+                  <div class="aa-field">
+                    <label class="aa-field-label">Quantity</label>
+                    <input
+                      type="number"
+                      id="goldQuantity"
+                      placeholder="0"
+                      step="0.01"
+                      onchange="saveAdditionalAssets()"
+                    />
+                  </div>
+                  <div class="aa-field">
+                    <label class="aa-field-label">Rate (₹/qty)</label>
+                    <input
+                      type="number"
+                      id="goldRate"
+                      placeholder="0"
+                      step="1"
+                      onchange="saveAdditionalAssets()"
+                    />
+                  </div>
                 </div>
-                <div class="asset-input-group">
-                  <label>Current Rate (₹/qty)</label>
-                  <input
-                    type="number"
-                    id="goldRate"
-                    placeholder="0"
-                    step="1"
-                    onchange="saveAdditionalAssets()"
-                  />
-                </div>
-                <div class="asset-value">
-                  <span>Total Value:</span>
-                  <strong id="goldValue">₹0</strong>
+                <div class="aa-asset-value-cell">
+                  <span class="aa-cell-label">Value</span>
+                  <strong class="aa-asset-total" id="goldValue">₹0</strong>
                 </div>
               </div>
 
-              <!-- Silver Card -->
-              <div class="asset-card">
-                <div class="asset-header">
+              <!-- Silver row -->
+              <div class="aa-asset-row">
+                <div class="aa-asset-identity">
                   <div
-                    class="asset-icon"
+                    class="aa-asset-icon"
                     style="
                       background: linear-gradient(
                         135deg,
@@ -518,39 +661,41 @@
                   >
                     <i class="fa-solid fa-gem"></i>
                   </div>
-                  <h4>Silver</h4>
+                  <span class="aa-asset-name">Silver</span>
                 </div>
-                <div class="asset-input-group">
-                  <label>Quantity</label>
-                  <input
-                    type="number"
-                    id="silverQuantity"
-                    placeholder="0"
-                    step="0.01"
-                    onchange="saveAdditionalAssets()"
-                  />
+                <div class="aa-asset-fields">
+                  <div class="aa-field">
+                    <label class="aa-field-label">Quantity</label>
+                    <input
+                      type="number"
+                      id="silverQuantity"
+                      placeholder="0"
+                      step="0.01"
+                      onchange="saveAdditionalAssets()"
+                    />
+                  </div>
+                  <div class="aa-field">
+                    <label class="aa-field-label">Rate (₹/qty)</label>
+                    <input
+                      type="number"
+                      id="silverRate"
+                      placeholder="0"
+                      step="0.1"
+                      onchange="saveAdditionalAssets()"
+                    />
+                  </div>
                 </div>
-                <div class="asset-input-group">
-                  <label>Current Rate (₹/qty)</label>
-                  <input
-                    type="number"
-                    id="silverRate"
-                    placeholder="0"
-                    step="0.1"
-                    onchange="saveAdditionalAssets()"
-                  />
-                </div>
-                <div class="asset-value">
-                  <span>Total Value:</span>
-                  <strong id="silverValue">₹0</strong>
+                <div class="aa-asset-value-cell">
+                  <span class="aa-cell-label">Value</span>
+                  <strong class="aa-asset-total" id="silverValue">₹0</strong>
                 </div>
               </div>
 
-              <!-- Cash Card -->
-              <div class="asset-card">
-                <div class="asset-header">
+              <!-- Cash row -->
+              <div class="aa-asset-row">
+                <div class="aa-asset-identity">
                   <div
-                    class="asset-icon"
+                    class="aa-asset-icon"
                     style="
                       background: linear-gradient(
                         135deg,
@@ -561,38 +706,27 @@
                   >
                     <i class="fa-solid fa-money-bill-wave"></i>
                   </div>
-                  <h4>Cash & Equivalents</h4>
+                  <span class="aa-asset-name">Cash &amp; Equiv.</span>
                 </div>
-                <div class="asset-input-group">
-                  <label>Amount</label>
-                  <input
-                    type="number"
-                    id="cashAmount"
-                    placeholder="0"
-                    step="1"
-                    onchange="saveAdditionalAssets()"
-                  />
+                <div class="aa-asset-fields">
+                  <div class="aa-field">
+                    <label class="aa-field-label">Amount (₹)</label>
+                    <input
+                      type="number"
+                      id="cashAmount"
+                      placeholder="0"
+                      step="1"
+                      onchange="saveAdditionalAssets()"
+                    />
+                  </div>
                 </div>
-                <div class="asset-value" style="margin-top: 20px">
-                  <span>Total Value:</span>
-                  <strong id="cashValue">₹0</strong>
+                <div class="aa-asset-value-cell">
+                  <span class="aa-cell-label">Value</span>
+                  <strong class="aa-asset-total" id="cashValue">₹0</strong>
                 </div>
               </div>
             </div>
-
-            <div class="assets-summary">
-              <div class="summary-card">
-                <h4>Total Additional Assets</h4>
-                <div class="summary-value" id="totalAdditionalAssets">₹0</div>
-              </div>
-              <div class="summary-card">
-                <h4>Combined Portfolio Value</h4>
-                <div class="summary-value" id="combinedPortfolioValue">₹0</div>
-                <small style="color: var(--text-tertiary)"
-                  >MF + Additional Assets</small
-                >
-              </div>
-            </div>
+            <!-- /.aa-assets-body -->
           </div>
         </section>
         <section id="main">
@@ -684,10 +818,6 @@
             </div>
 
             <div class="compact-controls">
-              <button class="compact-sort-btn" onclick="toggleCompactXIRR()">
-                <span>1D Returns %</span>
-                <i class="fa-solid fa-sort"></i>
-              </button>
               <button class="compact-filter-btn" onclick="toggleCompactSort()">
                 <span>Current Value</span>
                 <i class="fa-solid fa-sort"></i>
@@ -805,6 +935,7 @@
             <div class="stats-grid hidden" id="statsGrid"></div>
           </div>
           <div id="monthlySummarySection"></div>
+          <div id="transactionCalendarSection"></div>
         </section>
         <section id="transactions">
           <div class="excel"></div>
@@ -899,8 +1030,8 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260601"></script>
-    <script src="utils.js?v=20260601"></script>
-    <script src="scripts.js?v=20260601"></script>
+    <script src="indexeddb-helper.js?v=20260602"></script>
+    <script src="utils.js?v=20260602"></script>
+    <script src="scripts.js?v=20260602"></script>
   </body>
 </html>

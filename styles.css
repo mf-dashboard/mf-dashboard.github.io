@@ -180,12 +180,76 @@
 }
 
 :root[data-theme="dark"] .compact-controls {
-  background: var(--bg-white);
-  border-bottom: 1px solid var(--border-medium);
+  background: var(--bg-light);
+  border-bottom: 1px solid var(--border-light);
 }
 
 :root[data-theme="dark"] .compact-holding-item {
   border-bottom: 1px solid var(--border-light);
+}
+
+:root[data-theme="dark"] .compact-summary-card {
+  background: linear-gradient(
+    135deg,
+    rgba(102, 126, 234, 0.18) 0%,
+    rgba(118, 75, 162, 0.14) 100%
+  );
+  border-color: rgba(102, 126, 234, 0.28);
+}
+
+:root[data-theme="dark"] .compact-stat-row {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="dark"] .compact-stat-row .stat-label {
+  color: var(--text-tertiary);
+}
+
+/* :root[data-theme="dark"] .compact-stat-row .stat-value {
+  color: var(--text-primary);
+} */
+
+:root[data-theme="dark"] .compact-total-value {
+  color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .compact-sort-btn,
+:root[data-theme="dark"] .compact-filter-btn {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-secondary);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+:root[data-theme="dark"] .compact-sort-btn:hover,
+:root[data-theme="dark"] .compact-filter-btn:hover {
+  background: rgba(102, 126, 234, 0.18);
+  color: #a5b4fc;
+  border-color: rgba(102, 126, 234, 0.35);
+}
+
+:root[data-theme="dark"] .compact-holdings-list {
+  background: var(--bg-card);
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+:root[data-theme="dark"] .compact-holding-item:hover {
+  background: rgba(102, 126, 234, 0.07);
+}
+
+:root[data-theme="dark"] .compact-holding-name {
+  color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .compact-holding-meta {
+  color: var(--text-tertiary);
+}
+
+:root[data-theme="dark"] .compact-holding-invested,
+:root[data-theme="dark"] .compact-holding-xirr,
+:root[data-theme="dark"] .compact-holding-abs,
+:root[data-theme="dark"] .compact-holding-1day {
+  color: var(--text-tertiary);
 }
 
 :root[data-theme="dark"] .loader {
@@ -206,11 +270,35 @@
 }
 
 :root[data-theme="dark"] .card h3 {
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
 }
 
 :root[data-theme="dark"] .card .subtext {
-  color: var(--text-tertiary);
+  color: var(--text-muted);
+}
+
+:root[data-theme="dark"] .card {
+  border-right-color: rgba(255, 255, 255, 0.07);
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+
+:root[data-theme="dark"] .summary-cards {
+  border-color: rgba(102, 126, 234, 0.2);
+  background: var(--bg-card);
+}
+
+:root[data-theme="dark"] .card.positive {
+  background: rgba(16, 185, 129, 0.07);
+}
+:root[data-theme="dark"] .card.positive .subtext {
+  color: var(--success);
+}
+
+:root[data-theme="dark"] .card.negative {
+  background: rgba(239, 68, 68, 0.07);
+}
+:root[data-theme="dark"] .card.negative .subtext {
+  color: var(--danger);
 }
 
 :root[data-theme="dark"] .dashboard-title {
@@ -256,7 +344,8 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg-light);
   min-height: 100vh;
 }
@@ -348,67 +437,125 @@ button:disabled {
   display: block;
 }
 
+/* ============================================
+   SUMMARY CARDS — unified hero panel
+   Matches fund-details modal hero-row exactly:
+   one panel, cells divided by 1px lines, no gaps
+   ============================================ */
+
 .summary-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  border-radius: 14px;
+  border: 1px solid rgba(102, 126, 234, 0.15);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
   margin-bottom: 20px;
 }
 
+/* Each cell — hero cell style */
 .card {
-  background: var(--bg-card);
-  backdrop-filter: blur(10px);
-  padding: 20px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: var(--shadow-lg);
-  transition: all 0.3s ease;
+  flex: 1 1 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 12px 14px;
+  text-align: center;
+  gap: 2px;
+  position: relative;
+  border-right: 1px solid rgba(102, 126, 234, 0.1);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+  transition: background 0.2s ease;
+  min-width: 140px;
 }
 
 .card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  background: rgba(102, 126, 234, 0.04);
 }
 
+/* Bottom accent line per cell */
+.card::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 14px;
+  right: 14px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(102, 126, 234, 0.2);
+}
+
+/* Label — tiny uppercase */
 .card h3 {
-  color: var(--text-tertiary);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
-  margin-bottom: 8px;
-  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+  margin: 0 0 2px;
 }
 
+/* Hero value — big */
 .card .value {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 6px;
+  line-height: 1.15;
+  letter-spacing: -0.3px;
 }
 
+/* Sub-text */
 .card .subtext {
-  color: var(--text-muted);
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-top: 2px;
 }
 
+/* P&L gain cell tint */
+.card.positive {
+  background: rgba(16, 185, 129, 0.05);
+}
+.card.positive:hover {
+  background: rgba(16, 185, 129, 0.08);
+}
+.card.positive::after {
+  background: rgba(16, 185, 129, 0.45);
+}
 .card.positive .value,
 .green {
   color: var(--success);
 }
+.card.positive .subtext {
+  color: var(--success);
+  opacity: 0.85;
+}
 
+/* P&L loss cell tint */
+.card.negative {
+  background: rgba(239, 68, 68, 0.05);
+}
+.card.negative:hover {
+  background: rgba(239, 68, 68, 0.08);
+}
+.card.negative::after {
+  background: rgba(239, 68, 68, 0.45);
+}
 .card.negative .value,
 .red {
   color: var(--danger);
 }
+.card.negative .subtext {
+  color: var(--danger);
+  opacity: 0.85;
+}
 
 .folio-section {
-  background: var(--bg-card);
-  backdrop-filter: blur(10px);
   padding: 20px;
-  border-radius: 16px;
   margin-bottom: 25px;
-  box-shadow: var(--shadow-lg);
-  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .folio-section h3 {
@@ -423,35 +570,218 @@ button:disabled {
   gap: 15px;
 }
 
+/* ============================================
+   FOLIO CARD — matches fundDetails card language
+   ============================================ */
+
 .folio-card {
   max-width: 100%;
   box-sizing: border-box;
-  border: 1px solid rgba(207, 207, 207, 0.3);
-  border-radius: 12px;
-  padding: 14px;
-  background: var(--bg-folio);
-  backdrop-filter: blur(5px);
-  transition: all 0.3s ease;
+  background: var(--bg-card);
+  border: 1px solid rgba(102, 126, 234, 0.15);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .folio-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-  background: var(--bg-card-hover);
+  box-shadow: var(--shadow-md);
 }
 
-.folio-card h4 {
-  color: var(--text-primary);
+/* Header bar — AMC + Folio chips */
+.folio-card-header {
+  padding: 9px 14px 7px;
+  background: rgba(102, 126, 234, 0.07);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+}
+
+/* Fund name as card header title */
+.folio-card-name-header {
+  display: block;
   font-size: 12px;
   font-weight: 700;
-  margin-bottom: 10px;
+  color: var(--text-primary);
   line-height: 1.4;
-  max-height: 40px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* Sub-header row: AMC + folio chips */
+.folio-card-sub-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 7px;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.folio-card-amc {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folio-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.folio-card-chip {
+  font-size: 10px;
+  font-weight: 600;
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.12);
+  border: 1px solid rgba(102, 126, 234, 0.22);
+  padding: 1px 7px;
+  border-radius: 20px;
+  line-height: 1.7;
+}
+
+.folio-card-chip--more {
+  color: var(--text-tertiary);
+  background: rgba(102, 126, 234, 0.06);
+  border-color: rgba(102, 126, 234, 0.15);
+}
+
+/* Fund name (legacy — keep for summary cards etc.) */
+.folio-card-name {
+  padding: 10px 14px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hero metrics row (3-up) */
+.folio-card-hero {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+}
+
+.folio-card-hero-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 8px;
+  text-align: center;
+  gap: 2px;
+  border-right: 1px solid rgba(102, 126, 234, 0.08);
+}
+
+.folio-card-hero-cell:last-child {
+  border-right: none;
+}
+
+.folio-card-hero-cell--pnl-gain {
+  background: rgba(16, 185, 129, 0.04);
+}
+.folio-card-hero-cell--pnl-loss {
+  background: rgba(239, 68, 68, 0.04);
+}
+.folio-card-hero-cell--xirr {
+  background: rgba(102, 126, 234, 0.03);
+}
+
+.folio-card-hero-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.folio-card-hero-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.folio-card-hero-value.gain {
+  color: var(--success);
+}
+.folio-card-hero-value.loss {
+  color: var(--danger);
+}
+.folio-card-hero-cell--xirr .folio-card-hero-value {
+  color: #667eea;
+}
+
+.folio-card-hero-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.folio-card-hero-cell--pnl-gain .folio-card-hero-sub {
+  color: var(--success);
+}
+.folio-card-hero-cell--pnl-loss .folio-card-hero-sub {
+  color: var(--danger);
+}
+
+/* Secondary chip strip */
+.folio-card-chips-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+}
+
+.folio-card-meta-chip {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 6px;
+  gap: 2px;
+  text-align: center;
+  border-right: 1px solid rgba(102, 126, 234, 0.07);
+  background: rgba(102, 126, 234, 0.02);
+}
+
+.folio-card-meta-chip:last-child {
+  border-right: none;
+}
+
+.folio-card-meta-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.folio-card-meta-value {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Legacy selectors kept for any other code that may still reference them */
 .folio-info {
   font-size: 10px;
   color: var(--text-tertiary);
@@ -715,37 +1045,63 @@ button:disabled {
 }
 
 .returns-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 15px;
+  display: flex;
+  flex-wrap: wrap;
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  border-radius: 14px;
+  border: 1px solid rgba(102, 126, 234, 0.15);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  margin-bottom: 20px;
 }
 
 .return-card {
-  background: var(--bg-gradiant);
-  padding: 20px;
-  border-radius: 12px;
-  border: 1px solid rgba(102, 126, 234, 0.2);
+  flex: 1 1 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 12px 14px;
   text-align: center;
-  transition: all 0.3s ease;
+  gap: 2px;
+  position: relative;
+  border-right: 1px solid rgba(102, 126, 234, 0.1);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+  transition: background 0.2s ease;
+  min-width: 140px;
 }
 
 .return-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.2);
+  background: rgba(102, 126, 234, 0.04);
+}
+
+.return-card::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 14px;
+  right: 14px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(102, 126, 234, 0.2);
 }
 
 .return-card h4 {
-  color: var(--text-tertiary);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
-  margin-bottom: 10px;
-  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+  margin: 0 0 2px;
 }
 
 .return-value {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.15;
+  letter-spacing: -0.3px;
 }
 
 .return-value.positive {
@@ -2392,52 +2748,87 @@ button.theme-toggle i {
   font-size: 20px;
 }
 
+/* ============================================
+   COMPACT DASHBOARD — modern mobile-first redesign
+   ============================================ */
+
 .compact-dashboard {
   display: none;
-  background: var(--bg-white);
+  background: var(--bg-light);
   overflow: hidden;
-  border-bottom: 1px solid var(--border-light);
   font-size: 12px;
 }
 
+/* Hero summary card */
 .compact-summary-card {
-  background: var(--bg-white);
-  padding: 20px;
-  margin: 12px;
-  border: 1px solid var(--border-medium);
-  border-radius: 12px;
+  background: linear-gradient(
+    135deg,
+    rgba(102, 126, 234, 0.08) 0%,
+    rgba(118, 75, 162, 0.06) 100%
+  );
+  padding: 16px 16px 14px;
+  margin: 10px 10px 0;
+  border: 1px solid rgba(102, 126, 234, 0.18);
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.compact-summary-card::before {
+  content: "";
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(
+    circle,
+    rgba(102, 126, 234, 0.12) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
 }
 
 .compact-header {
-  margin-bottom: 15px;
+  margin-bottom: 10px;
 }
 
 .compact-header h3 {
   color: var(--text-tertiary);
-  font-weight: 600;
-  font-size: 11px;
+  font-weight: 700;
+  font-size: 9px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 8px;
+  letter-spacing: 0.9px;
+  margin-bottom: 4px;
 }
 
 .compact-total-value {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 800;
   color: var(--text-primary);
   margin: 0;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
 }
 
+/* Stat pills — 2×2 grid, no overflow */
 .compact-stats {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 10px;
 }
 
 .compact-stat-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(102, 126, 234, 0.14);
+  border-radius: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .compact-stat-row.expandable {
@@ -2446,16 +2837,23 @@ button.theme-toggle i {
 }
 
 .compact-stat-row .stat-label {
-  color: var(--text-secondary);
-  font-weight: 500;
+  color: var(--text-tertiary);
+  font-weight: 700;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  margin-bottom: 2px;
+  white-space: nowrap;
 }
 
 .compact-stat-row .stat-value {
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 12px;
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .compact-stat-row .stat-value.positive {
@@ -2466,107 +2864,373 @@ button.theme-toggle i {
   color: var(--danger);
 }
 
+/* Controls bar — single right-aligned filter button */
 .compact-controls {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-  padding: 16px 5px;
+  padding: 8px 10px;
   background: var(--bg-light);
-  border-bottom: 1px solid var(--border-light);
+  gap: 6px;
+}
+
+.compact-controls-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.compact-sort-chips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .compact-sort-btn,
 .compact-filter-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  font-weight: 500;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(102, 126, 234, 0.18);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 11px;
   cursor: pointer;
-  padding: 6px 12px;
-  border-radius: 8px;
-  transition: all 0.2s ease;
+  padding: 5px 10px;
+  border-radius: 20px;
+  transition: all 0.18s ease;
   box-shadow: none;
+  white-space: nowrap;
 }
 
 .compact-sort-btn:hover,
 .compact-filter-btn:hover {
-  transform: translateY(-1px);
+  background: rgba(102, 126, 234, 0.1);
+  color: var(--primary-gradient-start);
+  border-color: rgba(102, 126, 234, 0.35);
+  transform: none;
   box-shadow: none;
 }
 
-.compact-holdings-list {
-  background: var(--bg-white);
+.compact-sort-btn i,
+.compact-filter-btn i {
+  font-size: 9px;
+  opacity: 0.7;
 }
 
+/* Holdings list */
+.compact-holdings-list {
+  background: var(--bg-white);
+  border-radius: 14px;
+  margin: 6px 10px 10px;
+  overflow: hidden;
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
+}
+
+/* Individual holding row */
 .compact-holding-item {
   display: flex;
   justify-content: space-between;
-  gap: 6px;
-  align-items: start;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-light);
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.07);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.15s ease;
+  position: relative;
 }
 
 .compact-holding-item:last-child {
   border-bottom: none;
 }
 
+.compact-holding-item:hover {
+  background: rgba(102, 126, 234, 0.04);
+}
+
+/* Left: fund name + meta */
 .compact-holding-info {
   flex: 1;
+  min-width: 0;
 }
 
 .compact-holding-name {
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 12px;
   color: var(--text-primary);
-  margin-bottom: 4px;
-  line-height: 1.4;
+  margin-bottom: 2px;
+  line-height: 1.35;
   display: flex;
   gap: 5px;
   align-items: center;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .compact-holding-meta {
-  color: var(--text-tertiary);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* Right: values */
 .compact-holding-values {
   text-align: right;
+  flex-shrink: 0;
 }
 
 .compact-holding-current {
-  font-weight: 600;
-  margin-bottom: 4px;
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 2px;
+  color: var(--text-primary);
 }
 
 .compact-holding-current.green {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--success);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .compact-holding-current.red {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--danger);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
-.compact-holding-invested,
+.compact-holding-invested {
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
 .compact-holding-xirr,
 .compact-holding-abs,
 .compact-holding-1day {
   color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.compact-holding-xirr .green,
+.compact-holding-abs .green,
+.compact-holding-1day .green {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.compact-holding-xirr .red,
+.compact-holding-abs .red,
+.compact-holding-1day .red {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Arrow chevron removed from all compact holding items */
+.compact-holding-item::after {
+  display: none;
+}
+
+.compact-holding-values {
+  padding-right: 0;
+}
+
+/* ============================================
+   COMPACT HOLDINGS — HERO ROW REDESIGN
+   ============================================ */
+
+.chi-hero {
+  display: flex !important;
+  align-items: stretch !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.07);
+  position: relative;
+  overflow: hidden;
+}
+
+.chi-hero:last-child {
+  border-bottom: none;
+}
+
+.chi-hero:hover {
+  background: rgba(102, 126, 234, 0.04);
+}
+
+/* Coloured left accent bar */
+.chi-accent {
+  width: 4px;
+  flex-shrink: 0;
+  border-radius: 0;
+}
+
+.chi-accent--gain {
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+}
+
+.chi-accent--loss {
+  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+}
+
+/* Main content area */
+.chi-body {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 10px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Top row: left col + right col */
+.chi-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Left: name + stats line */
+.chi-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chi-name {
+  font-weight: 700;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.chi-stats-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.chi-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 5px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.chi-stat-pill--pos {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.chi-stat-pill--neg {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.18);
+}
+
+.chi-stat-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.chi-stat-value {
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.chi-stat-pill--pos .chi-stat-value {
+  color: var(--success);
+}
+.chi-stat-pill--neg .chi-stat-value {
+  color: var(--danger);
+}
+
+/* Right: curr + invested stacked, right-aligned */
+.chi-right {
+  flex-shrink: 0;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chi-current {
+  font-weight: 800;
+  font-size: 13.5px;
+  line-height: 1.2;
+}
+
+.chi-current--gain {
+  color: var(--success);
+}
+.chi-current--loss {
+  color: var(--danger);
+}
+
+.chi-invested {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Chevron on right */
+.chi-chevron {
+  display: flex;
+  align-items: center;
+  padding: 0 10px 0 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+/* Dark mode overrides */
+:root[data-theme="dark"] .chi-hero:hover {
+  background: rgba(102, 126, 234, 0.07);
+}
+
+:root[data-theme="dark"] .chi-amc-pill {
+  background: rgba(102, 126, 234, 0.12);
+  border-color: rgba(102, 126, 234, 0.2);
+  color: var(--text-muted);
+}
+
+:root[data-theme="dark"] .chi-pill {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .compact-family-breakdown {
   background: var(--bg-white);
   border-top: 1px solid var(--border-light);
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
 }
 
 .transaction-modal {
@@ -2697,6 +3361,398 @@ button.theme-toggle i {
   color: var(--danger);
 }
 
+/* ============================================
+   COMPACT FUND STATISTICS SECTION
+   ============================================ */
+
+.fund-stats-compact {
+  background: var(--bg-card);
+  border-radius: 14px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(102, 126, 234, 0.15);
+}
+
+/* Header bar with title + inline badges */
+.fund-stats-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.12);
+  flex-wrap: wrap;
+}
+
+.fund-stats-header-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.fund-stats-header-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.fund-stats-header-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.fund-stats-rating-badge,
+.fund-stats-expense-badge,
+.fund-stats-aum-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+  letter-spacing: 0.3px;
+}
+
+.fund-stats-rating-badge {
+  background: rgba(251, 191, 36, 0.15);
+  color: #d97706;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.fund-stats-expense-badge {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.fund-stats-aum-badge {
+  background: rgba(102, 126, 234, 0.12);
+  color: #667eea;
+  border: 1px solid rgba(102, 126, 234, 0.25);
+}
+
+/* Each group row (Returns / Risk) */
+.fund-stats-group {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+}
+
+.fund-stats-group:last-child {
+  border-bottom: none;
+}
+
+.fund-stats-group-label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding: 12px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  border-right: 1px solid rgba(102, 126, 234, 0.1);
+}
+
+.fund-stats-group--returns .fund-stats-group-label {
+  background: rgba(16, 185, 129, 0.05);
+  color: var(--success);
+}
+
+.fund-stats-group--risk .fund-stats-group-label {
+  background: rgba(102, 126, 234, 0.05);
+  color: #667eea;
+}
+
+/* Cells inside a group */
+.fund-stats-group-cells {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.fund-stats-cell {
+  flex: 1;
+  min-width: 70px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 6px;
+  gap: 3px;
+  text-align: center;
+  border-right: 1px solid rgba(102, 126, 234, 0.07);
+}
+
+.fund-stats-cell:last-child {
+  border-right: none;
+}
+
+.fund-stats-cell-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.fund-stats-cell-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+/* Returns get green tinted values */
+.fund-stats-cell--return .fund-stats-cell-value {
+  color: var(--success);
+}
+
+@media (max-width: 500px) {
+  .fund-stats-cell {
+    min-width: 55px;
+    padding: 8px 4px;
+  }
+  .fund-stats-cell-value {
+    font-size: 12px;
+  }
+  .fund-stats-group-label {
+    min-width: 22px;
+    padding: 10px 5px;
+  }
+  .fund-stats-header {
+    padding: 8px 12px;
+  }
+}
+
+/* ============================================
+   ============================================ */
+
+.fund-summary-compact {
+  background: var(--bg-card);
+  border-radius: 14px;
+  padding: 0;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(102, 126, 234, 0.15);
+}
+
+/* Meta bar: AMC + Folios */
+.fund-summary-meta-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 10px 18px;
+  background: rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.12);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.fund-summary-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fund-summary-meta-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(102, 126, 234, 0.25);
+  flex-shrink: 0;
+}
+
+.fund-summary-meta-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.fund-summary-meta-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.fund-summary-folio-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.fund-summary-folio-chip {
+  font-size: 11px;
+  font-weight: 600;
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.12);
+  border: 1px solid rgba(102, 126, 234, 0.25);
+  padding: 2px 8px;
+  border-radius: 20px;
+  line-height: 1.6;
+}
+
+/* Hero row: 3 big cards */
+.fund-summary-hero-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+}
+
+.fund-summary-hero-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 12px 16px;
+  text-align: center;
+  border-right: 1px solid rgba(102, 126, 234, 0.1);
+  gap: 3px;
+  position: relative;
+}
+
+.fund-summary-hero-card::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 14px;
+  right: 14px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(102, 126, 234, 0.25);
+}
+
+.fund-summary-hero-card:last-child {
+  border-right: none;
+}
+
+.fund-summary-hero-card--pnl {
+  background: rgba(16, 185, 129, 0.05);
+}
+.fund-summary-hero-card--pnl::after {
+  background: rgba(16, 185, 129, 0.4);
+}
+
+.fund-summary-hero-card--pnl.loss {
+  background: rgba(239, 68, 68, 0.05);
+}
+.fund-summary-hero-card--pnl.loss::after {
+  background: rgba(239, 68, 68, 0.4);
+}
+
+.fund-summary-hero-card--xirr {
+  background: rgba(102, 126, 234, 0.05);
+}
+.fund-summary-hero-card--xirr::after {
+  background: rgba(102, 126, 234, 0.4);
+}
+
+.fund-summary-hero-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 2px;
+}
+
+.fund-summary-hero-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.15;
+  letter-spacing: -0.3px;
+}
+
+.fund-summary-hero-card--pnl.gain .fund-summary-hero-value {
+  color: var(--success);
+}
+
+.fund-summary-hero-card--pnl.loss .fund-summary-hero-value {
+  color: var(--danger);
+}
+
+.fund-summary-hero-card--xirr .fund-summary-hero-value {
+  color: #667eea;
+}
+
+.fund-summary-hero-sub {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 1px;
+}
+
+.fund-summary-hero-card--pnl.gain .fund-summary-hero-sub {
+  color: var(--success);
+}
+.fund-summary-hero-card--pnl.loss .fund-summary-hero-sub {
+  color: var(--danger);
+}
+
+/* Secondary chips row */
+.fund-summary-chips-row {
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid rgba(102, 126, 234, 0.1);
+}
+
+.fund-summary-chip {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 8px;
+  gap: 2px;
+  text-align: center;
+  border-right: 1px solid rgba(102, 126, 234, 0.1);
+  background: rgba(102, 126, 234, 0.02);
+}
+
+.fund-summary-chip:last-child {
+  border-right: none;
+}
+
+.fund-summary-chip-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.fund-summary-chip-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Responsive: hero values shrink on mobile */
+@media (max-width: 500px) {
+  .fund-summary-hero-value {
+    font-size: 15px;
+  }
+  .fund-summary-hero-card {
+    padding: 12px 6px 10px;
+  }
+  .fund-summary-chip {
+    padding: 8px 4px;
+  }
+  .fund-summary-chip-value {
+    font-size: 12px;
+  }
+  .fund-summary-meta-bar {
+    padding: 8px 12px;
+  }
+}
+
 .fund-detail-chart-wrapper {
   position: relative;
   max-height: 250px;
@@ -2713,8 +3769,261 @@ button.theme-toggle i {
 .fund-details-charts-row {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  gap: 16px;
   margin-bottom: 20px;
+}
+
+/* Compact chart card — matches Summary/Stats/Folios language */
+.fund-chart-card {
+  background: var(--bg-card);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(102, 126, 234, 0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+.fund-chart-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.12);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.fund-chart-card-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.fund-chart-card-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+  white-space: nowrap;
+}
+
+/* Period filter tabs */
+.fund-chart-period-tabs {
+  display: flex;
+  gap: 2px;
+  background: rgba(102, 126, 234, 0.08);
+  border-radius: 20px;
+  padding: 2px;
+}
+
+.fund-chart-period-btn {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.3px;
+}
+
+.fund-chart-period-btn:hover {
+  color: var(--text-primary);
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.fund-chart-period-btn.active {
+  background: #667eea;
+  color: #fff;
+}
+
+/* Period stat strip below header */
+.fund-chart-period-stat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  background: rgba(102, 126, 234, 0.03);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.07);
+  min-height: 28px;
+  flex-shrink: 0;
+}
+
+.fund-chart-stat-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.fund-chart-stat-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.fund-chart-stat-value.gain {
+  color: var(--success);
+}
+.fund-chart-stat-value.loss {
+  color: var(--danger);
+}
+
+.fund-chart-stat-pct {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+/* Custom legend pills for performance chart */
+.fund-chart-legend-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.fund-chart-legend-pill {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.4px;
+  color: #fff;
+  background: var(--pill-color, #667eea);
+  opacity: 0.9;
+}
+
+.fund-chart-legend-pill--dashed {
+  background: transparent;
+  border: 1.5px dashed var(--pill-color, #667eea);
+  color: var(--pill-color, #667eea);
+  opacity: 1;
+}
+
+/* ============================================
+   COMPACT FUND COMPOSITION CARD
+   ============================================ */
+
+.fund-composition-card {
+  background: var(--bg-card);
+  border-radius: 14px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(102, 126, 234, 0.15);
+}
+
+.fund-composition-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.12);
+}
+
+.fund-composition-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.fund-composition-row {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  gap: 14px;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+}
+
+.fund-composition-row--last {
+  border-bottom: none;
+}
+
+.fund-composition-row-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  min-width: 38px;
+  text-align: center;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.fund-composition-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.fund-composition-bar-wrap .composition-bar {
+  height: 20px;
+  margin-bottom: 6px;
+}
+
+.fund-composition-bar-wrap .composition-legend {
+  gap: 8px;
+  font-size: 10px;
+}
+
+/* Two-column layout for fund composition in modal */
+.fund-composition-cols {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  padding: 14px 16px;
+  gap: 0;
+}
+
+.fund-composition-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fund-composition-col-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.fund-composition-col-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.fund-composition-col-divider {
+  width: 1px;
+  background: rgba(102, 126, 234, 0.12);
+  margin: 0 14px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 500px) {
+  .fund-composition-cols {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .fund-composition-col-divider {
+    width: 100%;
+    height: 1px;
+    margin: 0;
+  }
+}
+
+/* Canvas wrapper — no inner white box */
+.fund-chart-canvas-wrapper {
+  padding: 8px 10px;
+  flex: 1;
 }
 
 .fund-details-charts-row .fund-details-section {
@@ -2746,54 +4055,341 @@ button.theme-toggle i {
   min-width: 200px;
 }
 
+/* Quick Actions Card */
+.fund-quick-actions-card {
+  background: var(--bg-card);
+  border-radius: 14px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(102, 126, 234, 0.15);
+}
+
+.fund-quick-actions-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.12);
+}
+
+.fund-quick-actions-body {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  flex-wrap: wrap;
+}
+
+.fund-quick-action-btn {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.25);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.18s,
+    border-color 0.18s,
+    transform 0.12s;
+}
+
+.fund-quick-action-btn i {
+  font-size: 13px;
+  color: #667eea;
+  flex-shrink: 0;
+}
+
+.fund-quick-action-btn:hover {
+  background: rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.5);
+  transform: translateY(-1px);
+}
+
+.fund-quick-action-btn:active {
+  transform: translateY(0);
+}
+
+.fund-quick-action-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(102, 126, 234, 0.2);
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  color: #667eea;
+  letter-spacing: 0.2px;
+}
+
+/* ============================================
+   TRANSACTION CALENDAR
+   ============================================ */
+
+.txcal-year-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.txcal-year-dropdown-wrap {
+  margin-bottom: 14px;
+}
+
+.txcal-year-select {
+  padding: 7px 32px 7px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(102, 126, 234, 0.3);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23667eea' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: border-color 0.15s;
+}
+
+.txcal-year-select:hover,
+.txcal-year-select:focus {
+  border-color: rgba(102, 126, 234, 0.6);
+  outline: none;
+}
+
+.txcal-year-tab {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(102, 126, 234, 0.3);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.txcal-year-tab.active {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+}
+
+.txcal-year-tab:hover {
+  border-color: rgba(102, 126, 234, 0.5);
+  transform: translateY(-1px);
+}
+
+.txcal-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.txcal-legend-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.txcal-legend-dot--invest {
+  background: #22c55e;
+}
+.txcal-legend-dot--redeem {
+  background: #ef4444;
+}
+.txcal-legend-dot--both {
+  background: linear-gradient(135deg, #22c55e 50%, #ef4444 50%);
+}
+
+.txcal-year-label {
+  padding-bottom: 10px;
+}
+
+.txcal-months {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.txcal-month {
+  min-width: 0;
+}
+
+.txcal-month-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.txcal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.txcal-dow {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: 2px 0;
+  text-transform: uppercase;
+}
+
+.txcal-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  background: var(--bg-offwhite);
+  cursor: default;
+  transition: transform 0.1s;
+}
+
+.txcal-day--empty {
+  background: transparent;
+}
+
+.txcal-day--invest {
+  background: rgba(34, 197, 94, 0.18);
+  color: #16a34a;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.txcal-day--invest:hover {
+  background: rgba(34, 197, 94, 0.35);
+  transform: scale(1.15);
+}
+
+.txcal-day--redeem {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.txcal-day--redeem:hover {
+  background: rgba(239, 68, 68, 0.3);
+  transform: scale(1.15);
+}
+
+.txcal-day--both {
+  background: linear-gradient(
+    135deg,
+    rgba(34, 197, 94, 0.2) 50%,
+    rgba(239, 68, 68, 0.2) 50%
+  );
+  color: var(--text-primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.txcal-day--both:hover {
+  transform: scale(1.15);
+}
+
+@media (max-width: 1024px) {
+  .txcal-months {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .txcal-day {
+    font-size: 9px;
+  }
+}
+@media (max-width: 500px) {
+  .txcal-months {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .txcal-day {
+    font-size: 9px;
+  }
+}
+
 /* Fund Card Action Buttons */
 .fund-card-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  flex-wrap: wrap;
+  gap: 0;
+  margin-top: auto;
+  border-top: 1px solid rgba(102, 126, 234, 0.08);
 }
 
 .fund-action-btn {
   flex: 1;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 12px;
+  padding: 9px 12px;
+  border-radius: 0;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background 0.18s ease;
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-width: 120px;
+  gap: 5px;
+  box-shadow: none;
+  transform: none;
+}
+
+.fund-action-btn + .fund-action-btn {
+  border-left: 1px solid rgba(102, 126, 234, 0.1);
+}
+
+.fund-action-btn:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .fund-action-btn.primary {
-  background: var(--scrollbar-thumb);
-  color: white;
-  box-shadow: var(--shadow-primary);
+  background: rgba(102, 126, 234, 0.08);
+  color: #667eea;
 }
 
 .fund-action-btn.primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  background: rgba(102, 126, 234, 0.15);
 }
 
 .fund-action-btn.secondary {
-  background: var(--bg-card-hover);
-  color: #667eea;
-  border: 2px solid var(--primary-gradient-start);
+  background: transparent;
+  color: var(--text-secondary);
+  border-top: none;
 }
 
 .fund-action-btn.secondary:hover {
-  background: rgba(102, 126, 234, 0.1);
-  transform: translateY(-2px);
+  background: rgba(102, 126, 234, 0.06);
+  color: #667eea;
 }
 
 .fund-action-btn i {
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .past-sort {
@@ -3089,7 +4685,6 @@ button.theme-toggle i {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 15px;
-  margin-top: 15px;
 }
 
 /* Section headers styling */
@@ -3474,7 +5069,7 @@ button.theme-toggle i {
 .asset-header h4 {
   margin: 0;
   color: var(--text-primary);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
 }
 
@@ -3486,7 +5081,7 @@ button.theme-toggle i {
   display: block;
   margin-bottom: 8px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -3495,7 +5090,7 @@ button.theme-toggle i {
   padding: 12px;
   border: 2px solid var(--border-light);
   border-radius: 8px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   background: var(--bg-white);
   color: var(--text-primary);
@@ -3520,13 +5115,13 @@ button.theme-toggle i {
 
 .asset-value span {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
 }
 
 .asset-value strong {
   color: var(--text-primary);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
 }
 
@@ -3585,7 +5180,7 @@ button.theme-toggle i {
   opacity: 0.95;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   #dynamicTotalPortfolioCard .card .value {
     font-size: 2rem;
   }
@@ -3643,7 +5238,7 @@ button.theme-toggle i {
 
 .folio-category-title h4 {
   margin: 0;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
   flex-shrink: 0; /* Prevent title from shrinking */
@@ -3656,7 +5251,7 @@ button.theme-toggle i {
   padding: 4px 12px;
   background: var(--bg-secondary);
   border-radius: 12px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
@@ -3677,7 +5272,10 @@ button.theme-toggle i {
 }
 
 .folio-category-content {
-  transition: max-height 0.4s ease, opacity 0.3s ease, padding 0.3s ease;
+  transition:
+    max-height 0.4s ease,
+    opacity 0.3s ease,
+    padding 0.3s ease;
   opacity: 1;
   padding: 16px;
 }
@@ -3692,7 +5290,7 @@ button.theme-toggle i {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 16px;
+  font-size: 18px;
   color: var(--text-primary);
 }
 
@@ -3712,11 +5310,14 @@ button.theme-toggle i {
 .tax-planning-container {
   background: var(--bg-card);
   backdrop-filter: blur(10px);
-  padding: 25px;
   border-radius: 16px;
   margin-bottom: 25px;
   box-shadow: var(--shadow-lg);
   border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.tax-planning-container > div {
+  margin: 10px;
 }
 
 .tax-summary-cards {
@@ -3826,7 +5427,10 @@ button.theme-toggle i {
 }
 
 .holdings-split-content {
-  transition: max-height 0.4s ease, opacity 0.3s ease, padding 0.3s ease;
+  transition:
+    max-height 0.4s ease,
+    opacity 0.3s ease,
+    padding 0.3s ease;
   opacity: 1;
   overflow: hidden;
 }
@@ -3957,7 +5561,7 @@ button.theme-toggle i {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .upload-icon {
     font-size: 36px;
   }
@@ -4027,6 +5631,15 @@ button.theme-toggle i {
     grid-template-columns: 1fr;
   }
 
+  /* Hide detailed transaction tables on mobile & tablet — download button remains */
+  .gains-trans,
+  #yearGainsDisplay .gains-table-wrapper:has(.gains-trans),
+  #capitalGainsContent
+    > .capital-gains-section:last-child
+    .gains-table-wrapper {
+    display: none;
+  }
+
   .footer-content {
     flex-direction: column;
     gap: 10px;
@@ -4057,7 +5670,16 @@ button.theme-toggle i {
 
   .fund-details-charts-row {
     grid-template-columns: 1fr;
-    gap: 15px;
+    gap: 12px;
+  }
+
+  .fund-chart-period-btn {
+    padding: 3px 6px;
+    font-size: 9px;
+  }
+
+  .fund-chart-card-title {
+    font-size: 11px;
   }
 
   .composition-charts-grid {
@@ -4065,7 +5687,7 @@ button.theme-toggle i {
   }
 
   .fund-action-btn {
-    width: 100%;
+    font-size: 11px;
   }
 
   .fund-details-actions button {
@@ -4226,10 +5848,6 @@ button.theme-toggle i {
     padding: 0 12px;
   }
 
-  .tax-planning-container {
-    padding: 15px;
-  }
-
   .holdings-split-header {
     flex-direction: column;
     align-items: flex-start;
@@ -4293,8 +5911,15 @@ button.theme-toggle i {
   .analytics-card:hover,
   .transaction-card:hover {
     transform: none;
-    background: none;
     box-shadow: var(--shadow-lg);
+  }
+
+  .folio-card-hero-value {
+    font-size: 12px;
+  }
+
+  .folio-card-hero-cell {
+    padding: 8px 4px;
   }
 
   .upload-tab-content {
@@ -4304,12 +5929,17 @@ button.theme-toggle i {
     padding-bottom: 10px;
   }
 
-  #cas-upload-tab,
+  /* Subtle top separator before the last card (e.g. danger zone) in manage CAS */
+  .upload-tab-content .upload-card:last-child {
+    border-top: 2px solid var(--border-light);
+    margin-top: 4px;
+  }
+
   .summary-cards,
   #transactionSectionsWrapper,
   #capitalGainsContent,
   .secondary-btn {
-    padding: 10px 20px;
+    padding: 10px;
   }
 
   .dashboard-footer {
@@ -4322,6 +5952,7 @@ button.theme-toggle i {
     background: none;
     border: none;
     padding: 16px;
+    margin-bottom: 0px;
   }
 
   .chart-section {
@@ -4467,4 +6098,3093 @@ button.theme-toggle i {
 
 .hidden {
   display: none;
+}
+
+/* ============================================
+   DEBUG CAS INJECT ROW
+   ============================================ */
+
+.debug-cas-inject-row {
+  border-left: 3px solid #f59e0b;
+  padding-left: 14px;
+  margin-left: -14px;
+  background: rgba(245, 158, 11, 0.04);
+  border-radius: 0 8px 8px 0;
+}
+
+:root[data-theme="dark"] .debug-cas-inject-row {
+  background: rgba(245, 158, 11, 0.07);
+}
+
+.debug-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  background: #f59e0b;
+  color: #000;
+  padding: 2px 6px;
+  border-radius: 4px;
+  vertical-align: middle;
+  margin-left: 8px;
+  text-transform: uppercase;
+}
+
+.debug-cas-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.debug-cas-file-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  padding: 9px 14px;
+  border: 1px dashed rgba(245, 158, 11, 0.5);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: rgba(245, 158, 11, 0.04);
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.debug-cas-file-label:hover {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--text-primary);
+}
+
+.debug-cas-file-label i {
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+.debug-cas-file-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.debug-cas-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-family: "Fira Code", "Cascadia Code", "Consolas", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  border: 1px solid rgba(102, 126, 234, 0.25);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  resize: vertical;
+  min-height: 110px;
+  transition: border-color 0.2s;
+  outline: none;
+}
+
+.debug-cas-textarea:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+}
+
+.debug-cas-textarea::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.debug-cas-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.debug-cas-actions .cas-row-btn {
+  flex: 1;
+}
+
+/* ============================================
+   FUND TRANSACTION MODAL — FOLIO WISE TOGGLE
+   ============================================ */
+
+/* Right side of modal header: toggle + close button */
+.modal-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* Label wrapper for the toggle */
+.fund-tx-folio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.fund-tx-folio-label-text {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Pill toggle — scoped away from .folio-toggle-switch to avoid conflicts */
+.fund-tx-toggle-pill {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.fund-tx-toggle-pill input[type="checkbox"] {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.fund-tx-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--border-medium);
+  background: #ccc;
+  border-radius: 20px;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+}
+
+.fund-tx-toggle-track::before {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  left: 3px;
+  top: 3px;
+  background: var(--bg-white);
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.fund-tx-toggle-pill input[type="checkbox"]:checked + .fund-tx-toggle-track {
+  background: var(--primary-gradient-start);
+  background: var(--success);
+}
+
+.fund-tx-toggle-pill
+  input[type="checkbox"]:checked
+  + .fund-tx-toggle-track::before {
+  transform: translateX(16px);
+}
+
+/* Folio-wise view wrapper — single table, no gaps needed */
+.folio-wise-wrapper {
+  padding: 0;
+}
+
+.folio-wise-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* Folio group separator row */
+.folio-group-header-row {
+  background: var(--bg-gradiant) !important;
+}
+
+.folio-group-header-row:hover {
+  background: var(--bg-gradiant) !important;
+}
+
+.folio-group-header-cell {
+  padding: 10px 14px !important;
+  border-top: 2px solid var(--border-primary) !important;
+  border-bottom: 1px solid var(--border-light) !important;
+}
+
+/* First folio group — no top border */
+.folio-group-separator:first-of-type .folio-group-header-cell {
+  border-top: none !important;
+}
+
+.folio-tx-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-right: 6px;
+}
+
+.folio-tx-number,
+.folio-tx-current-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: monospace;
+  margin-right: 12px;
+}
+
+/* Last row of each folio group gets a slightly stronger bottom border */
+.folio-group-body tr:last-child td {
+  border-bottom: 2px solid var(--border-light);
+}
+
+:root[data-theme="dark"] .folio-group-header-cell {
+  border-top-color: var(--border-primary) !important;
+  border-bottom-color: var(--border-medium) !important;
+}
+
+:root[data-theme="dark"] .folio-group-body tr:last-child td {
+  border-bottom-color: var(--border-medium);
+}
+
+@media (max-width: 1024px) {
+  .fund-tx-folio-label-text {
+    display: none;
+  }
+}
+
+/* ============================================
+   COMPACT FOLIO TABLE
+   ============================================ */
+
+.folio-compact-section {
+  background: var(--bg-card);
+  border-radius: 14px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(102, 126, 234, 0.15);
+}
+
+.folio-compact-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.12);
+}
+
+.folio-compact-header-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.folio-compact-header-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.folio-compact-count {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  background: rgba(102, 126, 234, 0.1);
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.folio-compact-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.folio-compact-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.07);
+  transition: background 0.15s ease;
+}
+
+.folio-compact-row:last-child {
+  border-bottom: none;
+}
+
+.folio-compact-row:hover {
+  background: rgba(102, 126, 234, 0.04);
+}
+
+.folio-compact-row--redeemed {
+  opacity: 0.65;
+}
+
+.folio-compact-id {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 14px;
+  min-width: 110px;
+  border-right: 1px solid rgba(102, 126, 234, 0.1);
+  background: rgba(102, 126, 234, 0.03);
+  flex-shrink: 0;
+}
+
+.folio-compact-number {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: monospace;
+  letter-spacing: 0.03em;
+  color: var(--text-primary);
+}
+
+.folio-compact-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 2px 6px;
+  border-radius: 20px;
+}
+
+.folio-compact-badge--active {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.folio-compact-badge--redeemed {
+  background: rgba(107, 114, 128, 0.12);
+  color: var(--text-tertiary);
+  border: 1px solid rgba(107, 114, 128, 0.2);
+}
+
+.folio-compact-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 8px;
+  gap: 2px;
+  text-align: center;
+  border-right: 1px solid rgba(102, 126, 234, 0.07);
+}
+
+.folio-compact-cell:last-child {
+  border-right: none;
+}
+
+.folio-compact-cell-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.folio-compact-cell-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.folio-compact-cell-value.gain {
+  color: var(--success);
+}
+.folio-compact-cell-value.loss {
+  color: var(--danger);
+}
+
+.folio-compact-pct {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+@media (max-width: 500px) {
+  .folio-compact-cell--hold {
+    display: none;
+  }
+  .folio-compact-id {
+    min-width: 80px;
+    padding: 8px 10px;
+  }
+  .folio-compact-cell {
+    padding: 8px 4px;
+  }
+  .folio-compact-cell-value {
+    font-size: 11px;
+  }
+}
+
+/* Legacy folio-details kept for any other usage */
+.folio-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.folio-details-card {
+  background: var(--bg-offwhite);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  overflow: hidden;
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.folio-details-card:hover {
+  border-color: var(--border-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.folio-details-card--redeemed {
+  opacity: 0.7;
+}
+
+.folio-details-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-gradiant);
+  border-bottom: 1px solid var(--border-light);
+  gap: 10px;
+}
+
+.folio-details-number {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: monospace;
+  letter-spacing: 0.02em;
+}
+
+.folio-details-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.folio-details-badge--active {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+
+.folio-details-badge--redeemed {
+  background: rgba(107, 114, 128, 0.15);
+  color: var(--text-tertiary);
+}
+
+.folio-details-stats {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.folio-details-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.folio-details-stat-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.folio-details-stat-value {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.folio-details-stat-value.gain {
+  color: var(--success);
+}
+
+.folio-details-stat-value.loss {
+  color: var(--danger);
+}
+
+@media (max-width: 1024px) {
+  .folio-details-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   CAS PANEL  — folio-card language
+   Desktop only (≥1025px). Mobile/tablet use original upload-card layout.
+   ============================================================ */
+
+/* ── Mobile & tablet: original upload-card grid ── */
+.cas-panels-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 25px;
+  padding: 20px 0;
+}
+
+.cas-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  padding: 30px;
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.cas-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 10px rgba(102, 126, 234, 0.2);
+}
+
+/* Panel header hidden on mobile — rows use cas-row-title as heading */
+.cas-panel-header {
+  display: none;
+}
+
+/* Each action row — stacked vertically like an upload-card */
+.cas-panel-row.hidden {
+  display: none !important;
+}
+
+.cas-panel-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 0;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+}
+
+.cas-panel-row--last {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.cas-panel-row:first-child {
+  padding-top: 0;
+}
+
+.cas-row-meta {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.cas-row-icon {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+  color: var(--text-primary);
+}
+
+.cas-row-icon i {
+  font-size: 24px;
+}
+
+.cas-row-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.cas-row-sub {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+}
+
+.cas-row-info {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.cas-row-action {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.cas-row-btn {
+  width: 100%;
+}
+
+.cas-file-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.cas-file-inputs input,
+.cas-file-inputs .load {
+  width: 100%;
+}
+
+/* Instructions panel — gradient like original instructions-card */
+.cas-panel--instructions {
+  background: var(--scrollbar-thumb);
+  color: white;
+  border-color: transparent;
+}
+
+.cas-panel--instructions .cas-row-title,
+.cas-panel--instructions .cas-row-icon {
+  color: white;
+}
+
+.cas-panel--instructions .cas-row-sub {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.cas-instructions-body {
+  flex: 1;
+}
+
+.cas-steps {
+  padding-left: 20px;
+  margin: 0 0 14px;
+}
+
+.cas-steps li {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  line-height: 1.8;
+  margin-bottom: 6px;
+}
+
+.cas-steps a {
+  color: #ffd700;
+  text-decoration: underline;
+}
+
+.cas-steps strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.cas-note {
+  font-size: 13px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0;
+}
+
+/* ── Desktop only: compact side-by-side panel layout ── */
+@media (min-width: 1025px) {
+  .cas-panels-row {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 16px;
+    padding: 16px 0;
+  }
+
+  .cas-panel {
+    padding: 0;
+    border-radius: 14px;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid rgba(102, 126, 234, 0.15);
+    background: var(--bg-card);
+    backdrop-filter: none;
+  }
+
+  .cas-panel:hover {
+    transform: none;
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Show panel header on desktop */
+  .cas-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px 9px;
+    background: rgba(102, 126, 234, 0.07);
+    border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+    flex-shrink: 0;
+  }
+
+  .cas-panel-header-icon {
+    font-size: 15px;
+    line-height: 1;
+    color: #667eea;
+  }
+
+  .cas-panel-header-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  /* Rows go horizontal: meta left, action right */
+  .cas-panel-row {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 20px;
+    padding: 16px 20px;
+  }
+
+  .cas-panel-row:first-child {
+    padding-top: 16px;
+  }
+
+  .cas-row-meta {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cas-row-icon {
+    font-size: 20px;
+    margin-top: 1px;
+    width: 26px;
+    text-align: center;
+    color: #667eea;
+  }
+
+  .cas-row-icon i {
+    font-size: 18px;
+  }
+
+  .cas-row-title {
+    font-size: 15px;
+    margin-bottom: 2px;
+  }
+
+  .cas-row-sub {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .cas-row-info {
+    font-size: 11px;
+    margin-top: 3px;
+  }
+
+  .cas-row-action {
+    flex-shrink: 0;
+    align-items: flex-end;
+    width: auto;
+  }
+
+  /* User list: allow it to grow but cap width so names don't overflow */
+  .cas-panel-row .user-list-container {
+    max-width: 280px;
+    width: 280px;
+    overflow-x: hidden;
+    word-break: break-word;
+  }
+
+  .cas-row-btn {
+    white-space: nowrap;
+    width: auto;
+  }
+
+  .cas-file-inputs {
+    min-width: 240px;
+    width: 240px;
+  }
+
+  /* Instructions panel — desktop: gradient panel */
+  .cas-panel--instructions {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: transparent;
+  }
+
+  .cas-panel--instructions .cas-panel-header {
+    background: rgba(0, 0, 0, 0.15);
+    border-bottom-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .cas-panel--instructions .cas-panel-header-title {
+    color: #fff;
+  }
+
+  .cas-panel--instructions .cas-panel-header-icon {
+    color: #fff;
+  }
+
+  /* Instructions body fills card */
+  .cas-panel--instructions .cas-panel-row {
+    flex: 1;
+    padding: 18px 20px;
+    border-bottom: none;
+  }
+
+  .cas-panel--instructions .cas-panel-row:hover {
+    background: transparent;
+  }
+
+  .cas-panel--instructions .cas-row-meta {
+    display: none; /* header bar already labels the panel */
+  }
+
+  .cas-panel--instructions .cas-instructions-body {
+    padding: 0;
+  }
+
+  .cas-panel--instructions .cas-row-action {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .cas-steps li {
+    font-size: 13px;
+  }
+}
+
+/* ── Mobile: no hover lift ── */
+@media (max-width: 500px) {
+  .cas-panels-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 10px 0 20px;
+  }
+
+  .cas-panel {
+    padding: 20px;
+  }
+}
+
+/* ============================================================
+   ADDITIONAL ASSETS PANEL  — folio-card language
+   One card, header + summary row + asset rows
+   ============================================================ */
+
+/* Replace the outer container */
+.additional-assets-container {
+  background: var(--bg-card);
+  border: 1px solid rgba(102, 126, 234, 0.15);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  padding: 0;
+  backdrop-filter: none;
+}
+
+/* Header bar — identical to .folio-card-header */
+.aa-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px 8px;
+  background: rgba(102, 126, 234, 0.07);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+}
+
+.aa-header-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.aa-header-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.aa-header-sub {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--text-tertiary);
+}
+
+/* Summary row — behaves like .summary-cards / .return-card cells */
+.aa-summary-row {
+  display: flex;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+}
+
+.aa-summary-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 12px 12px;
+  text-align: center;
+  gap: 2px;
+  position: relative;
+  border-right: 1px solid rgba(102, 126, 234, 0.08);
+  transition: background 0.2s ease;
+}
+
+.aa-summary-cell:last-child {
+  border-right: none;
+}
+
+.aa-summary-cell:hover {
+  background: rgba(102, 126, 234, 0.04);
+}
+
+/* bottom accent line — same as .card::after */
+.aa-summary-cell::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 14px;
+  right: 14px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(102, 126, 234, 0.2);
+}
+
+.aa-cell-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.aa-cell-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.15;
+  letter-spacing: -0.3px;
+}
+
+.aa-cell-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+
+/* Asset rows container */
+.aa-assets-body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Each asset row — 1px line separator like folio-card rows */
+.aa-asset-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+  transition: background 0.15s ease;
+}
+
+.aa-asset-row:last-child {
+  border-bottom: none;
+}
+
+.aa-asset-row:hover {
+  background: rgba(102, 126, 234, 0.03);
+}
+
+/* Left identity: icon + name — like .folio-card-header left side */
+.aa-asset-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  min-width: 150px;
+  border-right: 1px solid rgba(102, 126, 234, 0.08);
+  background: rgba(102, 126, 234, 0.02);
+  flex-shrink: 0;
+}
+
+.aa-asset-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.aa-asset-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+/* Middle: input fields — flex row inside */
+.aa-asset-fields {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0;
+  padding: 10px 0;
+  border-right: 1px solid rgba(102, 126, 234, 0.08);
+}
+
+.aa-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 12px;
+  border-right: 1px solid rgba(102, 126, 234, 0.06);
+}
+
+.aa-field:last-child {
+  border-right: none;
+}
+
+.aa-field-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-tertiary);
+}
+
+.aa-field input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border-medium);
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--bg-offwhite);
+  color: var(--text-primary);
+  height: 34px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.aa-field input:hover {
+  border-color: rgba(102, 126, 234, 0.4);
+  background: var(--bg-card-hover);
+}
+
+.aa-field input:focus {
+  outline: none;
+  border-color: var(--primary-gradient-start);
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.12);
+}
+
+/* Right: computed value cell — like folio-card-hero-cell */
+.aa-asset-value-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px;
+  gap: 2px;
+  min-width: 100px;
+  text-align: center;
+  flex-shrink: 0;
+  background: rgba(102, 126, 234, 0.02);
+}
+
+.aa-asset-total {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+/* Dark mode */
+:root[data-theme="dark"] .cas-panel {
+  border-color: rgba(102, 126, 234, 0.2);
+}
+
+:root[data-theme="dark"] .cas-panel-row:hover {
+  background: rgba(102, 126, 234, 0.06);
+}
+
+:root[data-theme="dark"] .additional-assets-container {
+  border-color: rgba(102, 126, 234, 0.2);
+}
+
+:root[data-theme="dark"] .aa-field input {
+  border-color: rgba(102, 126, 234, 0.35);
+  background: var(--bg-offwhite);
+}
+
+:root[data-theme="dark"] .aa-asset-row:hover {
+  background: rgba(102, 126, 234, 0.06);
+}
+
+/* Responsive: stack fields vertically on mobile */
+@media (max-width: 1024px) {
+  .aa-asset-row {
+    flex-wrap: wrap;
+  }
+
+  .aa-asset-identity {
+    min-width: unset;
+    flex: 1;
+    border-right: none;
+    border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+    padding: 10px 12px;
+  }
+
+  .aa-asset-value-cell {
+    border-left: 1px solid rgba(102, 126, 234, 0.08);
+    min-width: 80px;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+  }
+
+  .aa-asset-fields {
+    width: 100%;
+    border-right: none;
+    padding: 8px 0;
+    flex: unset;
+  }
+
+  .additional-assets-container {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+}
+
+@media (max-width: 500px) {
+  .aa-summary-cell {
+    padding: 12px 8px 10px;
+  }
+
+  .aa-cell-value {
+    font-size: 18px;
+  }
+}
+
+/* Instructions row: mobile shows meta+action stacked; desktop hides meta (panel header takes over) */
+.cas-instructions-meta {
+  /* visible on mobile as card title row */
+}
+
+.cas-instructions-action {
+  width: 100%;
+}
+
+.cas-instructions-body {
+  width: 100%;
+}
+
+@media (min-width: 1025px) {
+  /* Desktop: hide the in-row title, panel header is enough */
+  .cas-instructions-meta {
+    display: none;
+  }
+
+  /* Instructions row fills the whole panel below the header */
+  .cas-instructions-row {
+    flex: 1;
+    padding: 18px 20px;
+    border-bottom: none;
+  }
+
+  .cas-instructions-row:hover {
+    background: transparent;
+  }
+
+  .cas-instructions-action {
+    width: 100%;
+    align-items: stretch;
+  }
+}
+
+/* ============================================================
+   MOBILE FIXES
+   1. Overlap & Expense Impact table overflow
+   2. Fund details modal bottom buttons hidden under nav
+   ============================================================ */
+
+/* ── 1. Overlap Analysis + Expense Impact: scrollable tables on mobile ── */
+
+/* Wrap every gains-table inside overlapContent / expenseContent
+   in a scroll container so wide columns don't blow out the layout */
+#overlapContent .gains-table-wrapper,
+#expenseContent .gains-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* subtle shadow to hint at horizontal scroll */
+  border-radius: 8px;
+}
+
+/* The tables themselves must not shrink — let them be their natural width
+   and let the wrapper scroll */
+#overlapContent .gains-table,
+#expenseContent .gains-table {
+  min-width: 520px; /* enough for 4–5 columns to breathe */
+  width: 100%;
+}
+
+/* On mobile, tighten cell padding so content is as compact as possible */
+@media (max-width: 1024px) {
+  #overlapContent .gains-table th,
+  #overlapContent .gains-table td,
+  #expenseContent .gains-table th,
+  #expenseContent .gains-table td {
+    padding: 8px 10px;
+    font-size: 12px;
+    white-space: nowrap; /* keep each cell on one line; wrapper scrolls */
+  }
+
+  /* "Funds" column (last col in common-holdings table) can wrap */
+  #overlapContent .gains-table td:last-child {
+    white-space: normal;
+    min-width: 120px;
+    max-width: 200px;
+  }
+
+  /* Expense impact: fund name column can wrap, numbers stay nowrap */
+  #expenseContent .gains-table td:first-child {
+    white-space: normal;
+    min-width: 130px;
+    max-width: 180px;
+  }
+
+  /* Section wrapper: no side padding that eats table space */
+  #overlapContent .capital-gains-section,
+  #expenseContent .capital-gains-section {
+    padding: 14px 12px;
+  }
+
+  #overlapContent,
+  #expenseContent {
+    overflow-x: hidden; /* parent doesn't scroll, only the wrapper does */
+  }
+}
+
+@media (max-width: 1024px) {
+  .transaction-modal {
+    height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .modal-content {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+  }
+
+  .modal-footer {
+    flex-shrink: 0;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  }
+}
+
+@media (max-width: 500px) {
+  .fund-quick-actions-body {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .fund-quick-action-btn {
+    width: 100%;
+    min-width: unset;
+    justify-content: flex-start;
+    padding: 12px 16px;
+  }
+}
+
+/* ============================================================
+   MODERN TAB REDESIGN — v2
+   Transactions, Capital Gains, Tax Planning,
+   Overlap Analysis, Portfolio Health
+   Matches Dashboard · Current Holdings · Manage CAS language:
+   hero-row cells · pill labels · compact rows · clean tables
+   ============================================================ */
+
+/* ── Shared section wrapper (replaces old capital-gains-section padding) ── */
+.cg-section {
+  background: var(--bg-card);
+  border: 1px solid rgba(102, 126, 234, 0.13);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 20px;
+}
+
+/* ── Compact section header bar (like folio-card-header) ── */
+.cg-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 16px 9px;
+  background: rgba(102, 126, 234, 0.06);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cg-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cg-section-title i {
+  font-size: 15px;
+  color: #667eea;
+  width: 16px;
+}
+
+.cg-section-title h3,
+.cg-section-title h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.1px;
+}
+
+.cg-section-subtitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cg-section-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ── Hero stat strip (like summary-cards / folio-card-hero) ── */
+.cg-hero-strip {
+  display: flex;
+  flex-wrap: wrap;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.09);
+  background: var(--bg-card);
+}
+
+.cg-hero-cell {
+  flex: 1 1 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 10px 12px;
+  gap: 3px;
+  text-align: center;
+  border-right: 1px solid rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.06);
+  position: relative;
+  transition: background 0.15s;
+}
+
+.cg-hero-cell:last-child {
+  border-right: none;
+}
+
+.cg-hero-cell:hover {
+  background: rgba(102, 126, 234, 0.03);
+}
+
+.cg-hero-cell::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(102, 126, 234, 0.15);
+}
+
+.cg-hero-cell.gain-cell {
+  background: rgba(16, 185, 129, 0.04);
+}
+.cg-hero-cell.gain-cell::after {
+  background: rgba(16, 185, 129, 0.4);
+}
+.cg-hero-cell.loss-cell {
+  background: rgba(239, 68, 68, 0.04);
+}
+.cg-hero-cell.loss-cell::after {
+  background: rgba(239, 68, 68, 0.4);
+}
+.cg-hero-cell.accent-cell {
+  background: rgba(102, 126, 234, 0.04);
+}
+.cg-hero-cell.accent-cell::after {
+  background: rgba(102, 126, 234, 0.35);
+}
+
+.cg-hero-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.cg-hero-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+}
+
+.cg-hero-value.gain {
+  color: var(--success);
+}
+.cg-hero-value.loss {
+  color: var(--danger);
+}
+.cg-hero-value.accent {
+  color: #667eea;
+}
+
+.cg-hero-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+.cg-hero-sub.gain {
+  color: var(--success);
+  opacity: 0.85;
+}
+.cg-hero-sub.loss {
+  color: var(--danger);
+  opacity: 0.85;
+}
+
+/* ── Pill / chip buttons (year selector, FY tabs) ── */
+.cg-pill-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+  background: var(--bg-card);
+}
+
+.cg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 11px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  background: rgba(102, 126, 234, 0.08);
+  border: 1px solid rgba(102, 126, 234, 0.18);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.cg-pill:hover {
+  background: rgba(102, 126, 234, 0.15);
+  color: var(--text-primary);
+  border-color: rgba(102, 126, 234, 0.35);
+  transform: none;
+  box-shadow: none;
+}
+
+.cg-pill.active {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.cg-pill.gain-pill {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: var(--success);
+}
+.cg-pill.loss-pill {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.22);
+  color: var(--danger);
+}
+.cg-pill.warning-pill {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.22);
+  color: var(--warning);
+}
+
+/* ── Compact download button ── */
+.cg-dl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.22);
+  color: #667eea;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  box-shadow: none;
+  height: 30px;
+}
+
+.cg-dl-btn:hover {
+  background: rgba(102, 126, 234, 0.18);
+  transform: none;
+  box-shadow: none;
+}
+
+.cg-dl-btn i {
+  font-size: 12px;
+}
+
+/* ── Modern gains table ── */
+.cg-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 520px;
+}
+
+.cg-table thead tr {
+  background: rgba(102, 126, 234, 0.06);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.15);
+}
+
+.cg-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cg-table th:hover {
+  color: var(--text-primary);
+}
+
+.cg-table tbody tr {
+  border-bottom: 1px solid rgba(102, 126, 234, 0.06);
+  transition: background 0.12s;
+}
+
+.cg-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.cg-table tbody tr:hover {
+  background: rgba(102, 126, 234, 0.04);
+}
+
+.cg-table td {
+  padding: 9px 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.cg-table td.fund-name-cell {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 13px;
+  max-width: 220px;
+}
+
+.cg-table td.gain {
+  color: var(--success);
+  font-weight: 600;
+}
+.cg-table td.loss {
+  color: var(--danger);
+  font-weight: 600;
+}
+.cg-table td.warning {
+  color: var(--warning);
+  font-weight: 600;
+}
+.cg-table td.accent {
+  color: #667eea;
+  font-weight: 600;
+}
+
+/* ── Health Score hero circle ── */
+.health-hero-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 20px 20px;
+  background: var(--bg-gradiant);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+  gap: 6px;
+}
+
+.health-score-circle {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  border: 3px solid;
+  position: relative;
+}
+
+.health-score-num {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.health-score-denom {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.6;
+}
+
+.health-grade-badge {
+  font-size: 15px;
+  font-weight: 800;
+  padding: 2px 12px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+}
+
+.health-grade-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Health detail card ── */
+.health-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.06);
+  transition: background 0.12s;
+}
+
+.health-detail-row:last-child {
+  border-bottom: none;
+}
+
+.health-detail-row:hover {
+  background: rgba(102, 126, 234, 0.03);
+}
+
+.health-detail-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  color: white;
+}
+
+.health-detail-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.health-detail-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: capitalize;
+  margin-bottom: 2px;
+}
+
+.health-detail-msg {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.health-detail-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.health-detail-score {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.health-progress-bar {
+  width: 80px;
+  height: 4px;
+  background: rgba(102, 126, 234, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.health-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* ── Collapsible holding split rows (Tax Planning) ── */
+.tp-holding-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.06);
+  transition: background 0.12s;
+}
+
+.tp-holding-row:last-child {
+  border-bottom: none;
+}
+
+.tp-holding-row:hover {
+  background: rgba(102, 126, 234, 0.03);
+}
+
+.tp-holding-identity {
+  flex: 1;
+  min-width: 0;
+  padding-right: 12px;
+}
+
+.tp-holding-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+  line-height: 1.4;
+}
+
+.tp-holding-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tp-holding-meta-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 20px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tp-pill-equity {
+  background: rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  color: #667eea;
+}
+
+.tp-pill-days {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  color: var(--warning);
+}
+
+.tp-pill-units {
+  background: rgba(100, 116, 139, 0.1);
+  border: 1px solid rgba(100, 116, 139, 0.15);
+  color: var(--text-tertiary);
+}
+
+.tp-holding-values {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.tp-holding-cur-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+}
+
+.tp-holding-gain {
+  font-size: 12px;
+  font-weight: 600;
+}
+.tp-holding-gain.gain {
+  color: var(--success);
+}
+.tp-holding-gain.loss {
+  color: var(--danger);
+}
+
+/* ── Collapsible section header (Tax Planning / Overlap) ── */
+.cg-collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(102, 126, 234, 0.05);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+  gap: 12px;
+}
+
+.cg-collapsible-header:hover {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.cg-collapsible-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cg-collapsible-left i {
+  font-size: 15px;
+  color: #667eea;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.cg-collapsible-left h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.cg-collapsible-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.cg-collapsible-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+}
+
+.cg-collapsible-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+}
+
+.cg-collapsible-stat-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.cg-collapsible-stat-value.gain {
+  color: var(--success);
+}
+.cg-collapsible-stat-value.loss {
+  color: var(--danger);
+}
+
+.cg-chevron {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  transition: transform 0.25s ease;
+}
+
+.cg-chevron.open {
+  transform: rotate(-180deg);
+}
+
+/* ── Overlap fund-pair row ── */
+.overlap-pair-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.06);
+  transition: background 0.12s;
+}
+
+.overlap-pair-row:last-child {
+  border-bottom: none;
+}
+
+.overlap-pair-row:hover {
+  background: rgba(102, 126, 234, 0.03);
+}
+
+.overlap-fund-names {
+  flex: 1;
+  padding: 10px 14px;
+  border-right: 1px solid rgba(102, 126, 234, 0.07);
+  min-width: 0;
+}
+
+.overlap-fund-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.overlap-fund-name.secondary {
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.overlap-pct-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  gap: 4px;
+  min-width: 80px;
+  text-align: center;
+  border-right: 1px solid rgba(102, 126, 234, 0.07);
+  flex-shrink: 0;
+}
+
+.overlap-pct-val {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.overlap-pct-val.gain {
+  color: var(--success);
+}
+.overlap-pct-val.warning {
+  color: var(--warning);
+}
+.overlap-pct-val.loss {
+  color: var(--danger);
+}
+
+.overlap-pct-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+}
+
+.overlap-stocks-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  flex-shrink: 0;
+  min-width: 56px;
+  text-align: center;
+}
+
+.overlap-stocks-num {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.overlap-stocks-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+}
+
+/* ── Common holdings row ── */
+.common-holding-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.06);
+  transition: background 0.12s;
+}
+
+.common-holding-row:last-child {
+  border-bottom: none;
+}
+
+.common-holding-row:hover {
+  background: rgba(102, 126, 234, 0.03);
+}
+
+.common-holding-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding-right: 10px;
+  min-width: 0;
+}
+
+.common-holding-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: #667eea;
+  min-width: 32px;
+  text-align: center;
+}
+
+.common-holding-weight {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 50px;
+  text-align: right;
+}
+
+.common-holding-funds {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  padding-left: 12px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Tax optimization note ── */
+.cg-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  background: rgba(245, 158, 11, 0.05);
+  border-top: 1px solid rgba(245, 158, 11, 0.12);
+}
+
+.cg-note i {
+  color: var(--warning);
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.cg-note-body {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.cg-note-body strong {
+  color: var(--text-primary);
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.cg-note-body ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cg-note-body li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.cg-note-body li::before {
+  content: "›";
+  color: var(--warning);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ── Section title (inline inside tab) ── */
+.cg-sub-title {
+  padding: 10px 16px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-tertiary);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.07);
+  background: var(--bg-card);
+}
+
+/* Override old capital-gains-section inside new tabs */
+#capitalGainsContent .capital-gains-section,
+#taxPlanningContent .capital-gains-section,
+#overlapContent .capital-gains-section,
+#healthScoreContent .capital-gains-section {
+  background: var(--bg-card);
+  border: 1px solid rgba(102, 126, 234, 0.13);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Override old section-header inside these tabs */
+#capitalGainsContent .section-header,
+#taxPlanningContent .section-header,
+#overlapContent .section-header,
+#healthScoreContent .section-header {
+  padding: 12px 16px 10px;
+  background: rgba(102, 126, 234, 0.05);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+  margin: 0;
+}
+
+#capitalGainsContent .section-header h3,
+#taxPlanningContent .section-header h3,
+#overlapContent .section-header h3,
+#healthScoreContent .section-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 2px;
+}
+
+#capitalGainsContent .section-header .section-subtitle,
+#taxPlanningContent .section-header .section-subtitle,
+#overlapContent .section-header .section-subtitle,
+#healthScoreContent .section-header .section-subtitle {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+/* Override year-btn inside capital gains */
+#capitalGainsContent .year-btn,
+#capitalGainsContent .gains-year-selector {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+  background: var(--bg-card);
+}
+
+#capitalGainsContent .year-btn button,
+.year-btn {
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(102, 126, 234, 0.08);
+  border: 1px solid rgba(102, 126, 234, 0.18);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: none;
+}
+
+#capitalGainsContent .year-btn button:hover,
+.year-btn:hover {
+  background: rgba(102, 126, 234, 0.15);
+  transform: none;
+  box-shadow: none;
+}
+
+#capitalGainsContent .year-btn button.active,
+.year-btn.active {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+}
+
+/* Override gains-summary-grid inside tabs */
+#capitalGainsContent .gains-summary-grid,
+#taxPlanningContent .gains-summary-grid,
+#overlapContent .gains-summary-grid,
+#expenseContent .gains-summary-grid {
+  display: flex;
+  flex-wrap: wrap;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.09);
+  gap: 0;
+  margin-bottom: 16px;
+}
+
+#capitalGainsContent .gains-summary-card,
+#taxPlanningContent .gains-summary-card,
+#overlapContent .gains-summary-card,
+#expenseContent .gains-summary-card {
+  flex: 1 1 130px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 10px 12px;
+  gap: 4px;
+  text-align: center;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  border-right: 1px solid rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.06);
+  position: relative;
+}
+
+#capitalGainsContent .gains-summary-card:last-child,
+#taxPlanningContent .gains-summary-card:last-child,
+#overlapContent .gains-summary-card:last-child,
+#expenseContent .gains-summary-card:last-child {
+  border-right: none;
+}
+
+#capitalGainsContent .gains-summary-card::after,
+#taxPlanningContent .gains-summary-card::after,
+#overlapContent .gains-summary-card::after,
+#expenseContent .gains-summary-card::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(102, 126, 234, 0.15);
+}
+
+#capitalGainsContent .gains-summary-card h4,
+#taxPlanningContent .gains-summary-card h4,
+#overlapContent .gains-summary-card h4,
+#expenseContent .gains-summary-card h4 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin: 0;
+  text-align: center;
+}
+
+#capitalGainsContent .gains-summary-card .summary-row,
+#taxPlanningContent .gains-summary-card .summary-row,
+#overlapContent .gains-summary-card .summary-row,
+#expenseContent .gains-summary-card .summary-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+#capitalGainsContent .gains-summary-card .summary-row span:first-child,
+#taxPlanningContent .gains-summary-card .summary-row span:first-child,
+#overlapContent .gains-summary-card .summary-row span:first-child,
+#expenseContent .gains-summary-card .summary-row span:first-child {
+  display: none; /* label already in h4 */
+}
+
+#capitalGainsContent .gains-summary-card .summary-row span:last-child,
+#taxPlanningContent .gains-summary-card .summary-row span:last-child,
+#overlapContent .gains-summary-card .summary-row span:last-child,
+#expenseContent .gains-summary-card .summary-row span:last-child {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
+
+/* gains-table inside these tabs */
+#capitalGainsContent .gains-table,
+#overlapContent .gains-table,
+#expenseContent .gains-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+#capitalGainsContent .gains-table thead tr,
+#overlapContent .gains-table thead tr,
+#expenseContent .gains-table thead tr {
+  background: rgba(102, 126, 234, 0.05);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.13);
+}
+
+#capitalGainsContent .gains-table th,
+#overlapContent .gains-table th,
+#expenseContent .gains-table th {
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  text-align: left;
+  white-space: nowrap;
+}
+
+#capitalGainsContent .gains-table td,
+#overlapContent .gains-table td,
+#expenseContent .gains-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.06);
+  font-size: 13px;
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+
+#capitalGainsContent .gains-table tbody tr:hover,
+#overlapContent .gains-table tbody tr:hover,
+#expenseContent .gains-table tbody tr:hover {
+  background: rgba(102, 126, 234, 0.04);
+}
+
+#capitalGainsContent .gains-table tbody tr:last-child td,
+#overlapContent .gains-table tbody tr:last-child td,
+#expenseContent .gains-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* gains-table-wrapper inside tabs */
+#capitalGainsContent .gains-table-wrapper,
+#overlapContent .gains-table-wrapper,
+#expenseContent .gains-table-wrapper {
+  margin-top: 0;
+  border-radius: 0;
+  overflow: hidden;
+  padding: 10px;
+}
+
+#capitalGainsContent .gains-table-wrapper h4,
+#overlapContent .gains-table-wrapper h4,
+#expenseContent .gains-table-wrapper h4 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-tertiary);
+  padding: 8px 12px 6px;
+  margin: 0;
+  background: rgba(102, 126, 234, 0.04);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.07);
+}
+
+/* Tax planning card upgrades */
+#taxPlanningContent .tax-summary-cards {
+  display: flex;
+  flex-wrap: wrap;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.09);
+  margin-bottom: 16px;
+  gap: 0;
+}
+
+#taxPlanningContent .tax-summary-card {
+  flex: 1 1 130px;
+  border: none;
+  border-radius: 0;
+  border-right: 1px solid rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.06);
+  background: transparent;
+  padding: 12px 10px 10px;
+  position: relative;
+}
+
+#taxPlanningContent .tax-summary-card:last-child {
+  border-right: none;
+}
+
+#taxPlanningContent .tax-summary-card::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(102, 126, 234, 0.15);
+}
+
+#taxPlanningContent .tax-summary-card h4 {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin: 0 0 6px;
+}
+
+#taxPlanningContent .tax-summary-value {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  letter-spacing: -0.3px;
+}
+
+#taxPlanningContent .tax-summary-subtext {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+/* Holdings split redesign for Tax Planning */
+#taxPlanningContent .holdings-split-section {
+  background: transparent;
+  padding: 0;
+  margin-bottom: 0;
+  box-shadow: none;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+}
+
+#taxPlanningContent .holdings-split-section:last-child {
+  border-bottom: none;
+}
+
+#taxPlanningContent .holdings-split-header {
+  padding: 11px 16px;
+  background: rgba(102, 126, 234, 0.04);
+  border-radius: 0;
+  margin-bottom: 0;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+}
+
+#taxPlanningContent .holdings-split-header:hover {
+  background: rgba(102, 126, 234, 0.09);
+}
+
+#taxPlanningContent .holdings-split-content {
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+#taxPlanningContent .holdings-split-content.collapsed {
+  max-height: 0;
+}
+
+#taxPlanningContent .tax-holding-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 16px;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.05);
+  transition: background 0.12s;
+}
+
+#taxPlanningContent .tax-holding-item:last-child {
+  border-bottom: none;
+}
+
+#taxPlanningContent .tax-holding-item:hover {
+  background: rgba(102, 126, 234, 0.03);
+}
+
+#taxPlanningContent .tax-holding-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+  line-height: 1.4;
+}
+
+#taxPlanningContent .tax-holding-meta {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#taxPlanningContent .tax-holding-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  text-align: right;
+}
+
+#taxPlanningContent .tax-holding-percentage {
+  font-size: 11px;
+  font-weight: 600;
+  text-align: right;
+}
+#taxPlanningContent .tax-holding-percentage.gain {
+  color: var(--success);
+}
+#taxPlanningContent .tax-holding-percentage.loss {
+  color: var(--danger);
+}
+
+/* Tax note upgrade */
+#taxPlanningContent .tax-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  background: rgba(245, 158, 11, 0.04);
+  border-top: 1px solid rgba(245, 158, 11, 0.1);
+}
+
+#taxPlanningContent .tax-note i {
+  color: var(--warning);
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+#taxPlanningContent .tax-note ul {
+  padding-left: 0;
+  list-style: none;
+  margin: 4px 0 0;
+}
+
+#taxPlanningContent .tax-note li {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 2px 0;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+#taxPlanningContent .tax-note li::before {
+  content: "›";
+  color: var(--warning);
+  font-weight: 700;
+}
+
+/* ── Health score inline style override (for old inline styles) ── */
+#healthScoreContent [style*="text-align: center"] {
+  padding: 24px 16px 16px !important;
+  border-radius: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* Transaction section: override transaction-section padding */
+#transactions .transaction-section {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(102, 126, 234, 0.12);
+  box-shadow: var(--shadow-sm);
+  padding: 0;
+}
+
+#transactions .transaction-section-header {
+  padding: 11px 16px;
+  background: rgba(102, 126, 234, 0.05);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+}
+
+#transactions .transaction-section-header h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+#transactions .transaction-section-content {
+  border-top: none;
+}
+
+#transactions .transaction-table thead {
+  background: rgba(102, 126, 234, 0.05);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.12);
+}
+
+#transactions .transaction-table th {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  padding: 7px 10px;
+}
+
+#transactions .transaction-table td {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+#transactions .transaction-table .tx-type {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 700;
+}
+
+/* Transaction header bar with download actions */
+#transactions .trans-download {
+  padding: 8px 14px;
+  border-top: 1px solid rgba(102, 126, 234, 0.08);
+  margin-top: 0;
+}
+
+/* ── Overlap: table is already gains-table, just fix spacing ── */
+#overlapContent .capital-gains-section {
+  margin-top: 0;
+}
+
+#overlapContent .gains-table-wrapper:not(:first-child) {
+  border-top: 1px solid rgba(102, 126, 234, 0.08);
+}
+
+/* ── No-data state ── */
+.cg-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 20px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.cg-empty i {
+  font-size: 28px;
+  opacity: 0.35;
+}
+
+/* ── Dark mode overrides for new classes ── */
+:root[data-theme="dark"] .cg-section {
+  border-color: rgba(102, 126, 234, 0.22);
+}
+
+:root[data-theme="dark"] .cg-section-head,
+:root[data-theme="dark"] .cg-collapsible-header {
+  background: rgba(102, 126, 234, 0.1);
+  border-color: rgba(102, 126, 234, 0.18);
+}
+
+:root[data-theme="dark"] .cg-hero-cell {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme="dark"] .cg-table thead tr {
+  background: rgba(102, 126, 234, 0.12);
+}
+
+:root[data-theme="dark"] .cg-table th {
+  color: var(--text-tertiary);
+}
+
+:root[data-theme="dark"] .cg-table td,
+:root[data-theme="dark"] .cg-table tbody tr {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme="dark"] .cg-note {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+:root[data-theme="dark"] .health-progress-bar {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="dark"] #capitalGainsContent .gains-summary-card,
+:root[data-theme="dark"] #taxPlanningContent .gains-summary-card,
+:root[data-theme="dark"] #overlapContent .gains-summary-card,
+:root[data-theme="dark"] #expenseContent .gains-summary-card {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme="dark"] #capitalGainsContent .gains-table th,
+:root[data-theme="dark"] #overlapContent .gains-table th,
+:root[data-theme="dark"] #expenseContent .gains-table th {
+  color: var(--text-tertiary);
+}
+
+:root[data-theme="dark"] #capitalGainsContent .gains-table td,
+:root[data-theme="dark"] #overlapContent .gains-table td,
+:root[data-theme="dark"] #expenseContent .gains-table td {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme="dark"] #taxPlanningContent .tax-summary-card {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme="dark"] #taxPlanningContent .tax-holding-item {
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+:root[data-theme="dark"] #taxPlanningContent .holdings-split-header {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+:root[data-theme="dark"] #taxPlanningContent .holdings-split-header:hover {
+  background: rgba(102, 126, 234, 0.16);
+}
+
+:root[data-theme="dark"] .overlap-pair-row,
+:root[data-theme="dark"] .common-holding-row {
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+:root[data-theme="dark"] .tp-holding-row {
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+:root[data-theme="dark"] .cg-pill {
+  background: rgba(102, 126, 234, 0.15);
+  border-color: rgba(102, 126, 234, 0.28);
+}
+
+:root[data-theme="dark"] .cg-pill.active {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+:root[data-theme="dark"] .cg-pill:hover {
+  border-color: rgba(102, 126, 234, 0.5);
+  transform: translateY(-1px);
+}
+
+:root[data-theme="dark"] .cg-dl-btn {
+  background: rgba(102, 126, 234, 0.15);
+  border-color: rgba(102, 126, 234, 0.3);
+}
+
+:root[data-theme="dark"] #transactions .transaction-section {
+  border-color: rgba(102, 126, 234, 0.22);
+}
+
+:root[data-theme="dark"] #transactions .transaction-section-header {
+  background: rgba(102, 126, 234, 0.1);
+  border-color: rgba(102, 126, 234, 0.18);
+}
+
+:root[data-theme="dark"] #transactions .transaction-table thead {
+  background: rgba(102, 126, 234, 0.12);
+}
+
+/* ============================================================
+   V3 FIXES — Capital Gains, All-Time Summary, Mobile Tables
+   ============================================================ */
+
+/* ── 1. expenseContent card treatment (mirrors other tab overrides) ── */
+#expenseContent .capital-gains-section {
+  background: var(--bg-card);
+  border: 1px solid rgba(102, 126, 234, 0.13);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  padding: 0;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+#expenseContent .section-header {
+  padding: 12px 16px 10px;
+  background: rgba(102, 126, 234, 0.05);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+  margin: 0;
+}
+
+#expenseContent .section-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 2px;
+}
+
+#expenseContent .section-header .section-subtitle {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+/* ── 2. All-Time Summary — targeted via .alltime-summary-grid class (set in JS) ──
+   The broad #capitalGainsContent .gains-summary-grid override hides labels and
+   center-aligns values (hero-cell style). We restore the all-time grid to a
+   proper labelled card layout by targeting its unique class.
+──────────────────────────────────────────────────────────── */
+
+.alltime-summary-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+  gap: 12px !important;
+  padding: 16px !important;
+  margin-bottom: 0 !important;
+  border-bottom: none !important;
+  background: transparent !important;
+  flex-wrap: unset !important;
+}
+
+.alltime-summary-grid .gains-summary-card {
+  flex: unset !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  padding: 14px 16px !important;
+  gap: 0 !important;
+  text-align: left !important;
+  background: var(--bg-offwhite) !important;
+  border: 1px solid rgba(102, 126, 234, 0.13) !important;
+  border-radius: 12px !important;
+  position: relative;
+}
+
+.alltime-summary-grid .gains-summary-card::after {
+  display: none !important;
+}
+
+/* Card title: Equity / Debt / Hybrid */
+.alltime-summary-grid .gains-summary-card h4 {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  text-transform: capitalize !important;
+  color: var(--text-primary) !important;
+  margin: 0 0 10px !important;
+  text-align: left !important;
+  padding-bottom: 8px !important;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1) !important;
+}
+
+/* Labelled rows: restore row layout */
+.alltime-summary-grid .gains-summary-card .summary-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  margin-bottom: 5px !important;
+}
+
+/* Restore the label span (hidden by the broad override) */
+.alltime-summary-grid .gains-summary-card .summary-row span:first-child {
+  display: inline !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--text-secondary) !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+/* Value span */
+.alltime-summary-grid .gains-summary-card .summary-row span:last-child {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--text-primary) !important;
+  letter-spacing: -0.2px !important;
+}
+
+/* Total Gains separator row */
+.alltime-summary-grid .gains-summary-card .summary-row.total {
+  margin-top: 8px !important;
+  padding-top: 8px !important;
+  border-top: 1px solid rgba(102, 126, 234, 0.12) !important;
+}
+
+.alltime-summary-grid .gains-summary-card .summary-row.total span:first-child {
+  font-weight: 700 !important;
+  color: var(--text-primary) !important;
+}
+
+/* Dark mode */
+:root[data-theme="dark"] .alltime-summary-grid .gains-summary-card {
+  background: rgba(34, 37, 47, 0.6) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Mobile: stack cards */
+@media (max-width: 1024px) {
+  .alltime-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── 3. Capital gains section spacing ── */
+#capitalGainsContent .capital-gains-section {
+  margin-bottom: 16px;
+}
+
+/* ── 4. Mobile: gains table horizontal scroll + first-column width ── */
+@media (max-width: 1024px) {
+  #capitalGainsContent .gains-table-wrapper,
+  #overlapContent .gains-table-wrapper,
+  #expenseContent .gains-table-wrapper,
+  #taxPlanningContent .gains-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #capitalGainsContent .gains-table td:first-child,
+  #capitalGainsContent .gains-table th:first-child,
+  #overlapContent .gains-table td:first-child,
+  #overlapContent .gains-table th:first-child,
+  #expenseContent .gains-table td:first-child,
+  #expenseContent .gains-table th:first-child {
+    max-width: 140px;
+    min-width: 110px;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  #capitalGainsContent .gains-table td:not(:first-child),
+  #capitalGainsContent .gains-table th:not(:first-child),
+  #overlapContent .gains-table td:not(:first-child),
+  #overlapContent .gains-table th:not(:first-child),
+  #expenseContent .gains-table td:not(:first-child),
+  #expenseContent .gains-table th:not(:first-child) {
+    white-space: nowrap;
+  }
+}
+
+/* ── 5. Expense Impact table: force min-width so it scrolls rather than squishes ── */
+@media (max-width: 1024px) {
+  #expenseContent .gains-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #expenseContent .gains-table {
+    min-width: 520px;
+  }
+
+  #expenseContent .gains-table td:first-child,
+  #expenseContent .gains-table th:first-child {
+    max-width: 130px;
+    min-width: 100px;
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
+/* ============================================================
+   V4 FIXES — Color coding & Mobile expense table columns
+   ============================================================ */
+
+/* ── 1. Restore .gain / .loss / .warning color on gains-table td ──
+   The tab-scoped override sets color: var(--text-secondary) on ALL td,
+   which kills the per-cell color classes. Fix by adding higher-specificity
+   rules that restore the correct colors for colored cells.
+──────────────────────────────────────────────────────────── */
+#capitalGainsContent .gains-table td.gain,
+#overlapContent .gains-table td.gain,
+#expenseContent .gains-table td.gain {
+  color: var(--success);
+  font-weight: 600;
+}
+
+#capitalGainsContent .gains-table td.loss,
+#overlapContent .gains-table td.loss,
+#expenseContent .gains-table td.loss {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+#capitalGainsContent .gains-table td.warning,
+#overlapContent .gains-table td.warning,
+#expenseContent .gains-table td.warning {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+/* ── 2. Expense Impact mobile table: hide Current Value, Annual Cost columns ──
+   On mobile only show: Fund Name | Expense Ratio | Lifetime Cost
+   Columns by index: 1=Fund Name, 2=Current Value, 3=Expense Ratio,
+                     4=Annual Cost, 5=Lifetime Cost
+──────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  /* Hide Current Value (col 2) and Annual Cost (col 4) */
+  #expenseContent .gains-table th:nth-child(2),
+  #expenseContent .gains-table td:nth-child(2),
+  #expenseContent .gains-table th:nth-child(4),
+  #expenseContent .gains-table td:nth-child(4) {
+    display: none;
+  }
+
+  /* No min-width needed now that we only have 3 columns */
+  #expenseContent .gains-table {
+    min-width: unset;
+  }
+
+  /* Give fund name column more room since fewer columns */
+  #expenseContent .gains-table td:first-child,
+  #expenseContent .gains-table th:first-child {
+    max-width: unset;
+    min-width: unset;
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
+@media (max-width: 500px) {
+  .tax-planning-container,
+  .cg-section,
+  #expenseContent .capital-gains-section,
+  #cas-upload-tab,
+  .cas-panel {
+    margin: 0;
+    background: var(--bg-card);
+    backdrop-filter: none;
+    border-radius: 0;
+    margin-bottom: 0;
+    box-shadow: none;
+    border: none;
+  }
+
+  .cas-panels-row {
+    padding: 0;
+  }
 }

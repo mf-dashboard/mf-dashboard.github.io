@@ -1,6 +1,6 @@
 # 📊 My MF Dashboard
 
-A comprehensive web-based portfolio tracker for Indian mutual fund investors. Track your investments, analyze performance, calculate capital gains, and monitor your portfolio with beautiful visualizations - all running locally in your browser!
+A comprehensive web-based portfolio tracker for Indian mutual fund investors. Track your investments, analyze performance, calculate capital gains, and monitor your portfolio with beautiful visualizations — all running locally in your browser!
 
 ![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -11,7 +11,7 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 ### 📈 Portfolio Analytics
 
 - **Real-time Portfolio Tracking**: Monitor current value, gains/losses, and returns
-- **Asset Allocation**: Visualize distribution across equity, debt, gold, and other assets
+- **Asset Allocation**: Visualize distribution across equity, debt, gold, and silver
 - **Market Cap Analysis**: Track large-cap, mid-cap, and small-cap exposure
 - **Sector Distribution**: Understand your equity sector allocation
 - **Fund House Distribution**: See your AMC-wise portfolio split
@@ -19,7 +19,7 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 
 ### 💰 Performance Metrics
 
-- **XIRR Calculation**: Accurate returns calculation using Extended Internal Rate of Return
+- **XIRR Calculation**: Accurate returns using Extended Internal Rate of Return
 - **Absolute Returns**: Track overall and individual fund performance
 - **Realized vs Unrealized Gains**: Separate tracking of booked and paper profits
 - **Weighted Portfolio Returns**: 1Y, 3Y, and 5Y weighted returns across all holdings
@@ -27,7 +27,7 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 
 ### 📊 Visual Analytics
 
-- **Interactive Charts**: Beautiful Chart.js visualizations for all metrics
+- **Interactive Charts**: Chart.js visualizations for all metrics
 - **Growth Tracking**: Monitor portfolio value over time with daily valuation
 - **Investment Flow**: Track monthly/quarterly/yearly investments and redemptions
 - **Fund Valuation History**: Individual fund performance charts
@@ -36,7 +36,7 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 ### 💸 Capital Gains
 
 - **Tax Calculation**: Automatic STCG and LTCG calculation with proper categorization
-- **Financial Year Reports**: Year-wise capital gains breakdown
+- **Financial Year Reports**: Year-wise capital gains breakdown (FY 2019-20 onwards)
 - **Transaction-Level Details**: FIFO-based cost basis tracking
 - **Downloadable Reports**: Export capital gains as Excel files (FY-wise or all-time)
 - **Current Year Tracking**: Real-time tracking of current financial year gains
@@ -44,142 +44,177 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 ### 📝 Transaction Management
 
 - **Complete Transaction History**: All purchases, redemptions, and switches
-- **Fund-wise Transactions**: Detailed transaction view for each fund
+- **Two Views**: All-time transactions or active holdings only
 - **Folio-wise Tracking**: Separate tracking for multiple folios
 - **Excel Export**: Download transaction reports in XLSX format
 - **Real-time NAV Updates**: Fetch latest NAV data automatically
 
+### 📅 Portfolio Analysis & Projection
+
+- **Portfolio History Charts**: Interactive growth, investment, withdrawal, and net investment views with time filters (1M to All)
+- **Average Monthly Summary**: Average buy/sell/net inflow over the last 6M and 12M
+- **Portfolio Projection**: SIP-style future value calculator with configurable CAGR, annual step-up %, and custom SIP amount — projected up to 20 years
+- **Transaction Calendar**: Visual heatmap showing days you invested (green) or withdrew (red), browsable by year (2019–2026)
+
 ### 🔒 Data Management
 
-- **Local Storage**: All data stored in browser's IndexedDB
-- **No Server Storage**: Your financial data never leaves your device
+- **Local Storage**: All data stored in browser's IndexedDB — never leaves your device
+- **No Server Storage**: Financial data is processed transiently and deleted immediately after parsing
 - **Auto-Updates**: Intelligent daily NAV and monthly stats updates
 - **Cache Control**: Manual cache refresh and clear options
-- **Duplicate Prevention**: Smart detection of already uploaded CAS files
+- **Duplicate Prevention**: Smart detection of already-uploaded CAS files
 
 ### 🔄 Auto-Update Features
 
-- The application automatically keeps your portfolio data fresh:
+The application automatically keeps your portfolio data fresh:
 
-- **Daily NAV Updates ⏰**:
-  - **Automatic**: Every day when you load the app, the latest NAV is fetched automatically
-  - **Manual**: Trigger updates from the Upload CAS tab
-  - **Restriction**: Once per day to avoid unnecessary API calls (allows one manual update)
-  - **Incremental**: Only new NAV data is fetched and merged with existing history
-  - **Silent Operation**: Updates happen seamlessly in the background
+- **Daily NAV Updates ⏰**
+  - Automatically fetched every day when you load the app
+  - Manual trigger available from the Manage CAS tab
+  - Limited to once per day to avoid unnecessary API calls
+  - Incremental — only new data is fetched and merged
+  - Runs silently in the background
 
 - **Monthly Fund Statistics Updates 📅**
-  - **Automatic**: After the 15th of every month, complete fund statistics are updated
-  - **Comprehensive Data**: Portfolio composition, returns, ratings, holdings, expense ratios
-  - **Manual Trigger**: Available from Upload CAS tab
-  - **Restriction**: Once per month (after 15th & allows one manual update)
-  - **Background Process**: Non-blocking updates for smooth user experience
+  - Triggered automatically after the 15th of each month
+  - Fetches portfolio composition, returns, ratings, holdings, and expense ratios
+  - Manual trigger available from the Manage CAS tab
+  - Limited to once per month (after 15th)
+  - Non-blocking background process
 
-- **Smart Update Tracking**: The dashboard footer displays:
-  - **Last CAS Parsed**: When you last uploaded a CAS file
-  - **Stats Updated**: When fund statistics were last updated
-  - **NAV Updated**: When NAV values were last refreshed
+- **Smart Update Tracking**: The Manage CAS tab shows last-updated timestamps for CAS parsing, fund stats, and NAV.
 
 ### 🔍 Advanced Analysis Tools
 
 - **Overlap Analysis**: Identify duplicate holdings across funds
-  - Pairwise fund overlap calculation
-  - Common stocks across multiple funds
-  - Overlap percentage visualization
-  - Helps eliminate redundancy in portfolio
+  - Pairwise fund overlap with percentage and common stock count
+  - Stocks held across multiple funds with average weight
+  - Helps eliminate redundancy and reduce concentration risk
 
-- **Expense Impact Analysis**: Understand the cost of fund management
-  - Weighted expense ratio calculation
-  - Annual and lifetime cost projections
-  - Fund-wise expense breakdown
-  - Helps optimize portfolio for lower costs
+- **Expense Impact Analysis**: Understand the true cost of fund management
+  - Weighted expense ratio across the portfolio
+  - Annual and lifetime cost projections per fund
+  - Highlights high-cost funds for optimization
 
-- **Portfolio Health Score**: Data-driven portfolio quality assessment
-  - Diversification score (fund count)
-  - Expense ratio score
-  - Performance vs benchmark score
-  - Overlap score
-  - Overall grade (A+ to D) with actionable insights
+- **Portfolio Health Score**: Data-driven quality assessment (0–100, A+ to D)
+  - Diversification score (25 pts) — fund count
+  - Expense Ratio score (25 pts) — weighted ER
+  - Performance score (25 pts) — funds beating benchmark
+  - Overlap score (25 pts) — high/medium overlap pairs
+  - Actionable improvement suggestions per dimension
 
-### 👨‍👩‍👧‍👦 Multi-User Support
+### 🏦 Tax Planning
 
-- **Multiple Portfolios**: Track portfolios for entire family
-- **User Management**: Add, switch, and delete users
+- **Long-Term vs Short-Term Split**: Holdings value and unrealized gain by holding period
+- **Unrealized LTCG & STCG**: Know your tax exposure before you redeem
+- **Tax Optimization Tips**: LTCG harvesting up to the ₹1.25L annual exemption, hold-period strategy, rebalancing timing
+
+### 💰 Additional Assets
+
+- **Non-MF Investments**: Manually track Gold, Silver, and Cash & Equivalents
+- **Combined Portfolio Value**: MF holdings + additional assets in one number
+- **Live Rate Input**: Enter current market rates per unit for accurate valuation
+
+### 👨‍👩‍👧‍👦 Multi-User & Family Dashboard
+
+- **Multiple Portfolios**: Track portfolios for your entire family
+- **User Management**: Add, switch, and delete users from the Manage CAS tab
 - **Separate Storage**: Each user's data stored independently
-- **Quick Switching**: Dropdown to switch between users
-- **Family Dashboard**: Aggregated view across all users (when 2+ users exist)
+- **Family Dashboard**: Aggregated view across all users (visible when 2+ users exist)
+  - Combined family value, cost, P&L, and unique holdings count
+  - Family-wide asset allocation, fund house distribution, and sector breakdown
+  - Equity market cap split across all portfolios
+  - Family weighted returns (1Y, 3Y, 5Y)
+  - Per-member breakdown with value, cost, P&L, and active holdings count
 
 ### 📱 Progressive Web App (PWA)
 
-- **Installable**: Add to home screen on mobile/desktop
+- **Installable**: Add to home screen on mobile or desktop
 - **Offline Ready**: Works without internet after initial load
 - **App-like Experience**: Full-screen mode, native feel
-- **Auto Updates**: Service worker manages updates
+- **Auto Updates**: Service worker manages updates seamlessly
+
+---
 
 ## 📸 Screenshots
 
-### CAS Upload
+### Manage CAS — New User
 
-![Fresh User](./img/screenshots/new-user.png)
-![Fresh User](./img/screenshots/upload-and-update.png)
+![New User](./img/screenshots/new-user.png)
 
-Upload your CAS. View last update details, Clear Cache, monitor auto update details.
+On first visit, upload your CAMS CAS PDF and enter the password to load your portfolio. The guide panel walks you through obtaining the file from CAMS Online.
+
+---
+
+### Manage CAS — Returning User
+
+![Upload and Update](./img/screenshots/upload-and-update.png)
+
+Upload a fresh CAS, manage users, trigger manual NAV or fund stats updates, and view last-update timestamps.
+
+---
 
 ### Dashboard
 
-![Fresh User](./img/screenshots/dashboard.png)
+![Dashboard](./img/screenshots/dashboard.png)
 
-The main dashboard provides a comprehensive view of your portfolio with key metrics, portfolio analytics, and interactive visualizations.
+Portfolio summary cards, asset allocation, fund house distribution, sector breakdown, top holdings, and weighted returns — all at a glance.
 
 ---
 
 ### Current Holdings
 
 ![Current Holdings](./img/screenshots/current-holdings.png)
-![Current Holdings](./img/screenshots/current-hodlings-extended.png)
 
-Detailed view of all active investments with fund-level statistics, valuation charts, and performance metrics.
+Fund cards with current value, P&L, XIRR, units, average NAV, and average holding days. Click "View Details" to drill into valuation history, benchmark comparison, and extended fund stats.
 
 ---
 
 ### Past Holdings
 
-![Current Holdings](./img/screenshots/past-holdings.png)
+![Past Holdings](./img/screenshots/past-holdings.png)
 
-See your past holdings and realized gains.
+Fully exited funds with withdrawn amount, realized P&L, and XIRR.
 
 ---
 
 ### Portfolio Analysis
 
-![Analysis](./img/screenshots/portfolio-growth.png)
-![Analysis](./img/screenshots/investments.png)
-![Analysis](./img/screenshots/withdrawals.png)
-![Analysis](./img/screenshots/net-investments.png)
+![Analysis](./img/screenshots/analysis.png)
 
-Track your portfolio value over time with interactive charts showing value vs cost with multiple time period filters.
+Interactive portfolio history charts, average monthly buy/sell/net summary, SIP projection calculator (up to 20 years), and a transaction calendar heatmap.
 
 ---
 
-### Capital Gains Analysis
-
-![Capital Gains](./img/screenshots/capital-gains.png)
-
-Financial year-wise breakdown of capital gains with STCG/LTCG calculations and downloadable tax reports.
-
----
-
-### Transaction History
+### Transactions
 
 ![Transactions](./img/screenshots/transactions.png)
 
-Complete transaction history with folio-wise tracking and Excel export functionality.
+View and download all-time or active-holdings transactions as Excel files.
+
+---
+
+### Capital Gains
+
+![Capital Gains](./img/screenshots/capital-gains.png)
+
+Financial year-wise STCG/LTCG breakdown, transaction-level detail, and downloadable Excel reports covering FY 2019-20 through the current year.
+
+---
+
+### Tax Planning
+
+![Tax Planning](./img/screenshots/tax-planning.png)
+
+Unrealized LTCG and STCG at a glance, long-term vs short-term holdings split, and actionable tax optimization tips including LTCG harvesting.
+
+---
 
 ### Overlap Analysis
 
 ![Overlap Analysis](./img/screenshots/overlap-analysis.png)
 
-Identify duplicate holdings across mutual funds to optimize your portfolio and reduce concentration risk.
+Highest overlapping fund pairs with overlap percentage and common stock count, plus a full list of stocks held across multiple funds.
 
 ---
 
@@ -187,7 +222,7 @@ Identify duplicate holdings across mutual funds to optimize your portfolio and r
 
 ![Expense Impact](./img/screenshots/expense-impact.png)
 
-Analyze the cost of fund management with lifetime expense projections and fund-wise breakdown.
+Weighted expense ratio, annual cost, and lifetime cost across all funds with a fund-wise breakdown.
 
 ---
 
@@ -195,7 +230,15 @@ Analyze the cost of fund management with lifetime expense projections and fund-w
 
 ![Health Score](./img/screenshots/health-score.png)
 
-Get a comprehensive health assessment of your portfolio with actionable insights across multiple dimensions.
+Overall score out of 100 with letter grade, plus individual dimension scores for Diversification, Expense Ratio, Performance, and Overlap.
+
+---
+
+### Additional Assets
+
+![Additional Assets](./img/screenshots/additional-assets.png)
+
+Manually enter Gold, Silver, and Cash & Equivalents to see your true combined portfolio value alongside mutual funds.
 
 ---
 
@@ -203,711 +246,266 @@ Get a comprehensive health assessment of your portfolio with actionable insights
 
 ![Family Dashboard](./img/screenshots/family-dashboard.png)
 
-Track multiple portfolios for your entire family with aggregated metrics and analytics.
+Aggregated family view with combined analytics, family-wide weighted returns, and a per-member breakdown.
+
+---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
 - Modern web browser (Chrome 90+, Firefox 88+, Safari 14+, Edge 90+)
-- Internet connection for initial setup and updates
+- Internet connection for CAS parsing and data updates
 - CAMS CAS statement (password-protected PDF)
 
-### Live Demo
+### Live App
 
-Visit the live application: [My MF Dashboard](https://mf-dashboard.github.io)
+Visit: [My MF Dashboard](https://mf-dashboard.github.io)
 
-### Local Setup
-
-1. **Clone the repository**
-
-```bash
-git clone https://github.com/mf-dashboard/mf-dashboard.github.io.git
-cd mf-dashboard.github.io
-```
-
-2. **Serve the files**
-
-- Install "Live Server" extension in VS Code
-- Right-click `index.html` → Open with Live Server
-
-3. **Open in browser**
-
-```
-http://localhost:8000
-```
-
-## 📂 Project Structure
-
-```
-mf-dashboard/
-├── index.html              # Main HTML file with all sections
-├── styles.css              # Complete application styles
-├── script.js               # Core application logic (~3500 lines)
-├── indexeddb-helper.js     # IndexedDB storage manager
-├── data/
-│   └── search-key.json     # ISIN to search key mapping
-├── img/
-│   └── favicon.*           # App icons and favicons
-└── README.md               # This file
-```
-
-## 🔧 Configuration
-
-### Backend Server
-
-The application connects to a backend API for:
-
-- CAS parsing
-- MF statistics fetching
-- NAV updates
-
-**Backend URL**: `https://my-mf-dashboard-backend.onrender.com`
-
-To use your own backend, update the `BACKEND_SERVER` constant in `script.js`:
-
-```javascript
-const BACKEND_SERVER = "https://your-backend-url.com";
-```
-
-### API Dependencies
-
-The backend uses:
-
-- **Groww API**: Fund details and statistics
-- **MFAPI**: NAV history
+---
 
 ## 📥 How to Get Your CAS File
 
-### Step-by-Step Guide
+1. **Visit CAMS Portal** — [CAMS Online](https://www.camsonline.com/Investors/Statements/Consolidated-Account-Statement) or use the **myCAMS mobile app**
+2. **Request CAS** — Select **"Detailed Statement"**, choose "With Zero Balance" or "Without Zero Balance", enter your email, and set a password
+3. **Receive CAS** — Download the password-protected PDF from your email (arrives within minutes)
+4. **Upload** — Open the app, go to **Manage CAS**, select the PDF, enter the password, and click **Load Portfolio**
 
-1. **Visit CAMS Portal**
-   - Go to [CAMS Online](https://www.camsonline.com/Investors/Statements/Consolidated-Account-Statement)
-   - Or use the **myCAMS mobile app**
+> **Note**: Currently supports **CAMS CAS files only**. CDSL/NSDL are not supported.
 
-2. **Request CAS**
-   - Select **"Detailed Statement"** option
-   - Choose either **"With Zero Balance"** or **"Without Zero Balance"**
-   - Provide your **email address**
-   - Set a **password** for the CAS file
-
-3. **Receive CAS**
-   - You'll receive the password-protected PDF via email within minutes
-   - Download the CAS file to your device
-
-4. **Upload to Dashboard**
-   - Open the application
-   - Go to **Upload CAS** tab
-   - Select the downloaded PDF
-   - Enter the password
-   - Click **Load Portfolio**
-
-### Important Notes
-
-- Currently supports **CAMS CAS files only**
-- KFINTECH support may have parsing issues
-- The password is only used for decryption on the backend
-- Your data is processed and stored locally in your browser
+---
 
 ## 📊 Usage Guide
 
 ### 1. First Time Setup
 
-1. Upload your CAS file with password
-2. Wait for processing (30-60 seconds for large portfolios)
-3. All fund statistics and NAV data will be fetched automatically
-4. Data is saved locally in IndexedDB
+1. Upload your CAS file with the password set during generation
+2. Wait for processing (30–60 seconds for large portfolios)
+3. Fund statistics and NAV history are fetched automatically
+4. Everything is saved locally — no account needed
 
-### 2. Dashboard Overview
+### 2. Dashboard
 
-**Summary Cards** show:
+**Summary Cards**: Current value, cost, unrealized P&L with XIRR, holdings count, average holding days, all-time P&L.
 
-- Current Value & Cost
-- Unrealized P&L with XIRR
-- Current Holdings count
-- Average Holding Days
-- All-time metrics (expandable)
+**Portfolio Analytics**: Asset allocation, market cap split, fund house distribution, sector distribution, top holdings, weighted returns (1Y/3Y/5Y).
 
-**Portfolio Analytics** display:
+### 3. Current Holdings
 
-- Asset Allocation (doughnut chart)
-- Market Cap Split (doughnut chart)
-- Fund House Distribution (bar chart)
-- Sector Distribution (bar chart)
-- Top Holdings (bar chart)
-- Weighted Portfolio Returns
+Fund cards with value, cost, units, P&L, XIRR, avg NAV, avg hold days. "View Details" opens valuation history, performance vs category/benchmark, and extended stats (Alpha, Beta, Sharpe, Sortino, AUM, Expense Ratio, Rating, Holdings).
 
-### 3. Current Holdings Tab
+### 4. Past Holdings
 
-View all active funds with:
+Fully exited funds — withdrawn amount, realized P&L, XIRR, invested amount.
 
-- Basic metrics (value, cost, units, P&L)
-- Fund valuation history chart
-- Performance comparison (Fund vs Category vs Benchmark)
-- Extended stats (toggle to show):
-  - Alpha, Beta, Sharpe Ratio
-  - Sortino Ratio, Information Ratio
-  - Standard Deviation, Expense Ratio
-  - AUM, Rating
-  - Holdings count with detailed view
-- Transaction history button
+### 5. Analysis
 
-### 4. Past Holdings Tab
+- **Portfolio Growth**: Value vs cost over time (1M–All time filters)
+- **Investment / Withdrawal / Net Investment** bar chart views
+- **Average Monthly Summary**: 6M and 12M averages for buy, sell, net inflow
+- **Portfolio Projection**: Configurable CAGR %, annual step-up %, custom SIP — 5/10/15/20 year projection tables
+- **Transaction Calendar**: Investment heatmap browsable by year (2019–2026)
 
-Track redeemed/closed positions:
+### 6. Transactions
 
-- Total invested & withdrawn
-- Realized P&L
-- Transaction history
+All-Time or Active Holdings views. View in a modal or download as Excel.
 
-### 5. Analysis Tab
+### 7. Capital Gains
 
-Interactive charts with time filters:
+- Current FY: STCG + LTCG by category with applicable tax rates
+- Historical FY-wise: Year selector with detailed transactions and per-FY download
+- All-time summary: Equity, debt, and hybrid breakdown with totals
 
-- **Portfolio Growth**: Value over time vs Cost
-- **Investment**: Monthly/quarterly investment flow
-- **Withdrawal**: Redemption patterns
-- **Net Investment**: Net cash flow
+### 8. Tax Planning
 
-Time periods: 1M, 3M, 6M, 1Y, 2Y, 3Y, 4Y, 5Y, 7Y, 10Y, All
+- Long-term vs short-term holdings split (value and unrealized gain)
+- LTCG shown with tax liability (~₹0 when below ₹1.25L exemption)
+- STCG: equity at 20%, debt as per income slab
+- Tips on LTCG harvesting, hold-period optimization, and rebalancing timing
 
-### 6. Transactions Tab
+### 9. Additional Assets
 
-Two comprehensive views:
+Enter Gold (qty + ₹/unit), Silver (qty + ₹/unit), Cash & Equivalents amount. Total additional assets and combined portfolio value (MF + additional) shown at the bottom.
 
-- **All-Time Transactions**: Complete history
-- **Active Holdings**: Current positions only
+### 10. Overlap Analysis
 
-Features:
+Highest overlapping fund pairs with overlap % and common stock count. Full table of stocks held across multiple funds with average weight and fund list.
 
-- View in modal overlay
-- Download as Excel
-- Sortable by date
-- Color-coded (Buy/Sell)
+### 11. Expense Impact
 
-### 7. Capital Gains Tab
+Weighted portfolio expense ratio, total annual fees, and lifetime cost estimate. Fund-wise table with expense ratios color-coded by level.
 
-**Current Financial Year**:
+### 12. Portfolio Health Score
 
-- STCG and LTCG summary
-- Tax rates by category
-- Transaction breakdown
+Score out of 100 with letter grade (A+ to D). Sub-scores for Diversification, Expense Ratio, Performance, and Overlap — each out of 25 with progress bars and context.
 
-**Financial Year-wise**:
+### 13. Family Dashboard
 
-- Year selector
-- Detailed transactions
-- Download FY-specific reports
+Visible when 2+ users exist. Combined family value/cost/P&L, unique holdings count, family analytics (allocation, fund house, sector, market cap), family weighted returns, and a per-member breakdown card.
 
-**All-Time Summary**:
+### 14. Manage CAS
 
-- Complete gains history
-- Category-wise breakdown
-- Downloadable Excel report
+Upload fresh CAS for any user, add/switch/delete users, trigger manual NAV or stats update, and view last-update timestamps.
 
-### 8. Manage CAS Tab
-
-Management options:
-
-- **Upload New CAS**: Fresh portfolio upload
-- **Update NAV**: Daily NAV refresh (once per day)
-- **Update Fund Statistics**: Monthly full update (after 15th)
-- **Clear Cache**: Remove all stored data
-- **Instructions**: Detailed guide for getting CAS
-
-Footer shows:
-
-- Last CAS parsed date
-- Last stats update date
-- Last NAV update date
-
-### 9. Overlap Analysis Tab
-
-**Identify Redundancy**:
-
-- Highest overlapping fund pairs
-- Overlap percentage with color coding
-- Common stocks across funds
-- Shows stocks held in 3+ funds
-- Helps optimize portfolio diversity
-
-**Key Metrics**:
-
-- Pairwise overlap calculation
-- Common holdings list
-- Fund count per stock
-- Average weight across funds
-
-### 10. Expense Impact Tab
-
-**Cost Analysis**:
-
-- Weighted expense ratio
-- Annual cost projection
-- Lifetime cost calculation
-- Fund-wise breakdown
-
-**Insights**:
-
-- High expense funds highlighted
-- Cost optimization opportunities
-- Expense ratio comparison
-- Long-term impact visualization
-
-### 11. Portfolio Health Score Tab
-
-**Comprehensive Assessment**:
-
-- Overall score (0-100)
-- Letter grade (A+ to D)
-- Four key dimensions:
-  - Diversification (25 points)
-  - Expense Ratio (25 points)
-  - Performance (25 points)
-  - Overlap (25 points)
-
-**Visual Feedback**:
-
-- Progress bars for each dimension
-- Color-coded scores
-- Actionable messages
-- Improvement suggestions
-
-### 12. Family Dashboard Tab
-
-**Multi-User View** (appears when 2+ users exist):
-
-- Aggregated summary across all users
-- Combined portfolio analytics
-- Family-wide asset allocation
-- Total current value
-- Combined holdings count
-- Merged portfolio composition
-
-**Features**:
-
-- User-wise breakdown
-- Combined charts
-- Family expense ratio
-- Total P&L across all portfolios
+---
 
 ## 🧮 Calculations & Methodology
 
-### XIRR (Extended Internal Rate of Return)
+### XIRR
 
-**Algorithm**: Newton-Raphson method with bisection fallback
+Newton-Raphson with bisection fallback. Cash flows: purchases (negative), redemptions (positive), current value (final positive). Calculated for overall portfolio, active holdings, and each individual fund.
 
-**Process**:
+### Capital Gains (FIFO)
 
-1. Collect all cash flows (purchases as negative, redemptions as positive)
-2. Add current value as final positive cash flow
-3. Use iterative calculation to find IRR
-4. Handles edge cases and convergence issues
-
-**Calculated for**:
-
-- Overall portfolio (all-time)
-- Active holdings only
-- Individual funds
-
-### Capital Gains (FIFO Method)
-
-**Equity Funds**:
-
-- Short Term: < 1 year (20% tax)
-- Long Term: ≥ 1 year (12.5% tax on gains > ₹1.25L)
-
-**Debt Funds**:
-
-- Short Term: < 2 years (As per slab)
-- Long Term: ≥ 2 years (As per slab)
-
-**Hybrid Funds**:
-
-- Treated as debt for holding period calculation
-- Short Term: < 2 years
-- Long Term: ≥ 2 years
-
-**Process**:
-
-1. Maintain unit queue for each fund
-2. On redemption, match against oldest units first (FIFO)
-3. Calculate holding period for each batch
-4. Categorize as STCG or LTCG
-5. Track realized gains by financial year
-
-### Portfolio Analytics
-
-**Asset Allocation**:
-
-- Uses fund-level asset allocation from extended data
-- Weighted by current value
-- Falls back to category-based classification
-
-**Market Cap Split**:
-
-- Based on fund portfolio statistics
-- Weighted allocation across large/mid/small cap
-- Normalized to 100%
-
-**Sector Distribution**:
-
-- Aggregates equity sector exposure
-- Top 10 sectors shown individually
-- Others grouped together
-
-**Holdings Analysis**:
-
-- Aggregates individual stock holdings across funds
-- Filters holdings < 0.01% into "Others"
-- Shows nature, sector, instrument details
+| Fund Type | Short Term | Long Term | STCG Rate   | LTCG Rate       |
+| --------- | ---------- | --------- | ----------- | --------------- |
+| Equity    | < 1 year   | ≥ 1 year  | 20%         | 12.5% (>₹1.25L) |
+| Debt      | < 2 years  | ≥ 2 years | As per slab | As per slab     |
+| Hybrid    | < 2 years  | ≥ 2 years | As per slab | 12.5% (>₹1.25L) |
 
 ### Weighted Returns
 
-Formula: `Σ(Return × Weight)` where weight = fund value / total portfolio value
+`Σ(Return × Weight)` where weight = fund value / total portfolio value. Calculated for 1Y, 3Y, and 5Y.
 
-Calculated for:
+### Portfolio Projection
 
-- 1 Year Returns
-- 3 Year Returns
-- 5 Year Returns
+`FV = P × ((1 + r)^n - 1) / r × (1 + r)` with optional annual step-up applied each year. Projected in parallel using 6M avg SIP, 12M avg SIP, and custom SIP.
+
+---
 
 ## 🎨 Key Features Explained
 
 ### Smart CAS Upload
 
-- **Duplicate Detection**: Generates file signature using content hash
-- **Prevents Re-upload**: Warns if same file is uploaded again
-- **File Signature**: Based on file size, content hash, and binary fingerprint
-- **Persists**: Stores signature in localStorage
+Generates a file signature from content hash, file size, and binary fingerprint. Warns if the same file is uploaded again to prevent duplicate data entry.
 
 ### Fund Valuation History
 
-**Daily Valuation Calculation**:
-
-1. Uses NAV history from backend
-2. Processes all transactions chronologically
-3. Calculates units and value for each day
-4. Stores in `dailyValuation` array
-5. Used for fund-level and portfolio-level charts
-
-**Portfolio Aggregation**:
-
-- Combines all fund daily valuations
-- Sums values and costs by date
-- Calculates unrealized gains
-- Powers the Growth chart
+Processes all transactions chronologically against NAV history to calculate daily unit count and portfolio value for each fund. Powers fund-level and portfolio-level growth charts.
 
 ### Folio-wise Tracking
 
-**Multiple Folios**:
-
-- Same fund can have multiple folios
-- Separate tracking for each folio
-- Aggregated view in fund cards
-- Individual transaction tracking
-
-**Folio Summary**:
-
-- Invested amount
-- Withdrawn amount
-- Realized gains
-- Remaining units and cost
-- Current value and unrealized gains
-- Cash flow history
+Same fund can have multiple folios (e.g. regular + direct plan). Each folio has its own FIFO queue tracked independently, then aggregated into a single fund card.
 
 ### Extended Fund Statistics
 
-**From Groww API**:
+Fetched from Groww API: Alpha, Beta, Sharpe, Sortino, 1Y/3Y/5Y returns, category averages, benchmark comparison, holdings, AUM, expense ratio, rating. NAV history from MFAPI.
 
-- Portfolio composition
-- Risk metrics (Alpha, Beta, Sharpe, Sortino)
-- Returns (1Y, 3Y, 5Y)
-- Category averages
-- Benchmark comparison
-- Holdings details
-- AUM, Expense Ratio, Rating
-
-**From MFAPI**:
-
-- Complete NAV history
-- Latest NAV and date
-- Scheme metadata
-
-### Holdings Analysis
-
-**Portfolio Level**:
-
-- Aggregates all fund holdings weighted by value
-- Shows top 200 holdings
-- Groups < 0.01% into "Others"
-- Downloadable Excel report
-
-**Fund Level**:
-
-- Individual fund holdings
-- Includes Cash Equivalents if holdings < 100%
-- Shows nature, sector, instrument
-- Downloadable per-fund reports
-
-### Transaction Views
-
-**Fund Transactions**:
-
-- Accessed via "View Transactions" button
-- Shows all transactions for selected fund
-- Filtered by folio if multiple folios exist
-- Sortable and downloadable
-
-**Portfolio Transactions**:
-
-- All-time: Every transaction ever made
-- Active Holdings: Only for current positions
-- Includes valuation as final cash flow for XIRR
-
-### Chart Animations
-
-**Smooth Transitions**:
-
-- 800ms easing animations
-- Loading states for async operations
-- Spinner placeholders
-- Progressive data loading
-
-**Responsive Design**:
-
-- Auto-adjusts for mobile/tablet/desktop
-- Smart label rotation
-- Appropriate aggregation (monthly/quarterly/yearly)
-- Touch-friendly interactions
+---
 
 ## 🛡️ Security & Privacy
 
 - ✅ **100% Client-Side Storage**: All data in browser IndexedDB
 - ✅ **No User Tracking**: Zero analytics or tracking scripts
-- ✅ **No Login Required**: No user accounts or authentication
-- ✅ **Secure Processing**: CAS password used only for backend decryption
-- ✅ **Temporary Server Storage**: Files deleted immediately after parsing
+- ✅ **No Login Required**: No accounts or authentication
+- ✅ **Temporary Server Processing**: CAS file deleted immediately after parsing
 - ✅ **HTTPS Only**: Secure communication with backend
 - ✅ **No Third-Party Scripts**: Except CDN-hosted libraries (Chart.js, XLSX)
 
+---
+
 ## 🛠️ Technologies Used
 
-### Core Technologies
+### Frontend
 
-- **Vanilla JavaScript (ES6+)**: No frameworks, pure JS
-- **HTML5**: Semantic markup
-- **CSS3**: Modern styling with flexbox/grid
+- **Vanilla JavaScript (ES6+)** — no frameworks
+- **HTML5 + CSS3** — flexbox/grid layouts
+- **Chart.js 3.9.1** — visualizations
+- **chartjs-plugin-datalabels 2.0** — chart labels
+- **SheetJS (XLSX) 0.18.5** — Excel export
+- **Font Awesome 6.5.0** — icons
+- **IndexedDB** — persistent local storage
 
-### Libraries (CDN)
+### Backend
 
-- **Chart.js 3.9.1**: Data visualizations
-- **chartjs-plugin-datalabels 2.0**: Chart labels
-- **SheetJS (XLSX) 0.18.5**: Excel export
-- **Font Awesome 6.5.0**: Icons
+- **Node.js + Express** — API server
+- **Multer** — file upload handling
+- **pdfreader** — PDF parsing
+- **node-fetch** — HTTP requests
 
-### Browser APIs
+**Backend URL**: `https://my-mf-dashboard-backend.onrender.com`
 
-- **IndexedDB**: Persistent local storage
-- **Fetch API**: Network requests
-- **File API**: CAS file handling
-- **Web Storage API**: Simple key-value storage
-
-### Backend Stack
-
-- **Node.js + Express**: API server
-- **Multer**: File upload handling
-- **pdfreader**: PDF parsing
-- **node-fetch**: HTTP requests
+---
 
 ## 📱 Browser Support
 
-### Fully Supported ✅
+| Browser           | Support          |
+| ----------------- | ---------------- |
+| Chrome 90+        | ✅ Full          |
+| Firefox 88+       | ✅ Full          |
+| Edge 90+          | ✅ Full          |
+| Safari 14+        | ✅ Full          |
+| Internet Explorer | ❌ Not supported |
 
-- Chrome 90+
-- Firefox 88+
-- Edge 90+
-- Safari 14+
+Requires: IndexedDB, ES6+, Fetch API, File API.
 
-### Requirements
-
-- IndexedDB support
-- ES6+ JavaScript
-- Fetch API
-- File API
-
-### Not Supported ❌
-
-- Internet Explorer
-- Very old mobile browsers
-- Browsers without IndexedDB
+---
 
 ## ⚠️ Limitations & Known Issues
 
-### Performance Considerations
-
-**Large Portfolios**:
-
-- 100+ funds: 30-60 seconds initial load
-- 150+ funds: May experience slowness
-- Daily valuation calculation is async to prevent UI blocking
-
-**Backend Performance**:
-
-- Free-tier hosting (Render)
-- Cold starts after 15 minutes inactivity
-- First request may take 30-60 seconds
-- Subsequent requests are faster
-
 ### CAS File Support
 
-| Format    | Support Level      |
-| --------- | ------------------ |
-| CAMS      | ✅ Fully Supported |
-| KFINTECH  | ⚠️ Partial Support |
-| CDSL/NSDL | ❌ Not Supported   |
+| Format    | Support          |
+| --------- | ---------------- |
+| CAMS      | ✅ Full          |
+| KFINTECH  | ❌ Not supported |
+| CDSL/NSDL | ❌ Not supported |
 
-**Mutual Funds Only**: This is a dedicated MF tracker, not for stocks/bonds
+**Mutual Funds Only**: This is a dedicated MF tracker, not for direct stocks or bonds.
 
-### API Dependencies
+### Performance
 
-**Groww API**:
-
-- Not an official API
-- May change structure without notice
-- Rate limiting may apply
-
-**MFAPI**:
-
-- Public API
-- Historical data typically 3-5 years
-- May have occasional downtime
-
-### Data Accuracy
-
-**Capital Gains**:
-
-- Calculations are indicative
-- Should be verified with official tax statements
-- Tax laws subject to change
-
-**NAV Values**:
-
-- Depend on external API accuracy
-- May have 1-2 day delay
-- Fund house data is source of truth
-
-### Storage Limits
-
-**IndexedDB**:
-
-- Browser-dependent limits (typically 50MB+)
-- May need to clear cache for very large portfolios
-- Data persists until manually cleared
+- Large portfolios (100+ funds): 30–60 second initial load
+- Backend on free-tier Render — cold starts after 15 min inactivity may add 30–60 seconds to first request
 
 ### Update Restrictions
 
-**NAV Updates**:
+- NAV: maximum once per day (prevents API abuse)
+- Fund stats: maximum once per month (after 15th, aligns with fund house reporting)
 
-- Maximum once per day
-- Prevents API abuse
-- Manual override via cache clear
+### API Dependencies
 
-**Stats Updates**:
+- **Groww API** (unofficial) — may change structure without notice; rate limiting may apply
+- **MFAPI** (public) — historical data typically 3–5 years; occasional downtime possible
 
-- Maximum once per month
-- Only after 15th of month
-- Aligns with fund house reporting
+### Storage
+
+IndexedDB is browser-dependent (typically 50MB+). Very large portfolios may require occasional cache clearing.
+
+---
 
 ## 🐛 Troubleshooting
 
-### Common Issues
+**CAS Upload Fails** — Verify the password is correct, ensure it's a CAMS Detailed CAS PDF, try clearing cache and re-uploading.
 
-**1. CAS Upload Fails**
+**NAV Update Fails** — Check if already updated today (timestamps shown in Manage CAS). Backend may be on cold start — wait 30–60 seconds and retry.
 
-- Check password is correct
-- Ensure file is CAMS detailed CAS
-- Try clearing cache and re-uploading
-- Check browser console for errors
+**Charts Not Loading** — Wait for all data to finish loading. Try refreshing or clearing cache and reloading.
 
-**2. NAV Update Fails**
+**IndexedDB Errors** — Private/Incognito mode restricts storage. Use a normal browser window.
 
-- Already updated today? Check footer dates
-- Backend may be slow (free tier cold start)
-- Try manual update from Upload CAS tab
-- Check internet connection
+**Backend Not Responding** — Check `https://my-mf-dashboard-backend.onrender.com/health`. Free tier needs a warmup period — wait and retry.
 
-**3. Charts Not Loading**
+Open browser DevTools (F12) for detailed logs, API responses, and error messages.
 
-- Wait for data to load completely
-- Check browser console for errors
-- Try refreshing the page
-- Clear cache and reload
-
-**4. IndexedDB Errors**
-
-- Browser may have storage limits reached
-- Private/Incognito mode may restrict IndexedDB
-- Try clearing browser cache
-- Check browser settings for IndexedDB
-
-**5. Backend Not Responding**
-
-- Free tier may be sleeping (cold start)
-- Wait 30-60 seconds and retry
-- Check backend status: `https://my-mf-dashboard-backend.onrender.com/health`
-
-### Debug Mode
-
-Open browser console (F12) to see:
-
-- Detailed error messages
-- API request/response logs
-- Data processing steps
-- Performance metrics
+---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Here's how you can help:
-
-### Ways to Contribute
-
-1. **Bug Reports**: Open an issue with details
-2. **Feature Requests**: Suggest improvements
-3. **Code Contributions**: Submit pull requests
-4. **Documentation**: Improve README or add guides
-5. **Testing**: Test on different devices/browsers
-
-### Development Setup
-
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+3. Make and test your changes
+4. Submit a pull request
 
-### Code Style
+Bug reports, feature requests, and documentation improvements are welcome via [GitHub Issues](https://github.com/mf-dashboard/mf-dashboard.github.io/issues).
 
-- Use meaningful variable names
-- Add comments for complex logic
-- Follow existing code patterns
-- Ensure mobile responsiveness
+---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE). Free to use, modify, and distribute with attribution.
 
-**You are free to**:
-
-- Use commercially
-- Modify
-- Distribute
-- Use privately
-
-**Conditions**:
-
-- Include original license
-- State changes made
+---
 
 ## 👨‍💻 Author
 
@@ -915,164 +513,76 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - 🌐 GitHub: [@the-sdet](https://github.com/the-sdet) | [@pabitra-qa](https://github.com/pabitra-qa)
 - 📧 Email: pabitra.swain.work@gmail.com
-- 💼 LinkedIn: [Connect with me](https://www.linkedin.com/in/pswain7/)
+- 💼 LinkedIn: [Connect](https://www.linkedin.com/in/pswain7/)
+
+---
 
 ## 🙏 Acknowledgments
 
-- **CAMS** for providing CAS statements
+- **CAMS** for CAS statements
 - **Groww** for the mutual fund API
 - **MFAPI** for NAV history data
-- **Chart.js** team for beautiful visualizations
-- **SheetJS** for Excel export functionality
-- All users who provide valuable feedback
+- **Chart.js** for visualizations
+- **SheetJS** for Excel export
+- All users who provide feedback
 
-## 📞 Support
-
-**Need Help?**
-
-- 📧 Email: pabitra.swain.work@gmail.com
-- 🐛 Issues: [GitHub Issues](https://github.com/mf-dashboard/mf-dashboard.github.io/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/mf-dashboard/mf-dashboard.github.io/discussions)
-
-**Before Asking**:
-
-- Check this README
-- Look at existing issues
-- Try troubleshooting steps
-- Check browser console for errors
+---
 
 ## 🗓️ Changelog
 
 ### Version 2.0.0 (Current)
 
-**Major Features**:
+**New Features**:
 
-- ✅ Progressive Web App (PWA) support
-- ✅ Multi-user portfolio management
-- ✅ Family Dashboard for aggregated view
+- ✅ Tax Planning dashboard (unrealized LTCG/STCG, harvesting tips)
+- ✅ Additional Assets tracking (Gold, Silver, Cash & Equivalents)
+- ✅ Portfolio Projection calculator (custom SIP, CAGR, annual step-up, 20Y tables)
+- ✅ Transaction Calendar heatmap
+- ✅ Average Monthly Summary (6M / 12M buy/sell/net inflow)
+- ✅ Family Dashboard with aggregated analytics and per-member breakdown
 - ✅ Overlap Analysis tool
 - ✅ Expense Impact calculator
-- ✅ Portfolio Health Score
+- ✅ Portfolio Health Score (0–100, A+ to D)
+- ✅ Progressive Web App (PWA) support
+- ✅ Multi-user portfolio management
 
 **Improvements**:
 
-- Enhanced user management (add/delete/switch)
-- Separate data storage per user
+- Enhanced user management (add/delete/switch) from Manage CAS tab
+- Separate IndexedDB storage per user
 - Improved mobile navigation
-- Better chart rendering
-- Optimized IndexedDB operations
+- Better chart rendering and animations
+- Optimized IndexedDB read/write operations
 
 **Bug Fixes**:
 
-- Fixed NAV update issues
-- Corrected capital gains calculations
-- Improved error handling
-- Better file signature detection
+- Fixed NAV update reliability
+- Corrected capital gains FIFO calculations
+- Improved error handling and user feedback
+- Better file signature detection for duplicate prevention
 
 ### Version 1.0.0
 
-**Features**:
-
-- ✅ Complete portfolio tracking with FIFO calculations
+- ✅ Core portfolio tracking with FIFO calculations
 - ✅ Auto-update system (daily NAV, monthly stats)
 - ✅ Capital gains with FY-wise breakdown
 - ✅ Transaction management with Excel export
 - ✅ Portfolio analytics and visualizations
 - ✅ Holdings analysis (portfolio + fund level)
 - ✅ Extended fund statistics
-- ✅ Duplicate CAS prevention
-- ✅ Comprehensive instructions
 
-**Improvements**:
-
-- Enhanced error handling
-- Better user feedback (toasts)
-- Smooth animations
-- Responsive design
-- Performance optimizations
-
-### Roadmap
-
-**Completed** ✅:
-
-- ✅ Progressive Web App (PWA)
-- ✅ Multiple portfolio support (Multi-user)
-- ✅ Overlap Analysis
-- ✅ Expense Impact Analysis
-- ✅ Portfolio Health Score
+---
 
 ## ⚖️ Disclaimer
 
-**⚠️ IMPORTANT - PLEASE READ CAREFULLY**
+This application is provided **"AS IS"** for informational and educational purposes only. It is **not financial advice**. Capital gains calculations are **indicative only** — verify with official statements and consult a Chartered Accountant before filing taxes. NAV and fund data sourced from third-party APIs may have delays or inaccuracies. The developer assumes no responsibility for investment decisions, financial losses, or tax errors arising from use of this tool. Your data is stored locally in your browser; no financial data is permanently stored on any server.
 
-This application is provided **"AS IS"** for **informational and educational purposes only**.
-
-**Financial Advice**:
-
-- This is NOT financial advice
-- Not a substitute for professional financial planning
-- Always consult a qualified financial advisor
-- Past performance does not guarantee future results
-
-**Tax Calculations**:
-
-- Capital gains calculations are **indicative only**
-- Must be verified with official tax statements
-- Consult a Chartered Accountant for tax filing
-- Tax laws are subject to change without notice
-
-**Data Accuracy**:
-
-- NAV and fund data from third-party APIs
-- No guarantee of accuracy or completeness
-- May have delays of 1-2 days
-- Fund house data is the official source
-
-**Liability**:
-
-- Developer assumes NO responsibility for:
-  - Investment decisions made using this tool
-  - Financial losses of any kind
-  - Tax calculation errors or omissions
-  - Data inaccuracies or API failures
-  - Any damages arising from use of this tool
-
-**Privacy**:
-
-- Your data is stored locally on your device
-- No data is transmitted except for public API calls
-- You are responsible for your own data security
-- Use at your own risk
-
-**Third-Party Services**:
-
-- Relies on external APIs (Groww, MFAPI)
-- No control over their availability or accuracy
-- APIs may change or be discontinued
-- Service disruptions may occur
-
-**Use Responsibly**:
-
-- Do not rely solely on this tool for investment decisions
-- Cross-verify all data with official sources
-- Keep backups of important financial documents
-- Report bugs and issues on GitHub
-
-By using this application, you acknowledge that you have read, understood, and agree to this disclaimer.
+By using this application, you acknowledge and accept this disclaimer.
 
 ---
 
 **Made with ❤️ for the Indian mutual fund investor community**
 
-_Star ⭐ this repo if you find it helpful!_
+_Star ⭐ the repo if you find it helpful!_
 
----
-
-**Quick Links**:
-
-- [Live Demo](https://mf-dashboard.github.io)
-- [Backend Repository](https://github.com/the-sdet/my-mf-dashboard-backend)
-- [Report Issues](https://github.com/mf-dashboard/mf-dashboard.github.io/issues)
-- [CAMS CAS Portal](https://www.camsonline.com/Investors/Statements/Consolidated-Account-Statement)
-
----
+**Quick Links**: [Live App](https://mf-dashboard.github.io) · [Backend Repo](https://github.com/the-sdet/my-mf-dashboard-backend) · [Report Issues](https://github.com/mf-dashboard/mf-dashboard.github.io/issues) · [CAMS Portal](https://www.camsonline.com/Investors/Statements/Consolidated-Account-Statement)
