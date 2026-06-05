@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
-    <link rel="stylesheet" href="styles.css?v=20260602" />
+    <link rel="stylesheet" href="styles.css?v=20260603" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -33,7 +33,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260602" />
+    <link rel="manifest" href="/manifest.json?v=20260603" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -369,6 +369,7 @@
                       type="password"
                       id="filePasswordTab"
                       placeholder="Enter CAS password"
+                      onkeydown="if (event.key === 'Enter') loadFileFromTab();"
                     />
                     <button
                       type="button"
@@ -827,7 +828,7 @@
             <div class="compact-holdings-list" id="compactHoldingsList"></div>
           </div>
           <div class="portfolio-analytics-section">
-            <h3>Portfolio Analytics</h3>
+            <h4>Portfolio Analytics</h4>
             <div class="analytics-grid">
               <div class="analytics-card loading" id="asset-market-cap-split">
                 <div id="assetAllocationCard">
@@ -969,7 +970,7 @@
           <div class="summary-cards" id="familySummaryCards"></div>
 
           <div class="portfolio-analytics-section">
-            <h3>Family Portfolio Analytics</h3>
+            <h4>Family Portfolio Analytics</h4>
             <div class="analytics-grid">
               <div
                 class="analytics-card loading"
@@ -1021,17 +1022,14 @@
                 id="familyWeightedReturnsContainer"
               ></div>
             </div>
-          </div>
-
-          <div class="folio-section">
-            <h3>Family Holdings Breakdown</h3>
+            <h4>Family Holdings Breakdown</h4>
             <div id="familyUserBreakdown"></div>
           </div>
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260602"></script>
-    <script src="utils.js?v=20260602"></script>
-    <script src="scripts.js?v=20260602"></script>
+    <script src="indexeddb-helper.js?v=20260603"></script>
+    <script src="utils.js?v=20260603"></script>
+    <script src="scripts.js?v=20260603"></script>
   </body>
 </html>

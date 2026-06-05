@@ -995,9 +995,9 @@ button:disabled {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.portfolio-analytics-section h3 {
+.portfolio-analytics-section h4 {
   color: var(--text-primary);
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
   margin-bottom: 20px;
 }
@@ -3171,6 +3171,15 @@ button.theme-toggle i {
   color: var(--danger);
 }
 
+.chi-stat-pill--neutral {
+  background: rgba(102, 126, 234, 0.08);
+  border-color: rgba(102, 126, 234, 0.18);
+}
+
+.chi-stat-pill--neutral .chi-stat-value {
+  color: #667eea;
+}
+
 /* Right: curr + invested stacked, right-aligned */
 .chi-right {
   flex-shrink: 0;
@@ -3228,9 +3237,16 @@ button.theme-toggle i {
 
 .compact-family-breakdown {
   background: var(--bg-white);
-  border-top: 1px solid var(--border-light);
-  margin-top: 8px;
-  padding-top: 8px;
+  border-radius: 14px;
+  margin: 6px 10px 10px;
+  overflow: hidden;
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
+}
+
+:root[data-theme="dark"] .compact-family-breakdown {
+  background: var(--bg-card);
+  border-color: rgba(255, 255, 255, 0.07);
 }
 
 .transaction-modal {
@@ -3290,7 +3306,7 @@ button.theme-toggle i {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 11px;
   opacity: 0.6;
   border-radius: 6px;
   background: var(--border-medium);
@@ -8070,10 +8086,12 @@ button.theme-toggle i {
 }
 
 .overlap-fund-names {
-  flex: 1;
+  flex: 0 0 50%;
+  width: 50%;
   padding: 10px 14px;
   border-right: 1px solid rgba(102, 126, 234, 0.07);
   min-width: 0;
+  overflow: hidden;
 }
 
 .overlap-fund-name {
@@ -8099,10 +8117,10 @@ button.theme-toggle i {
   justify-content: center;
   padding: 10px 14px;
   gap: 4px;
-  min-width: 80px;
+  flex: 0 0 25%;
+  width: 25%;
   text-align: center;
   border-right: 1px solid rgba(102, 126, 234, 0.07);
-  flex-shrink: 0;
 }
 
 .overlap-pct-val {
@@ -8136,8 +8154,8 @@ button.theme-toggle i {
   flex-direction: column;
   gap: 2px;
   padding: 10px 12px;
-  flex-shrink: 0;
-  min-width: 56px;
+  flex: 0 0 25%;
+  width: 25%;
   text-align: center;
 }
 
@@ -8174,38 +8192,101 @@ button.theme-toggle i {
 }
 
 .common-holding-name {
-  flex: 1;
+  flex: 0 0 40%;
+  width: 40%;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
   padding-right: 10px;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .common-holding-count {
+  flex: 0 0 10%;
+  width: 10%;
   font-size: 13px;
   font-weight: 700;
   color: #667eea;
-  min-width: 32px;
   text-align: center;
 }
 
 .common-holding-weight {
+  flex: 0 0 10%;
+  width: 10%;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
-  min-width: 50px;
   text-align: right;
 }
 
 .common-holding-funds {
+  flex: 0 0 40%;
+  width: 40%;
   font-size: 12px;
   color: var(--text-tertiary);
   padding-left: 12px;
-  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── Overlap & common-holding mobile overrides ── */
+@media (max-width: 500px) {
+  .overlap-fund-names {
+    padding: 8px 10px;
+  }
+
+  .overlap-fund-name {
+    font-size: 12px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  .overlap-pct-cell,
+  .overlap-stocks-cell {
+    padding: 8px 6px;
+  }
+
+  .overlap-pct-val {
+    font-size: 15px;
+  }
+
+  .overlap-stocks-num {
+    font-size: 14px;
+  }
+
+  .common-holding-row {
+    padding: 7px 10px;
+  }
+
+  .common-holding-name {
+    flex: 0 0 38%;
+    width: 38%;
+    font-size: 12px;
+  }
+
+  .common-holding-count {
+    flex: 0 0 12%;
+    width: 12%;
+    font-size: 12px;
+  }
+
+  .common-holding-weight {
+    flex: 0 0 12%;
+    width: 12%;
+    font-size: 12px;
+  }
+
+  .common-holding-funds {
+    flex: 0 0 38%;
+    width: 38%;
+    font-size: 11px;
+    padding-left: 8px;
+  }
 }
 
 /* ── Tax optimization note ── */

@@ -2155,6 +2155,19 @@ function calculateAndDisplayPortfolioAnalytics() {
       holdingsChart = null;
     }
 
+    // Immediately clear asset allocation and market cap bar content so stale
+    // data from a previous user doesn't show during the setTimeout delays.
+    // Target wrappers directly — the canvas IDs may no longer exist if a
+    // previous render already replaced the wrapper innerHTML with bar HTML.
+    const assetCard = document.getElementById("assetAllocationCard");
+    if (assetCard) {
+      const assetWrapper = assetCard.querySelector(".chart-wrapper");
+      if (assetWrapper)
+        assetWrapper.innerHTML = '<canvas id="assetAllocationChart"></canvas>';
+    }
+    const mcapCard = document.getElementById("marketCapCard");
+    if (mcapCard) mcapCard.innerHTML = '<canvas id="marketCapChart"></canvas>';
+
     setTimeout(() => {
       const analytics = calculatePortfolioAnalytics();
 
@@ -2708,6 +2721,13 @@ function displayAssetAllocation(assetAllocation) {
     const chartCanvas = document.getElementById("assetAllocationChart");
     if (!chartCanvas) return;
 
+    if (sortedLabels.length === 0) {
+      chartCanvas.parentElement.innerHTML =
+        '<div class="fund-composition-chart empty-composition">DATA NOT AVAILABLE</div>';
+      container.classList.remove("loading");
+      return;
+    }
+
     const additionalAssets = getAdditionalAssets();
 
     // Total value from funds
@@ -2757,13 +2777,16 @@ function displayAssetAllocation(assetAllocation) {
         <div class="composition-legend">${legendHTML}</div>
       </div>
     `;
+
+    container.classList.remove("loading");
   }, 50);
 }
 
 function displayMarketCapSplit(marketCap) {
-  const labels = ["Large", "Mid", "Small", "Other"].filter(
-    (k) => marketCap[k.toLowerCase()] !== undefined,
-  );
+  const labels = ["Large", "Mid", "Small", "Other"].filter((k) => {
+    const val = marketCap[k.toLowerCase()];
+    return val !== undefined && parseFloat(val) > 0;
+  });
   const data = labels.map((l) => marketCap[l.toLowerCase()]);
 
   const [sortedLabels, sortedData] = sortData(labels, data);
@@ -2774,6 +2797,13 @@ function displayMarketCapSplit(marketCap) {
 
     const chartCanvas = document.getElementById("marketCapChart");
     if (!chartCanvas) return;
+
+    if (sortedLabels.length === 0) {
+      chartCanvas.parentElement.innerHTML =
+        '<div class="fund-composition-chart empty-composition">DATA NOT AVAILABLE</div>';
+      container.classList.remove("loading");
+      return;
+    }
 
     // Calculate total value for tooltip
     const totalValue = Object.values(fundWiseData).reduce(
@@ -6361,7 +6391,7 @@ function renderModalCompositionCharts(fundKey, extendedData) {
       `;
     } else {
       assetBarEl.innerHTML =
-        '<div class="fund-composition-chart empty-composition">No data available</div>';
+        '<div class="fund-composition-chart empty-composition">DATA NOT AVAILABLE</div>';
     }
   }
 
@@ -6429,7 +6459,7 @@ function renderModalCompositionCharts(fundKey, extendedData) {
       `;
     } else {
       mcapBarEl.innerHTML =
-        '<div class="fund-composition-chart empty-composition">No data available</div>';
+        '<div class="fund-composition-chart empty-composition">DATA NOT AVAILABLE</div>';
     }
   }
 }
@@ -8776,7 +8806,9 @@ function populateCompactHoldings(funds) {
     const item = document.createElement("div");
     item.className = "compact-holding-item chi-hero";
     const fundKey = fund.scheme.trim().toLowerCase();
-    item.onclick = () => { showFundDetailsModal(fundKey, false); };
+    item.onclick = () => {
+      showFundDetailsModal(fundKey, false);
+    };
 
     item.innerHTML = `
       <div class="chi-accent ${isProfit ? "chi-accent--gain" : "chi-accent--loss"}"></div>
@@ -8846,9 +8878,10 @@ function populateCompactPastHoldings(fundsWithMetrics, listElement = null) {
 
     const isProfit = realizedGain >= 0;
     const gainSign = isProfit ? "+" : "-";
-    const realizedGainPercent = invested > 0
-      ? parseFloat((realizedGain / invested) * 100).toFixed(2)
-      : "0.00";
+    const realizedGainPercent =
+      invested > 0
+        ? parseFloat((realizedGain / invested) * 100).toFixed(2)
+        : "0.00";
     const gainText = `${gainSign}₹${formatNumber(Math.abs(realizedGain))} (${gainSign}${Math.abs(realizedGainPercent)}%)`;
 
     const item = document.createElement("div");
@@ -9976,7 +10009,7 @@ function displayFamilyAnalytics(metrics) {
     }, 300);
   } else {
     document.getElementById("familyAmcCard").innerHTML =
-      '<p style="text-align: center; color: #9ca3af; padding: 20px;">No data available</p>';
+      '<p style="text-align: center; color: #9ca3af; padding: 20px;">DATA NOT AVAILABLE</p>';
   }
 
   const returnsContainer = document.getElementById(
@@ -10050,7 +10083,7 @@ function displayFamilyAssetAllocation(metrics) {
 
   if (assetData.length === 0) {
     assetCard.querySelector(".chart-wrapper").innerHTML =
-      '<p style="text-align: center; color: #9ca3af; padding: 20px;">No data available</p>';
+      '<p style="text-align: center; color: #9ca3af; padding: 20px;">DATA NOT AVAILABLE</p>';
     return;
   }
 
@@ -10126,7 +10159,7 @@ function displayFamilyMarketCapSplit(metrics) {
 
   if (mcData.length === 0) {
     mcCard.querySelector(".chart-wrapper").innerHTML =
-      '<p style="text-align: center; color: #9ca3af; padding: 20px;">No data available</p>';
+      '<p style="text-align: center; color: #9ca3af; padding: 20px;">DATA NOT AVAILABLE</p>';
     return;
   }
 
@@ -10307,25 +10340,34 @@ function updateCompactFamilyDashboard(metrics) {
       data.cost > 0 ? ((data.unrealizedGain / data.cost) * 100).toFixed(2) : 0;
     const displayName = getStoredInvestorName(userName).split(" ")[0];
 
+    const isProfit = data.unrealizedGain >= 0;
+    const gainSign = isProfit ? "+" : "-";
+    const pnlText = `${gainSign}₹${formatNumber(Math.abs(data.unrealizedGain))} (${gainSign}${Math.abs(gainPercent)}%)`;
+
     const item = document.createElement("div");
-    item.className = "compact-holding-item";
+    item.className = "compact-holding-item chi-hero";
 
     item.innerHTML = `
-      <div class="compact-holding-info">
-        <div class="compact-holding-name"><i class="fa-solid fa-user"></i> ${displayName}</div>
-        <div class="compact-holding-meta">${data.holdings} Active Holdings</div>
-      </div>
-      <div class="compact-holding-values">
-        <div class="compact-holding-current ${
-          data.currentValue <= data.cost ? "red" : "green"
-        }">
-          ₹${formatNumber(data.currentValue)}
-        </div>
-        <div class="compact-holding-invested">₹${formatNumber(data.cost)}</div>
-        <div class="compact-holding-xirr">
-          <span class="${data.unrealizedGain >= 0 ? "green" : "red"}">
-            ${data.unrealizedGain >= 0 ? "+" : ""}${gainPercent}%
-          </span>
+      <div class="chi-accent ${isProfit ? "chi-accent--gain" : "chi-accent--loss"}"></div>
+      <div class="chi-body">
+        <div class="chi-top">
+          <div class="chi-left">
+            <div class="chi-name"><i class="fa-solid fa-user" style="font-size:10px;opacity:0.6;margin-right:4px;"></i>${displayName}</div>
+            <div class="chi-stats-line">
+              <span class="chi-stat-pill chi-stat-pill--neutral">
+                <span class="chi-stat-label">Holdings</span>
+                <span class="chi-stat-value">${data.holdings}</span>
+              </span>
+              <span class="chi-stat-pill ${isProfit ? "chi-stat-pill--pos" : "chi-stat-pill--neg"}">
+                <span class="chi-stat-label">P&L</span>
+                <span class="chi-stat-value">${pnlText}</span>
+              </span>
+            </div>
+          </div>
+          <div class="chi-right">
+            <div class="chi-current ${isProfit ? "chi-current--gain" : "chi-current--loss"}">₹${formatNumber(data.currentValue)}</div>
+            <div class="chi-invested">₹${formatNumber(data.cost)}</div>
+          </div>
         </div>
       </div>
     `;
