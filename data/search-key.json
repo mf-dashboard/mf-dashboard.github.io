@@ -1233,7 +1233,6 @@
   "INF200KB1233": "sbi-silver-etf-fof-direct-growth",
   "INF204KB19V4": "nippon-india-multi-asset-allocation-fund-direct-growth",
   "INF209K01VA3": "birla-sun-life-cash-plus-direct-growth",
-  "INF109K01U92": "icici-prudential-regular-gold-savings-(fof)-direct-growth",
   "INF582M01GY0": "union-aggressive-hybrid-fund-direct-growth",
   "INF209KB14N1": "aditya-birla-sun-life-crisil-ibx-50%3A50-gilt-plus-sdl-apr-2028-index-fund-direct-growth",
   "INF179K01WB4": "hdfc-high-interest-fund-dynamic-plan-direct-growth",
@@ -1536,5 +1535,8 @@
   "INF209K01WS3": "birla-sun-life-international-equity-fund-plan-a-direct-growth",
   "INF846KA1408": "axis-gold-and-silver-passive-fof-direct-growth",
   "INF109KC1U50": "icici-prudential-nasdaq-100-index-fund-direct-growth",
-  "INF247L01AG2": "motilal-oswal-s-p-500-index-fund-direct-growth"
+  "INF247L01AG2": "motilal-oswal-s-p-500-index-fund-direct-growth",
+  "INF109K01U92": "icici-prudential-gold-etf-fof-direct-growth",
+  "INF090I01JA6": "franklin-india-ultra-short-bond-fund-direct-growth",
+  "INF090I01VK0": "franklin-india-ultra-short-bond-fund-direct-growth"
 }

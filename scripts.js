@@ -138,9 +138,15 @@ async function loadParsedCASJson() {
     return;
   }
 
+  // Support both casData.folios (raw CAS) and casData.data.folios (wrapped export)
+  if (casData?.data?.folios && Array.isArray(casData.data.folios)) {
+    console.log("📦 Detected wrapped CAS structure — unwrapping casData.data");
+    casData = casData.data;
+  }
+
   if (!casData?.folios || !Array.isArray(casData.folios)) {
     showToast(
-      "Invalid CAS structure — expected a 'folios' array at root",
+      "Invalid CAS structure — expected a 'folios' array at root or under 'data'",
       "error",
     );
     return;
@@ -157,6 +163,16 @@ async function loadParsedCASJson() {
   try {
     portfolioData = casData;
     isSummaryCAS = portfolioData.cas_type === "SUMMARY";
+
+    // Unwrap mfStats if it's the {fileName, data, timestamp} wrapper rather than ISIN map
+    if (
+      mfStats?.data &&
+      typeof mfStats.data === "object" &&
+      !mfStats.data.folios
+    ) {
+      console.warn("⚠️ mfStats was a wrapper object — unwrapping .data");
+      mfStats = mfStats.data;
+    }
 
     console.log(
       "CAS Type:",
@@ -269,130 +285,10 @@ async function loadParsedCASJson() {
   }
 }
 async function loadFileFromTab() {
-  if (DEBUG_MODE) {
-    console.log("🐛 DEBUG MODE: Loading from local JSON files...");
-    showProcessingSplash();
-
-    const debugData = await loadLocalDebugData();
-    if (!debugData) {
-      hideProcessingSplash();
-      return;
-    }
-
-    portfolioData = debugData.casData;
-    mfStats = debugData.statsData;
-
-    isSummaryCAS = portfolioData.cas_type === "SUMMARY";
-
-    console.log(
-      "CAS Type:",
-      isSummaryCAS ? "SUMMARY" : "DETAILED",
-      " - Folios Fetched: ",
-      portfolioData.folios?.length,
-    );
-
-    if (isSummaryCAS) {
-      processSummaryCAS();
-    } else {
-      await processPortfolio();
-      enableSummaryIncompatibleTabs();
-    }
-
-    const toProperCase = (str) =>
-      str.replace(
-        /\w\S*/g,
-        (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
-      );
-
-    const fullInvestorName = toProperCase(
-      portfolioData.investor_info?.name?.trim() || "DebugUser",
-    );
-    const firstNameFromCAS =
-      fullInvestorName.split(" ")[0]?.trim() || "DebugUser";
-
-    const existingUserWithSameName = allUsers.find((user) => {
-      const storedName = getStoredInvestorName(user);
-      return storedName.toLowerCase() === fullInvestorName.toLowerCase();
-    });
-
-    if (existingUserWithSameName) {
-      currentUser = existingUserWithSameName;
-      console.log(`♻️ Overwriting existing user: ${currentUser}`);
-    } else {
-      const existingUsersWithFirstName = allUsers.filter((user) => {
-        const storedName = getStoredInvestorName(user);
-        const storedFirstName = storedName.split(" ")[0]?.trim() || storedName;
-        return storedFirstName.toLowerCase() === firstNameFromCAS.toLowerCase();
-      });
-
-      if (existingUsersWithFirstName.length > 0) {
-        let counter = 1;
-        let newUserName = `${firstNameFromCAS}_${counter}`;
-        while (allUsers.includes(newUserName)) {
-          counter++;
-          newUserName = `${firstNameFromCAS}_${counter}`;
-        }
-        currentUser = newUserName;
-        console.log(`✨ Creating new user with increment: ${currentUser}`);
-      } else {
-        currentUser = firstNameFromCAS;
-        console.log(`✨ Creating new user: ${currentUser}`);
-      }
-    }
-
-    localStorage.setItem("lastActiveUser", currentUser);
-
-    const hiddenFoliosKey = `hiddenFolios_${currentUser}`;
-    localStorage.removeItem(hiddenFoliosKey);
-    console.log(`🗑️ Cleared hidden folios for user: ${currentUser}`);
-
-    await storageManager.savePortfolioData(
-      portfolioData,
-      mfStats,
-      true,
-      currentUser,
-    );
-
-    localStorage.setItem(`investorName_${currentUser}`, fullInvestorName);
-    console.log(`💾 Debug data saved for user: ${currentUser}`);
-
-    allUsers = storageManager.getAllUsers();
-
-    populateUserList(allUsers);
-    updateCurrentUserDisplay();
-
-    const dashboard = document.getElementById("dashboard");
-    dashboard.classList.remove("disabled");
-
-    enableAllTabs();
-
-    hideProcessingSplash();
-
-    const showCards = ["update-stats", "update-nav"];
-    const hideCard = "instructions-card";
-
-    showCards.forEach((e) => {
-      const element = document.querySelector("." + e);
-      if (element) element.classList.remove("hidden");
-    });
-
-    const hideElement = document.querySelector("." + hideCard);
-    if (hideElement) hideElement.classList.add("hidden");
-
-    showToast(`Debug data loaded successfully for ${currentUser}!`, "success");
-    updateFooterInfo();
-    invalidateFamilyDashboardCache();
-    switchDashboardTab("main");
-    return;
-  }
-
   const fileInput = document.getElementById("fileInputTab");
   const passwordInput = document.getElementById("filePasswordTab");
   const password = passwordInput.value;
   const file = fileInput.files[0];
-
-  console.log("File selected:", file?.name);
-  console.log("Password entered:", password ? "yes" : "no");
 
   if (!file) {
     showToast("Please select a file", "error");
@@ -949,7 +845,7 @@ function processSummaryCAS() {
         totalUnitsRemaining: units,
         averageRemainingCostPerUnit: units > 0 ? (cost / units).toFixed(3) : 0,
         averageHoldingDays: 0,
-        category: extendedData?.category || "hybrid",
+        category: getTaxCategory(extendedData, fund),
         capitalGains: {
           stcg: 0,
           ltcg: 0,
@@ -994,6 +890,115 @@ function processSummaryCAS() {
   });
 }
 
+// ============================================
+// TAX CATEGORY CLASSIFICATION
+// Single source of truth for fund tax category.
+//
+// Rules:
+//   Equity - International              → hybrid
+//   Equity - (anything else)            → equity
+//   Debt   - Short/Long/Medium Duration → debt
+//   Debt   - (anything else)            → debt
+//   Commodities - Gold / Silver         → hybrid
+//   Commodities - (anything else)       → hybrid
+//   Hybrid - second_category=Equity      → equity (equity-oriented, 1Y threshold)
+//   Hybrid - second_category=Debt        → debt   (debt-oriented, 2Y threshold)
+//   Hybrid - second_category=null/other  → hybrid (true hybrid, 2Y threshold)
+//   Unknown / no stats / fallback        → equity (safe default for index/thematic funds)
+// ============================================
+function getTaxCategory(extendedData, fund) {
+  const scheme = fund?.scheme || "";
+  const ft = (fund?.type || "").toLowerCase();
+  const logResult = (result, source, cat, subCat, secCat) => {
+    // console.log(
+    //   `${scheme} - ${ft} - ${cat} - ${subCat} - ${secCat} = ${result} [${source}]`,
+    // );
+    return result;
+  };
+
+  if (!extendedData?.category) {
+    // No stats data for this fund - infer from fund.type, then fund name
+    const name = scheme.toLowerCase();
+
+    if (ft.includes("equity")) return logResult("equity", "type", "", "", "");
+    if (
+      ft.includes("debt") ||
+      ft.includes("income") ||
+      ft.includes("liquid") ||
+      ft.includes("gilt") ||
+      ft.includes("overnight") ||
+      ft.includes("money market")
+    )
+      return logResult("debt", "type", "", "", "");
+
+    // Name-based heuristics for funds missing from stats
+    if (
+      name.includes("overnight") ||
+      name.includes("liquid") ||
+      name.includes("money market") ||
+      name.includes("short duration") ||
+      name.includes("long duration") ||
+      name.includes("medium duration") ||
+      name.includes("gilt") ||
+      name.includes("corporate bond") ||
+      name.includes("banking and psu") ||
+      name.includes("credit risk")
+    )
+      return logResult("debt", "name", "", "", "");
+    if (
+      name.includes("international") ||
+      name.includes("s&p 500") ||
+      name.includes("s and p 500") ||
+      name.includes("nasdaq") ||
+      name.includes("global")
+    )
+      return logResult("hybrid", "name", "", "", "");
+
+    // Default unknown funds to equity (most index/thematic funds without stats are equity)
+    return logResult("equity", "default", "", "", "");
+  }
+
+  const cat = extendedData.category.toLowerCase();
+  const subCat = (extendedData.sub_category || "").toLowerCase();
+  const secCat = (extendedData.second_category || "").toLowerCase();
+
+  if (cat === "equity" || cat === "elss") {
+    // Equity - International sub_category -> taxed as Hybrid (2Y threshold, no Rs1.25L exemption)
+    if (subCat === "international")
+      return logResult("hybrid", "int'l equity", cat, subCat, secCat);
+    return logResult("equity", "cat", cat, subCat, secCat);
+  }
+
+  if (
+    cat === "debt" ||
+    cat === "income" ||
+    cat === "liquid" ||
+    cat === "gilt"
+  ) {
+    return logResult("debt", "cat", cat, subCat, secCat);
+  }
+
+  if (cat === "commodities") {
+    // Gold/Silver ETF FoFs -> taxed as Hybrid
+    return logResult("hybrid", "commodities", cat, subCat, secCat);
+  }
+
+  if (cat === "hybrid" || cat === "balanced") {
+    // Use second_category as the authoritative equity/debt orientation signal:
+    // "Equity" -> equity-oriented hybrid (1Y LTCG, 20% STCG, 12.5% LTCG with Rs1.25L exemption)
+    // "Debt"   -> debt-oriented hybrid   (2Y LTCG, slab STCG, slab LTCG)
+    // null/other -> true hybrid          (2Y LTCG, slab STCG, 12.5% LTCG no exemption)
+    if (secCat === "equity")
+      return logResult("equity", "hybrid/2nd-cat", cat, subCat, secCat);
+    if (secCat === "debt")
+      return logResult("debt", "hybrid/2nd-cat", cat, subCat, secCat);
+    return logResult("hybrid", "hybrid/2nd-cat", cat, subCat, secCat);
+  }
+
+  // Anything unrecognised -> hybrid
+  return logResult("hybrid", "unrecognised", cat, subCat, secCat);
+}
+
 // CALCULATIONS
 function calculateadvancedMetrics(fund) {
   let totalInvested = 0;
@@ -1009,29 +1014,7 @@ function calculateadvancedMetrics(fund) {
   };
 
   const extendedData = fund.isin ? mfStats[fund.isin] : null;
-  let category = "hybrid";
-
-  const equityTypes = ["equity", "elss"];
-  const debtTypes = ["debt", "income", "liquid", "gilt"];
-  const hybridTypes = ["hybrid", "balanced", "commodities"];
-
-  if (extendedData?.category) {
-    const cat = extendedData.category.toLowerCase();
-    if (equityTypes.includes(cat)) category = "equity";
-    else if (debtTypes.includes(cat)) category = "debt";
-    else if (hybridTypes.includes(cat)) {
-      category = (
-        extendedData?.second_category?.toLowerCase?.() ?? ""
-      ).includes("debt")
-        ? "debt"
-        : "hybrid";
-    }
-  } else {
-    const fundType = (fund.type || "").toLowerCase();
-    if (fundType.includes("equity")) category = "equity";
-    else if (fundType.includes("debt") || fundType.includes("income"))
-      category = "debt";
-  }
+  const category = getTaxCategory(extendedData, fund);
 
   const stcgThreshold = category === "equity" ? 365 : 730;
 
@@ -2993,96 +2976,7 @@ function displayCapitalGains() {
       cat.ltcgRedeemed !== 0,
   );
 
-  let html = `
-    <div class="capital-gains-section">
-      <div class="section-header">
-        <h3>📊 Current Financial Year (${currentFY})</h3>
-        <p class="section-subtitle">Tax applicable on capital gains for redemptions in ${currentFY}</p>
-      </div>
-  `;
-
-  if (hasCurrentYearData) {
-    html += `
-      <div class="gains-table-wrapper">
-        <h4>STCG (Short Term Capital Gains)</h4>
-        <table class="gains-table gain-summary">
-          <thead>
-            <tr>
-              <th>Category</th>
-              <th>Gains</th>
-              <th>Redeemed</th>
-              <th>Tax Rate</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    ["equity", "debt", "hybrid"].forEach((cat) => {
-      const data = capitalGainsData.currentYear[cat];
-      const taxRate = cat === "equity" ? "20%" : "As per slab";
-      const holdingPeriod = cat === "equity" ? "< 1Y" : "< 2Y";
-      const hasData = data.stcg !== 0 || data.stcgRedeemed !== 0;
-
-      html += `
-        <tr>
-          <td>${
-            cat.charAt(0).toUpperCase() + cat.slice(1)
-          } (${holdingPeriod})</td>
-          <td class="${!hasData ? "" : data.stcg >= 0 ? "gain" : "loss"}">
-            ${"₹" + formatNumber(hasData ? Math.abs(data.stcg) : 0)}
-          </td>
-          <td>${"₹" + formatNumber(hasData ? data.stcgRedeemed : 0)}</td>
-          <td>${taxRate}</td>
-        </tr>
-      `;
-    });
-
-    html += `
-          </tbody>
-        </table>
-
-        <h4>LTCG (Long Term Capital Gains)</h4>
-        <table class="gains-table gain-summary">
-          <thead>
-            <tr>
-              <th>Category</th>
-              <th>Gains</th>
-              <th>Redeemed</th>
-              <th>Tax Rate</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    ["equity", "debt", "hybrid"].forEach((cat) => {
-      const data = capitalGainsData.currentYear[cat];
-      const taxRate = cat === "debt" ? "As per slab" : "12.5% (>₹1.25L)";
-      const holdingPeriod = cat === "equity" ? "≥ 1Y" : "≥ 2Y";
-      const hasData = data.ltcg !== 0 || data.ltcgRedeemed !== 0;
-
-      html += `
-        <tr>
-          <td>${
-            cat.charAt(0).toUpperCase() + cat.slice(1)
-          } (${holdingPeriod})</td>
-          <td class="${!hasData ? "" : data.ltcg >= 0 ? "gain" : "loss"}">
-            ${"₹" + formatNumber(hasData ? Math.abs(data.ltcg) : 0)}
-          </td>
-          <td>${"₹" + formatNumber(hasData ? data.ltcgRedeemed : 0)}</td>
-          <td>${taxRate}</td>
-        </tr>
-      `;
-    });
-
-    html += `
-          </tbody>
-        </table>
-      </div>
-    `;
-  } else {
-    html += `<p class="no-data">No redemptions in ${currentFY}</p>`;
-  }
-  html += `</div>`;
+  let html = ``;
 
   // Get all transactions
   const allTransactions = getCapitalGainsTransactions();
@@ -3094,35 +2988,34 @@ function displayCapitalGains() {
     return bNum - aNum;
   });
 
-  // Determine which FY to show by default
+  // Determine which FY to show by default — always prefer current FY (even with no data)
   let defaultFY = currentFY;
-  if (!hasCurrentYearData && years.length > 0) {
-    // If current FY has no data, use the most recent FY with data
-    defaultFY = years[0];
-  }
 
-  if (years.length > 0) {
+  // Always show the FY section; include current FY pill even if no data
+  const allPillYears = years.includes(currentFY)
+    ? years
+    : [currentFY, ...years];
+
+  html += `
+    <div class="capital-gains-section">
+      <div class="section-header">
+        <h3>📅 Financial Year-wise Breakdown</h3>
+        <p class="section-subtitle">Historical capital gains across all financial years</p>
+      </div>
+      <div class="cg-pill-bar" id="capitalGainsYearPills">
+  `;
+
+  allPillYears.forEach((fy) => {
+    const hasData = years.includes(fy);
     html += `
-      <div class="capital-gains-section">
-        <div class="section-header">
-          <h3>📅 Financial Year-wise Breakdown</h3>
-          <p class="section-subtitle">Historical capital gains across all financial years</p>
-        </div>
-        <div class="cg-pill-bar" id="capitalGainsYearPills">
+      <button class="cg-pill ${fy === defaultFY ? "active" : ""} ${!hasData ? "cg-pill--no-data" : ""}"
+              onclick="showYearGainsWithTransactions('${fy}')">
+        ${fy}
+      </button>
     `;
+  });
 
-    years.forEach((fy) => {
-      // 🔧 FIX: Add active class to defaultFY
-      html += `
-        <button class="cg-pill ${fy === defaultFY ? "active" : ""}"
-                onclick="showYearGainsWithTransactions('${fy}')">
-          ${fy}
-        </button>
-      `;
-    });
-
-    html += `</div><div id="yearGainsDisplay"></div></div>`;
-  }
+  html += `</div><div id="yearGainsDisplay"></div></div>`;
 
   // All-time summary
   const hasAllTimeData = Object.values(capitalGainsData.allTime).some(
@@ -3143,37 +3036,83 @@ function displayCapitalGains() {
   if (!hasAllTimeData) {
     html += `<p class="no-data">No redemptions made yet</p></div>`;
   } else {
-    html += `<div class="gains-summary-grid alltime-summary-grid">`;
+    // Compute overall totals for hero row
+    let atTotalSTCG = 0,
+      atTotalLTCG = 0,
+      atTotalRedeemed = 0;
+    ["equity", "debt", "hybrid"].forEach((cat) => {
+      const d = capitalGainsData.allTime[cat];
+      atTotalSTCG += d.stcg || 0;
+      atTotalLTCG += d.ltcg || 0;
+      atTotalRedeemed += (d.stcgRedeemed || 0) + (d.ltcgRedeemed || 0);
+    });
+    const atTotalGains = atTotalSTCG + atTotalLTCG;
+
+    html += `
+      <div class="cg-alltime-hero">
+        <div class="folio-card-hero">
+          <div class="folio-card-hero-cell ${atTotalGains >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">Total Gains</span>
+            <span class="folio-card-hero-value ${atTotalGains >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(atTotalGains))}</span>
+            <span class="folio-card-hero-sub">All time</span>
+          </div>
+          <div class="folio-card-hero-cell ${atTotalSTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">Short Term</span>
+            <span class="folio-card-hero-value ${atTotalSTCG >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(atTotalSTCG))}</span>
+            <span class="folio-card-hero-sub">STCG</span>
+          </div>
+          <div class="folio-card-hero-cell ${atTotalLTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">Long Term</span>
+            <span class="folio-card-hero-value ${atTotalLTCG >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(atTotalLTCG))}</span>
+            <span class="folio-card-hero-sub">LTCG</span>
+          </div>
+          <div class="folio-card-hero-cell folio-card-hero-cell--xirr">
+            <span class="folio-card-hero-label">Total Redeemed</span>
+            <span class="folio-card-hero-value">₹${formatNumber(atTotalRedeemed)}</span>
+            <span class="folio-card-hero-sub">All categories</span>
+          </div>
+        </div>
+      </div>
+      <div class="gains-summary-grid alltime-summary-grid">`;
 
     ["equity", "debt", "hybrid"].forEach((cat) => {
       const data = capitalGainsData.allTime[cat];
       const totalGains = data.stcg + data.ltcg;
       const totalRedeemed = data.stcgRedeemed + data.ltcgRedeemed;
       if (totalGains !== 0 || totalRedeemed !== 0) {
+        const catIcons = { equity: "📈", debt: "🏦", hybrid: "⚖️" };
         html += `
-        <div class="gains-summary-card">
-          <h4>${cat.charAt(0).toUpperCase() + cat.slice(1)}</h4>
-          <div class="summary-row">
-            <span>STCG:</span>
-            <span class="${data.stcg >= 0 ? "gain" : "loss"}">₹${formatNumber(
-              Math.abs(data.stcg),
-            )}</span>
+        <div class="gains-summary-card folio-card">
+          <div class="folio-card-header">
+            <span class="folio-card-name-header">${catIcons[cat]} ${cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
           </div>
-          <div class="summary-row">
-            <span>LTCG:</span>
-            <span class="${data.ltcg >= 0 ? "gain" : "loss"}">₹${formatNumber(
-              Math.abs(data.ltcg),
-            )}</span>
+          <div class="folio-card-hero">
+            <div class="folio-card-hero-cell ${totalGains >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+              <span class="folio-card-hero-label">Total Gains</span>
+              <span class="folio-card-hero-value ${totalGains >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(totalGains))}</span>
+            </div>
+            <div class="folio-card-hero-cell ${data.stcg >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+              <span class="folio-card-hero-label">STCG</span>
+              <span class="folio-card-hero-value ${data.stcg >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(data.stcg))}</span>
+            </div>
+            <div class="folio-card-hero-cell ${data.ltcg >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+              <span class="folio-card-hero-label">LTCG</span>
+              <span class="folio-card-hero-value ${data.ltcg >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(data.ltcg))}</span>
+            </div>
           </div>
-          <div class="summary-row total">
-            <span>Total Gains:</span>
-            <span class="${totalGains >= 0 ? "gain" : "loss"}">₹${formatNumber(
-              Math.abs(totalGains),
-            )}</span>
-          </div>
-          <div class="summary-row">
-            <span>Total Redeemed:</span>
-            <span>₹${formatNumber(totalRedeemed)}</span>
+          <div class="folio-card-chips-row">
+            <div class="folio-card-meta-chip">
+              <span class="folio-card-meta-label">Redeemed</span>
+              <span class="folio-card-meta-value">₹${formatNumber(totalRedeemed)}</span>
+            </div>
+            <div class="folio-card-meta-chip">
+              <span class="folio-card-meta-label">STCG Redeemed</span>
+              <span class="folio-card-meta-value">₹${formatNumber(data.stcgRedeemed)}</span>
+            </div>
+            <div class="folio-card-meta-chip">
+              <span class="folio-card-meta-label">LTCG Redeemed</span>
+              <span class="folio-card-meta-value">₹${formatNumber(data.ltcgRedeemed)}</span>
+            </div>
           </div>
         </div>
       `;
@@ -3206,10 +3145,8 @@ function displayCapitalGains() {
 
   container.innerHTML = html;
 
-  // Show defaultFY by default (current FY or most recent with data)
-  if (years.length > 0) {
-    showYearGainsWithTransactions(defaultFY);
-  }
+  // Always show defaultFY (current FY even if no data, falls back gracefully)
+  showYearGainsWithTransactions(defaultFY);
 }
 function showYearGains(fy) {
   const yearData = capitalGainsData.byYear[fy];
@@ -3280,7 +3217,12 @@ function showYearGains(fy) {
   ["equity", "debt", "hybrid"].forEach((cat) => {
     const data = yearData[cat];
     if (data.ltcg !== 0 || data.ltcgRedeemed !== 0) {
-      const taxRate = cat === "debt" ? "As per slab" : "12.5% (>₹1.25L)";
+      const taxRate =
+        cat === "debt"
+          ? "As per slab"
+          : cat === "hybrid"
+            ? "12.5%"
+            : "12.5% (>₹1.25L)";
       const holdingPeriod = cat === "equity" ? "≥ 1Y" : "≥ 2Y";
       html += `
         <tr>
@@ -3307,7 +3249,6 @@ function showYearGains(fy) {
 }
 function showYearGainsWithTransactions(fy) {
   const yearData = capitalGainsData.byYear[fy];
-  if (!yearData) return;
 
   // Update button states
   document.querySelectorAll(".cg-pill").forEach((btn) => {
@@ -3317,98 +3258,148 @@ function showYearGainsWithTransactions(fy) {
     }
   });
 
+  if (!yearData) {
+    const display = document.getElementById("yearGainsDisplay");
+    if (display) {
+      display.innerHTML = `
+        <div class="cg-no-data-banner">
+          <i class="fa-solid fa-calendar-xmark"></i>
+          <span>DATA NOT AVAILABLE</span>
+          <p>No redemption transactions found for ${fy}</p>
+        </div>`;
+    }
+    return;
+  }
+
   const display = document.getElementById("yearGainsDisplay");
 
   // Get transactions for this FY
   const allTransactions = getCapitalGainsTransactions();
   const fyTransactions = allTransactions.filter((tx) => tx.fy === fy);
 
+  // Compute totals for hero row
+  let totalSTCG = 0,
+    totalLTCG = 0,
+    totalRedeemed = 0;
+  ["equity", "debt", "hybrid"].forEach((cat) => {
+    const d = yearData[cat];
+    totalSTCG += d.stcg || 0;
+    totalLTCG += d.ltcg || 0;
+    totalRedeemed += (d.stcgRedeemed || 0) + (d.ltcgRedeemed || 0);
+  });
+  const totalGains = totalSTCG + totalLTCG;
+
+  const gainsClass = totalGains >= 0 ? "gain" : "loss";
+  const stcgClass = totalSTCG >= 0 ? "gain" : "loss";
+  const ltcgClass = totalLTCG >= 0 ? "gain" : "loss";
+
+  // Build category cards
+  const catMeta = {
+    equity: {
+      icon: "📈",
+      stcgPeriod: "< 1Y",
+      ltcgPeriod: "≥ 1Y",
+      stcgTax: "20%",
+      ltcgTax: "12.5% (>₹1.25L)",
+    },
+    debt: {
+      icon: "🏦",
+      stcgPeriod: "< 2Y",
+      ltcgPeriod: "≥ 2Y",
+      stcgTax: "As per slab",
+      ltcgTax: "As per slab",
+    },
+    hybrid: {
+      icon: "⚖️",
+      stcgPeriod: "< 2Y",
+      ltcgPeriod: "≥ 2Y",
+      stcgTax: "As per slab",
+      ltcgTax: "12.5%",
+    },
+  };
+
+  let categoryCardsHtml = "";
+  ["equity", "debt", "hybrid"].forEach((cat) => {
+    const d = yearData[cat];
+    const m = catMeta[cat];
+    const catSTCG = d.stcg || 0;
+    const catLTCG = d.ltcg || 0;
+    const catTotal = catSTCG + catLTCG;
+    const catRedeemed = (d.stcgRedeemed || 0) + (d.ltcgRedeemed || 0);
+    const hasAny = catTotal !== 0 || catRedeemed !== 0;
+
+    if (!hasAny) return;
+
+    const catTotalClass = catTotal >= 0 ? "gain" : "loss";
+    const stcgHasData = d.stcg !== 0 || d.stcgRedeemed !== 0;
+    const ltcgHasData = d.ltcg !== 0 || d.ltcgRedeemed !== 0;
+
+    categoryCardsHtml += `
+      <div class="cg-year-cat-card">
+        <div class="folio-card-header">
+          <span class="folio-card-name-header">${m.icon} ${cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
+        </div>
+        <div class="folio-card-hero">
+          <div class="folio-card-hero-cell ${catTotal >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">Total Gains</span>
+            <span class="folio-card-hero-value ${catTotalClass}">₹${formatNumber(Math.abs(catTotal))}</span>
+            <span class="folio-card-hero-sub">Redeemed ₹${formatNumber(catRedeemed)}</span>
+          </div>
+          <div class="folio-card-hero-cell ${catSTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">STCG ${m.stcgPeriod}</span>
+            <span class="folio-card-hero-value ${stcgHasData ? (catSTCG >= 0 ? "gain" : "loss") : ""}">₹${formatNumber(Math.abs(stcgHasData ? catSTCG : 0))}</span>
+            <span class="folio-card-hero-sub">Tax: ${m.stcgTax}</span>
+          </div>
+          <div class="folio-card-hero-cell ${catLTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">LTCG ${m.ltcgPeriod}</span>
+            <span class="folio-card-hero-value ${ltcgHasData ? (catLTCG >= 0 ? "gain" : "loss") : ""}">₹${formatNumber(Math.abs(ltcgHasData ? catLTCG : 0))}</span>
+            <span class="folio-card-hero-sub">Tax: ${m.ltcgTax}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
   let html = `
-    <div class="gains-table-wrapper">
-      <h4>STCG for ${fy}</h4>
-      <table class="gains-table gain-summary">
-        <thead>
-          <tr>
-            <th>Category</th>
-            <th>Gains</th>
-            <th>Redeemed</th>
-            <th>Tax Rate</th>
-          </tr>
-        </thead>
-        <tbody>
-  `;
-
-  ["equity", "debt", "hybrid"].forEach((cat) => {
-    const data = yearData[cat];
-    const taxRate = cat === "equity" ? "20%" : "As per slab";
-    const holdingPeriod = cat === "equity" ? "< 1Y" : "< 2Y";
-    const hasData = data.stcg !== 0 || data.stcgRedeemed !== 0;
-
-    html += `
-      <tr>
-        <td>${
-          cat.charAt(0).toUpperCase() + cat.slice(1)
-        } (${holdingPeriod})</td>
-        <td class="${!hasData ? "" : data.stcg >= 0 ? "gain" : "loss"}">
-          ${"₹" + formatNumber(hasData ? Math.abs(data.stcg) : 0)}
-        </td>
-        <td>${"₹" + formatNumber(hasData ? data.stcgRedeemed : 0)}</td>
-        <td>${taxRate}</td>
-      </tr>
-    `;
-  });
-
-  html += `
-        </tbody>
-      </table>
-
-      <h4>LTCG for ${fy}</h4>
-      <table class="gains-table gain-summary">
-        <thead>
-          <tr>
-            <th>Category</th>
-            <th>Gains</th>
-            <th>Redeemed</th>
-            <th>Tax Rate</th>
-          </tr>
-        </thead>
-        <tbody>
-  `;
-
-  ["equity", "debt", "hybrid"].forEach((cat) => {
-    const data = yearData[cat];
-    const taxRate = cat === "debt" ? "As per slab" : "12.5% (>₹1.25L)";
-    const holdingPeriod = cat === "equity" ? "≥ 1Y" : "≥ 2Y";
-    const hasData = data.ltcg !== 0 || data.ltcgRedeemed !== 0;
-
-    html += `
-      <tr>
-        <td>${
-          cat.charAt(0).toUpperCase() + cat.slice(1)
-        } (${holdingPeriod})</td>
-        <td class="${!hasData ? "" : data.ltcg >= 0 ? "gain" : "loss"}">
-          ${"₹" + formatNumber(hasData ? Math.abs(data.ltcg) : 0)}
-        </td>
-        <td>${"₹" + formatNumber(hasData ? data.ltcgRedeemed : 0)}</td>
-        <td>${taxRate}</td>
-      </tr>
-    `;
-  });
-
-  html += `
-        </tbody>
-      </table>
+    <div class="cg-year-display">
+      <div class="cg-year-hero">
+        <div class="folio-card-hero">
+          <div class="folio-card-hero-cell ${totalGains >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">Total Gains</span>
+            <span class="folio-card-hero-value ${gainsClass}">₹${formatNumber(Math.abs(totalGains))}</span>
+            <span class="folio-card-hero-sub">STCG + LTCG</span>
+          </div>
+          <div class="folio-card-hero-cell ${totalSTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">Short Term</span>
+            <span class="folio-card-hero-value ${stcgClass}">₹${formatNumber(Math.abs(totalSTCG))}</span>
+            <span class="folio-card-hero-sub">STCG</span>
+          </div>
+          <div class="folio-card-hero-cell ${totalLTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">Long Term</span>
+            <span class="folio-card-hero-value ${ltcgClass}">₹${formatNumber(Math.abs(totalLTCG))}</span>
+            <span class="folio-card-hero-sub">LTCG</span>
+          </div>
+          <div class="folio-card-hero-cell folio-card-hero-cell--xirr">
+            <span class="folio-card-hero-label">Total Redeemed</span>
+            <span class="folio-card-hero-value">₹${formatNumber(totalRedeemed)}</span>
+            <span class="folio-card-hero-sub">All categories</span>
+          </div>
+        </div>
+      </div>
+      <div class="cg-year-cat-grid">
+        ${categoryCardsHtml || `<p class="no-data">No redemptions in ${fy}</p>`}
+      </div>
     </div>
   `;
 
   // Add detailed transactions table for this FY
   if (fyTransactions.length > 0) {
     html += `
-    <div style="margin-top: 30px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding:10px;">
-        <h4>Detailed Transactions for ${fy}</h4>
-        <button class="secondary-btn" onclick="downloadFYCapitalGainsReport('${fy}')">
-          📥 Download ${fy} Report
+    <div class="cg-year-transactions">
+      <div class="cg-year-tx-header">
+        <span class="cg-year-tx-title">Detailed Transactions — ${fy}</span>
+        <button class="cg-dl-btn" onclick="downloadFYCapitalGainsReport('${fy}')">
+          <i class="fa-solid fa-download"></i> Download ${fy}
         </button>
       </div>
       ${createFYTransactionTable(fyTransactions)}
@@ -4236,40 +4227,65 @@ function displayMonthlySummaryAndProjections() {
         <h3>📊 Average Monthly Summary</h3>
         <p class="section-subtitle">Your investment patterns over recent months</p>
       </div>
-      
-      <div class="summary-table-wrapper">
-        <table class="gains-table">
-          <thead>
-            <tr>
-              <th>Period</th>
-              <th>Avg Buy</th>
-              <th>Avg Sell</th>
-              <th>Avg Net Inflow</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Last 6 Months</strong></td>
-              <td>₹${formatNumber(Math.round(summary.sixMonths.avgBuy))}</td>
-              <td>₹${formatNumber(Math.round(summary.sixMonths.avgSell))}</td>
-              <td class="${summary.sixMonths.avgNetInflow >= 0 ? "gain" : "loss"}">
-                ₹${formatNumber(Math.round(Math.abs(summary.sixMonths.avgNetInflow)))}
-              </td>
-            </tr>
-            <tr>
-              <td><strong>Last 12 Months</strong></td>
-              <td>₹${formatNumber(Math.round(summary.twelveMonths.avgBuy))}</td>
-              <td>₹${formatNumber(
-                Math.round(summary.twelveMonths.avgSell),
-              )}</td>
-              <td class="${summary.twelveMonths.avgNetInflow >= 0 ? "gain" : "loss"}">
-                ₹${formatNumber(
-                  Math.round(Math.abs(summary.twelveMonths.avgNetInflow)),
-                )}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+
+      <div class="gains-summary-grid alltime-summary-grid monthly-summary-cards">
+
+        <div class="gains-summary-card folio-card">
+          <div class="folio-card-header">
+            <span class="folio-card-name-header">📅 Last 6 Months</span>
+          </div>
+          <div class="folio-card-hero">
+            <div class="folio-card-hero-cell folio-card-hero-cell--pnl-gain">
+              <span class="folio-card-hero-label">Avg Buy</span>
+              <span class="folio-card-hero-value">₹${formatNumber(Math.round(summary.sixMonths.avgBuy))}</span>
+            </div>
+            <div class="folio-card-hero-cell folio-card-hero-cell--pnl-loss">
+              <span class="folio-card-hero-label">Avg Sell</span>
+              <span class="folio-card-hero-value">₹${formatNumber(Math.round(summary.sixMonths.avgSell))}</span>
+            </div>
+            <div class="folio-card-hero-cell ${summary.sixMonths.avgNetInflow >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+              <span class="folio-card-hero-label">Avg Net Inflow</span>
+              <span class="folio-card-hero-value ${summary.sixMonths.avgNetInflow >= 0 ? "gain" : "loss"}">
+                ${summary.sixMonths.avgNetInflow >= 0 ? "" : "-"}₹${formatNumber(Math.round(Math.abs(summary.sixMonths.avgNetInflow)))}
+              </span>
+            </div>
+          </div>
+          <div class="folio-card-chips-row">
+            <div class="folio-card-meta-chip">
+              <span class="folio-card-meta-label">Used for Projection</span>
+              <span class="folio-card-meta-value">₹${formatNumber(Math.round(summary.sixMonths.inflow))}/mo</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="gains-summary-card folio-card">
+          <div class="folio-card-header">
+            <span class="folio-card-name-header">📅 Last 12 Months</span>
+          </div>
+          <div class="folio-card-hero">
+            <div class="folio-card-hero-cell folio-card-hero-cell--pnl-gain">
+              <span class="folio-card-hero-label">Avg Buy</span>
+              <span class="folio-card-hero-value">₹${formatNumber(Math.round(summary.twelveMonths.avgBuy))}</span>
+            </div>
+            <div class="folio-card-hero-cell folio-card-hero-cell--pnl-loss">
+              <span class="folio-card-hero-label">Avg Sell</span>
+              <span class="folio-card-hero-value">₹${formatNumber(Math.round(summary.twelveMonths.avgSell))}</span>
+            </div>
+            <div class="folio-card-hero-cell ${summary.twelveMonths.avgNetInflow >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+              <span class="folio-card-hero-label">Avg Net Inflow</span>
+              <span class="folio-card-hero-value ${summary.twelveMonths.avgNetInflow >= 0 ? "gain" : "loss"}">
+                ${summary.twelveMonths.avgNetInflow >= 0 ? "" : "-"}₹${formatNumber(Math.round(Math.abs(summary.twelveMonths.avgNetInflow)))}
+              </span>
+            </div>
+          </div>
+          <div class="folio-card-chips-row">
+            <div class="folio-card-meta-chip">
+              <span class="folio-card-meta-label">Used for Projection</span>
+              <span class="folio-card-meta-value">₹${formatNumber(Math.round(summary.twelveMonths.inflow))}/mo</span>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <div class="section-header" style="margin-top: 40px;">
@@ -10219,29 +10235,27 @@ function displayFamilyUserBreakdown(userBreakdown) {
     const card = document.createElement("div");
     card.className = "family-user-card";
 
+    const pnlClass = data.unrealizedGain >= 0 ? "pnl-gain" : "pnl-loss";
     card.innerHTML = `
-      <h4><i class="fa-solid fa-user"></i> ${displayName}</h4>
+      <h4>
+        <i class="fa-solid fa-user"></i> ${displayName}
+        <span class="family-holdings-pill">${data.holdings} funds</span>
+      </h4>
       <div class="family-user-stats">
         <div class="family-stat-row">
-          <span class="label">Current Value:</span>
+          <span class="label">Current Value</span>
           <span class="value">₹${formatNumber(data.currentValue)}</span>
         </div>
         <div class="family-stat-row">
-          <span class="label">Cost:</span>
+          <span class="label">Invested</span>
           <span class="value">₹${formatNumber(data.cost)}</span>
         </div>
-        <div class="family-stat-row">
-          <span class="label">P&L:</span>
+        <div class="family-stat-row ${pnlClass}">
+          <span class="label">P&L</span>
           <span class="value ${gainClass}">
-            ${data.unrealizedGain >= 0 ? "+" : ""}₹${formatNumber(
-              Math.abs(data.unrealizedGain),
-            )} 
-            (${data.unrealizedGain >= 0 ? "+" : ""}${gainPercent}%)
+            ${data.unrealizedGain >= 0 ? "+" : ""}₹${formatNumber(Math.abs(data.unrealizedGain))}
           </span>
-        </div>
-        <div class="family-stat-row">
-          <span class="label">Active Holdings:</span>
-          <span class="value">${data.holdings}</span>
+          <span class="sub-value">${data.unrealizedGain >= 0 ? "+" : ""}${gainPercent}%</span>
         </div>
       </div>
     `;
@@ -11586,26 +11600,12 @@ function calculateTaxPlanningData() {
 
     totalPortfolioValue += currentValue;
 
-    // Determine equity percentage
+    // Determine holding period threshold using unified tax category logic
     const extendedData = fund.isin ? mfStats[fund.isin] : null;
-    let equityPercentage = 0;
-
-    if (extendedData?.portfolio_stats?.asset_allocation) {
-      const assetAlloc = extendedData.portfolio_stats.asset_allocation;
-      Object.entries(assetAlloc).forEach(([key, value]) => {
-        if (key.toLowerCase().includes("equity")) {
-          equityPercentage += parseFloat(value || 0);
-        }
-      });
-    } else {
-      const category = (fund.type || fund.category || "").toLowerCase();
-      if (category.includes("equity")) {
-        equityPercentage = 100;
-      }
-    }
-
-    const isEquityOriented = equityPercentage >= 65;
-    const threshold = isEquityOriented ? 365 : 730;
+    const taxCat = getTaxCategory(extendedData, fund);
+    const threshold = taxCat === "equity" ? 365 : 730;
+    const isEquityOriented = taxCat === "equity";
+    const equityPercentage = isEquityOriented ? 100 : 0;
     const latestNav = fund.valuation?.nav || 0;
 
     // Split units into LT and ST based on actual holding period
