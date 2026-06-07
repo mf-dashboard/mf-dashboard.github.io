@@ -7,8 +7,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
-
-    <link rel="stylesheet" href="styles.css?v=20260603" />
+    <!-- Cloudflare Web Analytics -->
+    <script
+      defer
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon='{"token": "4d8174ccb12041b3a010d11343f45f18"}'
+    ></script>
+    <!-- End Cloudflare Web Analytics -->
+    <link rel="stylesheet" href="styles.css?v=20260607" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -33,7 +39,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260603" />
+    <link rel="manifest" href="/manifest.json?v=20260607" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -434,7 +440,7 @@
               </div>
 
               <!-- Update Stats row -->
-              <div class="cas-panel-row cas-panel-row--last">
+              <div class="cas-panel-row">
                 <div class="cas-row-meta">
                   <span class="cas-row-icon">📊</span>
                   <div>
@@ -455,6 +461,36 @@
                     onclick="updateMFStats()"
                   >
                     Update Stats
+                  </button>
+                </div>
+              </div>
+
+              <!-- Clear Cache row -->
+              <div class="cas-panel-row cas-panel-row--last">
+                <div class="cas-row-meta">
+                  <span class="cas-row-icon">🗑️</span>
+                  <div>
+                    <div class="cas-row-title">Clear Cache</div>
+                    <div class="cas-row-sub">
+                      Wipe all local data and reload the app fresh
+                    </div>
+                    <div class="cas-row-info clear-cache-checklist">
+                      <span>✅ localStorage</span>
+                      <span>✅ sessionStorage</span>
+                      <span>✅ IndexedDB</span>
+                      <span>✅ Cache Storage</span>
+                      <span>✅ Cookies</span>
+                      <span>✅ Service Workers</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="cas-row-action">
+                  <button
+                    type="button"
+                    class="danger-btn cas-row-btn"
+                    onclick="clearAllCacheAndReload()"
+                  >
+                    <i class="fa-solid fa-broom"></i> Clear Cache &amp; Reload
                   </button>
                 </div>
               </div>
@@ -1022,14 +1058,16 @@
                 id="familyWeightedReturnsContainer"
               ></div>
             </div>
-            <h4 class="family-user-breakdown-heading">Family Holdings Breakdown</h4>
+            <h4 class="family-user-breakdown-heading">
+              Family Holdings Breakdown
+            </h4>
             <div id="familyUserBreakdown"></div>
           </div>
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260603"></script>
-    <script src="utils.js?v=20260603"></script>
-    <script src="scripts.js?v=20260603"></script>
+    <script src="indexeddb-helper.js?v=20260607"></script>
+    <script src="utils.js?v=20260607"></script>
+    <script src="scripts.js?v=20260607"></script>
   </body>
 </html>

@@ -3671,6 +3671,99 @@ button.theme-toggle i {
 /* ============================================
    ============================================ */
 
+/* ============================================
+   ============================================ */
+
+/* Fund logo in folio-card-header */
+.folio-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.folio-card-logo {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* Fund logo + title wrapper in modal header */
+.modal-header-fund-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.modal-header-fund-title h2 {
+  margin: 0;
+  min-width: 0;
+}
+
+.modal-fund-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  padding: 2px;
+}
+
+/* Fund Meta section */
+.fund-meta-section {
+  background: var(--bg-card);
+  border-radius: 14px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(102, 126, 234, 0.15);
+}
+
+.fund-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 18px;
+  border-right: 1px solid rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+}
+
+.fund-meta-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.fund-meta-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.fund-meta-value--mono {
+  font-family: monospace;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+}
+
+@media (max-width: 500px) {
+  .modal-fund-logo {
+    width: 26px;
+    height: 26px;
+  }
+  .folio-card-logo {
+    width: 18px;
+    height: 18px;
+  }
+}
+
 .fund-summary-compact {
   background: var(--bg-card);
   border-radius: 14px;
@@ -3870,6 +3963,17 @@ button.theme-toggle i {
   font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.fund-summary-chip-sub {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  letter-spacing: 0.2px;
 }
 
 /* Responsive: hero values shrink on mobile */
@@ -5470,6 +5574,10 @@ button.theme-toggle i {
   margin: 10px;
 }
 
+.tax-planning-container > div.tax-disclaimer {
+  margin: 20px 10px;
+}
+
 .tax-summary-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -5666,6 +5774,230 @@ button.theme-toggle i {
 
 .tax-note li {
   margin-bottom: 4px;
+}
+
+/* ── Tax Disclaimer ── */
+.tax-disclaimer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px 0px;
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tax-disclaimer i {
+  color: #ef4444;
+  font-size: 14px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+/* ── Current Tax Rates Section ── */
+.tax-rates-section {
+  background: var(--bg-card);
+  border-radius: 14px;
+  margin-top: 24px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(102, 126, 234, 0.15);
+}
+
+.tax-rates-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.12);
+}
+
+.tax-rates-icon {
+  font-size: 15px;
+}
+
+.tax-rates-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.tax-rates-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tax-rates-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.tax-rates-table thead tr {
+  background: rgba(102, 126, 234, 0.06);
+}
+
+.tax-rates-table th {
+  text-align: left;
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+  white-space: nowrap;
+}
+
+.tax-rates-table td {
+  padding: 10px 16px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.06);
+  vertical-align: top;
+  line-height: 1.4;
+}
+
+.tax-rates-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tax-rates-table td:first-child {
+  color: var(--text-primary);
+  font-weight: 500;
+  min-width: 160px;
+}
+
+.tax-rates-table td strong {
+  font-weight: 700;
+}
+
+.tax-rates-sub {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.tax-rates-notes {
+  padding: 10px 16px 12px;
+  border-top: 1px solid rgba(102, 126, 234, 0.08);
+  background: rgba(102, 126, 234, 0.03);
+}
+
+.tax-rates-notes p {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin: 2px 0;
+  line-height: 1.5;
+}
+
+/* Mobile: stacked card layout instead of scrolling table */
+@media (max-width: 600px) {
+  .tax-rates-table-wrapper {
+    overflow-x: visible;
+  }
+  .tax-rates-table,
+  .tax-rates-table thead,
+  .tax-rates-table tbody,
+  .tax-rates-table th,
+  .tax-rates-table td,
+  .tax-rates-table tr {
+    display: block;
+  }
+  .tax-rates-table thead {
+    display: none;
+  }
+  .tax-rates-table tbody tr {
+    border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+    padding: 10px 14px;
+  }
+  .tax-rates-table tbody tr:last-child {
+    border-bottom: none;
+  }
+  .tax-rates-table td {
+    padding: 3px 0;
+    border: none;
+    min-width: unset;
+    font-size: 12px;
+  }
+  .tax-rates-table td:first-child {
+    font-size: 12.5px;
+    margin-bottom: 4px;
+    min-width: unset;
+  }
+  .tax-rates-table td:not(:first-child)::before {
+    content: attr(data-label);
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+}
+
+/* Fund meta grid: desktop = 3 cols, last item fills remaining */
+.fund-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+}
+
+/* last item always spans to fill the remaining cells in its row */
+.fund-meta-item:last-child {
+  grid-column: span 2;
+  border-right: none;
+}
+
+/* tablet: 2 cols — last item fills 2 cells */
+@media (max-width: 885px) and (min-width: 501px) {
+  .fund-meta-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .fund-meta-item:last-child {
+    grid-column: span 2;
+  }
+}
+
+/* mobile: 2 cols — last item fills 2 cells */
+@media (max-width: 500px) {
+  .fund-meta-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .fund-meta-item:last-child {
+    grid-column: span 2;
+  }
+}
+
+.fund-meta-value--tax-equity {
+  color: var(--success);
+}
+
+.fund-meta-value--tax-debt {
+  color: var(--danger);
+}
+
+.fund-meta-value--tax-hybrid {
+  color: #d97706;
+}
+
+@media (max-width: 500px) {
+  .tax-rates-table th,
+  .tax-rates-table td {
+    padding: 8px 10px;
+    font-size: 11.5px;
+  }
+  .tax-rates-table td:first-child {
+    min-width: 120px;
+  }
 }
 
 @media (max-width: 1024px) {
@@ -6665,8 +6997,27 @@ button.theme-toggle i {
   opacity: 0.85;
 }
 
+.fund-summary-portfolio-pct {
+  font-size: 12px;
+  font-weight: 700;
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.22);
+  padding: 2px 10px;
+  border-radius: 20px;
+  line-height: 1.6;
+}
+
+.fund-summary-portfolio-pct-sub {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  letter-spacing: 0.3px;
+}
+
 @media (max-width: 500px) {
-  .folio-compact-cell--hold {
+  .folio-compact-cell--hold,
+  .folio-compact-cell--pct {
     display: none;
   }
   .folio-compact-id {
@@ -6836,7 +7187,7 @@ button.theme-toggle i {
   flex-direction: column;
   gap: 10px;
   padding: 20px 0;
-  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.18);
 }
 
 .cas-panel-row--last {
@@ -6893,6 +7244,21 @@ button.theme-toggle i {
 
 .cas-row-btn {
   width: 100%;
+}
+
+/* Clear Cache checklist in cas-row-info */
+.clear-cache-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  line-height: 1.6;
+}
+
+.clear-cache-checklist span {
+  white-space: nowrap;
 }
 
 .cas-file-inputs {
@@ -7124,12 +7490,53 @@ button.theme-toggle i {
 @media (max-width: 500px) {
   .cas-panels-row {
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 0px;
     padding: 10px 0 20px;
   }
 
   .cas-panel {
     padding: 20px;
+    padding-top: 0px;
+    border: 1px solid rgba(102, 126, 234, 0.22);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .cas-panel--instructions {
+    border: none;
+    border-top: 3px solid rgba(102, 126, 234, 0.35);
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .cas-panel-row {
+    padding: 18px 0;
+    border-bottom: 1px solid rgba(102, 126, 234, 0.22);
+    position: relative;
+  }
+
+  /* Stronger visible line using a pseudo-element that extends full bleed */
+  .cas-panel-row:not(.cas-panel-row--last)::after {
+    content: "";
+    display: block;
+    position: absolute;
+    bottom: 0;
+    left: -20px;
+    right: -20px;
+    height: 1px;
+    background: rgba(102, 126, 234, 0.18);
+  }
+
+  .cas-panel-row--last {
+    padding-bottom: 0;
+  }
+
+  .cas-panel-row--last::after {
+    display: none;
+  }
+
+  .cas-panel:hover {
+    box-shadow: none;
+    transform: none;
   }
 }
 
@@ -7473,6 +7880,16 @@ button.theme-toggle i {
   .cas-instructions-action {
     width: 100%;
     align-items: stretch;
+  }
+}
+
+@media (max-width: 500px) {
+  .cas-instructions-row {
+    flex: 1;
+    padding: 18px 20px;
+    border-bottom: none;
+    border-top: 1px solid rgba(102, 126, 234, 0.22);
+    padding: 20px;
   }
 }
 
@@ -8086,6 +8503,30 @@ button.theme-toggle i {
   background: rgba(102, 126, 234, 0.1);
   border: 1px solid rgba(102, 126, 234, 0.2);
   color: #667eea;
+}
+
+.tp-pill-taxcat {
+  background: rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  color: #667eea;
+}
+
+.tp-pill-taxcat--equity {
+  background: rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  color: #667eea;
+}
+
+.tp-pill-taxcat--hybrid {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #d97706;
+}
+
+.tp-pill-taxcat--debt {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #059669;
 }
 
 .tp-pill-days {
@@ -8806,27 +9247,52 @@ button.theme-toggle i {
 
 /* Holdings split redesign for Tax Planning */
 #taxPlanningContent .holdings-split-section {
-  background: transparent;
+  background: var(--bg-card);
+  border-radius: 14px;
   padding: 0;
-  margin-bottom: 0;
-  box-shadow: none;
-  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(102, 126, 234, 0.15);
+  overflow: hidden;
 }
 
 #taxPlanningContent .holdings-split-section:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 
 #taxPlanningContent .holdings-split-header {
-  padding: 11px 16px;
-  background: rgba(102, 126, 234, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(102, 126, 234, 0.08);
   border-radius: 0;
   margin-bottom: 0;
-  border-bottom: 1px solid rgba(102, 126, 234, 0.08);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.12);
+  transition: background 0.15s;
+}
+
+#taxPlanningContent .holdings-split-title {
+  flex: 1;
+  justify-content: flex-start;
 }
 
 #taxPlanningContent .holdings-split-header:hover {
-  background: rgba(102, 126, 234, 0.09);
+  background: rgba(102, 126, 234, 0.13);
+}
+
+#taxPlanningContent .holdings-split-title i {
+  font-size: 13px;
+  color: var(--primary, #667eea);
+  opacity: 0.8;
+}
+
+#taxPlanningContent .holdings-split-title h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
 }
 
 #taxPlanningContent .holdings-split-content {
@@ -8890,6 +9356,106 @@ button.theme-toggle i {
 }
 #taxPlanningContent .tax-holding-percentage.loss {
   color: var(--danger);
+}
+
+/* Tax holding item - expandable wrapper */
+#taxPlanningContent .tax-holding-wrap {
+  border-bottom: 1px solid rgba(102, 126, 234, 0.05);
+}
+#taxPlanningContent .tax-holding-wrap:last-child {
+  border-bottom: none;
+}
+#taxPlanningContent .tax-holding-item {
+  cursor: pointer;
+  border-bottom: none;
+  user-select: none;
+}
+#taxPlanningContent .tax-holding-item:hover {
+  background: rgba(102, 126, 234, 0.04);
+}
+#taxPlanningContent .tax-holding-item .tax-holding-chevron {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-left: 4px;
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+  align-self: center;
+}
+#taxPlanningContent .tax-holding-item.expanded .tax-holding-chevron {
+  transform: rotate(-180deg);
+}
+
+/* Folio batch detail panel */
+#taxPlanningContent .tax-holding-detail {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.28s ease;
+  background: rgba(102, 126, 234, 0.025);
+  border-top: 1px dashed rgba(102, 126, 234, 0.1);
+}
+#taxPlanningContent .tax-holding-detail.open {
+  max-height: 600px;
+}
+#taxPlanningContent .tax-holding-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  table-layout: fixed;
+}
+#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(1) { width: 28%; } /* Folio */
+#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(2) { width: 16%; } /* Units */
+#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(3) { width: 20%; } /* Value */
+#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(4) { width: 20%; } /* Purchase */
+#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(5) { width: 16%; } /* Held */
+#taxPlanningContent .tax-holding-detail-table thead tr {
+  background: rgba(102, 126, 234, 0.07);
+}
+#taxPlanningContent .tax-holding-detail-table th {
+  padding: 6px 14px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  text-align: right;
+  white-space: nowrap;
+}
+#taxPlanningContent .tax-holding-detail-table th:first-child {
+  text-align: left;
+}
+#taxPlanningContent .tax-holding-detail-table td {
+  padding: 7px 14px;
+  color: var(--text-secondary);
+  text-align: right;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.05);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#taxPlanningContent .tax-holding-detail-table td:first-child {
+  text-align: left;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 10.5px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  letter-spacing: 0.3px;
+}
+/* Purchase date col — slightly muted */
+#taxPlanningContent .tax-holding-detail-table td:nth-child(4) {
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+}
+/* Held days col — accent */
+#taxPlanningContent .tax-holding-detail-table td:nth-child(5) {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+#taxPlanningContent .tax-holding-detail-table tbody tr:last-child td {
+  border-bottom: none;
+}
+#taxPlanningContent .tax-holding-detail-table tbody tr:hover td {
+  background: rgba(102, 126, 234, 0.04);
 }
 
 /* Tax note upgrade */
@@ -9288,6 +9854,10 @@ button.theme-toggle i {
     -webkit-overflow-scrolling: touch;
   }
 
+  #capitalGainsContent .gains-table-wrapper {
+    display: none;
+  }
+
   #capitalGainsContent .gains-table td:first-child,
   #capitalGainsContent .gains-table th:first-child,
   #overlapContent .gains-table td:first-child,
@@ -9369,8 +9939,8 @@ button.theme-toggle i {
   /* Hide Current Value (col 2) and Annual Cost (col 4) */
   #expenseContent .gains-table th:nth-child(2),
   #expenseContent .gains-table td:nth-child(2),
-  #expenseContent .gains-table th:nth-child(4),
-  #expenseContent .gains-table td:nth-child(4) {
+  #expenseContent .gains-table th:nth-child(5),
+  #expenseContent .gains-table td:nth-child(5) {
     display: none;
   }
 
@@ -9583,5 +10153,52 @@ button.theme-toggle i {
   .cg-year-hero .folio-card-hero,
   .cg-alltime-hero .folio-card-hero {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ── Tax Holdings: Tablet (≤1024px) ─────────────────────────────────── */
+@media (max-width: 1024px) {
+  #taxPlanningContent .holdings-split-header {
+    align-items: flex-start;
+  }
+}
+
+/* ── Tax Holdings: Mobile (≤500px) ──────────────────────────────────── */
+@media (max-width: 500px) {
+  #taxPlanningContent .holdings-split-header {
+    align-items: flex-start;
+  }
+  /* Tighter card margins */
+  #taxPlanningContent .tax-holding-wrap {
+    margin: 0 6px 5px;
+  }
+  #taxPlanningContent .holdings-split-content > .tax-holding-wrap:first-child {
+    margin-top: 6px;
+  }
+  #taxPlanningContent .holdings-split-content > .tax-holding-wrap:last-child {
+    margin-bottom: 6px;
+  }
+
+  /* Batch detail table — tighter padding, narrower folio col */
+  #taxPlanningContent .tax-holding-detail-table {
+    font-size: 10px;
+  }
+  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(1) { width: 20%; } /* Folio — reduced */
+  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(2) { width: 17%; } /* Units */
+  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(3) { width: 21%; } /* Value */
+  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(4) { width: 26%; } /* Purchase */
+  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(5) { width: 16%; } /* Held */
+
+  #taxPlanningContent .tax-holding-detail-table th,
+  #taxPlanningContent .tax-holding-detail-table td {
+    padding: 5px 7px;
+  }
+  #taxPlanningContent .tax-holding-detail-table td:first-child {
+    font-size: 9.5px;
+    letter-spacing: 0;
+  }
+  #taxPlanningContent .tax-holding-detail-table th {
+    font-size: 9px;
+    letter-spacing: 0.3px;
   }
 }

@@ -3143,6 +3143,13 @@ function displayCapitalGains() {
     `;
   }
 
+  html += `
+    <div class="tax-disclaimer">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <span>Tax calculations are estimates only and should not be considered professional advice; please verify the results independently before making financial decisions.</span>
+    </div>
+  `;
+
   container.innerHTML = html;
 
   // Always show defaultFY (current FY even if no data, falls back gracefully)
@@ -5302,7 +5309,7 @@ function createFundCardWithTransactions(
     </div>
     <div class="folio-card-meta-chip">
       <span class="folio-card-meta-label">Avg Hold</span>
-      <span class="folio-card-meta-value">${averageHoldingDays ? Math.round(averageHoldingDays) + "d" : "--"}</span>
+      <span class="folio-card-meta-value">${averageHoldingDays ? Math.round(averageHoldingDays) + "D" : "--"}</span>
     </div>`;
   }
 
@@ -5326,6 +5333,7 @@ function createFundCardWithTransactions(
 
   card.innerHTML = `
     <div class="folio-card-header">
+      ${extendedData?.logo_url ? `<img class="folio-card-logo" src="${extendedData.logo_url}" alt="" onerror="this.style.display='none'">` : ""}
       <span class="folio-card-name-header" title="${displayName}">${displayName}</span>
     </div>
     <div class="folio-card-sub-header">
@@ -5561,7 +5569,7 @@ function showFundDetailsModal(
   // Build Folios section HTML before modal.innerHTML (avoids nested template literal issues)
   let foliosSectionHTML = "";
   const _folioSummaries = fund.advancedMetrics?.folioSummaries;
-  if (_folioSummaries && displayFolios.length >= 2) {
+  if (_folioSummaries && displayFolios.length >= 1) {
     const _sorted = [...displayFolios].sort((a, b) => {
       const sa = _folioSummaries[a];
       const sb = _folioSummaries[b];
@@ -5603,6 +5611,10 @@ function showFundDetailsModal(
         const valueDisplay = folioIsPast
           ? "₹" + formatNumber(fs.withdrawn || 0)
           : "₹" + formatNumber(currentVal);
+        const folioPctOfFund =
+          !folioIsPast && current > 0
+            ? ((currentVal / current) * 100).toFixed(1) + "%"
+            : null;
 
         return (
           '<div class="folio-compact-row' +
@@ -5657,7 +5669,15 @@ function showFundDetailsModal(
             ? '<div class="folio-compact-cell folio-compact-cell--hold">' +
               '<span class="folio-compact-cell-label">Avg Hold</span>' +
               '<span class="folio-compact-cell-value">' +
-              (holdingDays === "--" ? "--" : holdingDays + "d") +
+              (holdingDays === "--" ? "--" : holdingDays + "D") +
+              "</span>" +
+              "</div>"
+            : "") +
+          (folioPctOfFund !== null
+            ? '<div class="folio-compact-cell folio-compact-cell--pct">' +
+              '<span class="folio-compact-cell-label">% of Fund</span>' +
+              '<span class="folio-compact-cell-value">' +
+              folioPctOfFund +
               "</span>" +
               "</div>"
             : "") +
@@ -5684,7 +5704,10 @@ function showFundDetailsModal(
   modal.innerHTML = `
     <div class="transaction-modal fund-details-modal">
       <div class="modal-header">
-        <h2>${displayName}</h2>
+        <div class="modal-header-fund-title">
+          ${extendedData?.logo_url ? `<img class="modal-fund-logo" src="${extendedData.logo_url}" alt="" onerror="this.style.display='none'">` : ""}
+          <h2>${displayName}</h2>
+        </div>
         <button class="modal-close" onclick="closeFundDetailsModal()">✕</button>
       </div>
       <div class="modal-content fund-details-content">
@@ -5692,19 +5715,34 @@ function showFundDetailsModal(
         <!-- Summary Stats Section (Compact Redesign) -->
         <div class="fund-summary-compact">
 
-          <!-- Meta bar: AMC + Folios -->
+          <!-- Meta bar: AMC + % of Portfolio -->
           <div class="fund-summary-meta-bar">
             <div class="fund-summary-meta-item">
               <span class="fund-summary-meta-label">AMC</span>
               <span class="fund-summary-meta-value">${standardizeTitle(fund.amc)}</span>
             </div>
+            ${
+              !isPastHolding && current > 0
+                ? (() => {
+                    const totalPfValue = Object.values(fundWiseData).reduce(
+                      (s, f) => s + (f.advancedMetrics?.currentValue || 0),
+                      0,
+                    );
+                    const pct =
+                      totalPfValue > 0
+                        ? ((current / totalPfValue) * 100).toFixed(2)
+                        : null;
+                    return pct !== null
+                      ? `
             <div class="fund-summary-meta-divider"></div>
             <div class="fund-summary-meta-item">
-              <span class="fund-summary-meta-label">FOLIOS</span>
-              <div class="fund-summary-folio-chips">
-                ${displayFolios.map((f) => `<span class="fund-summary-folio-chip">${f.split("/")[0].trim()}</span>`).join("")}
-              </div>
-            </div>
+              <span class="fund-summary-meta-label">Portfolio</span>
+              <span class="fund-summary-portfolio-pct">${pct}% <span class="fund-summary-portfolio-pct-sub">of Total</span></span>
+            </div>`
+                      : "";
+                  })()
+                : ""
+            }
           </div>
 
           <!-- Hero row: 3 primary financial metrics -->
@@ -5737,6 +5775,13 @@ function showFundDetailsModal(
               <span class="fund-summary-chip-value">${roundValue(units)}</span>
             </div>
             <div class="fund-summary-chip">
+              <span class="fund-summary-chip-label">Curr. NAV</span>
+              <span class="fund-summary-chip-value">
+                ${extendedData?.latest_nav ? `₹${roundValue(parseFloat(extendedData.latest_nav))}` : "--"}
+                ${extendedData?.latest_nav_date ? `<span class="fund-summary-chip-sub">${extendedData.latest_nav_date}</span>` : ""}
+              </span>
+            </div>
+            <div class="fund-summary-chip">
               <span class="fund-summary-chip-label">Avg NAV</span>
               <span class="fund-summary-chip-value">${roundValue(avgNav)}</span>
             </div>
@@ -5745,7 +5790,7 @@ function showFundDetailsModal(
                 ? `
             <div class="fund-summary-chip">
               <span class="fund-summary-chip-label">Avg Hold</span>
-              <span class="fund-summary-chip-value">${roundValue(avgHoldingDays) === "--" ? "--" : roundValue(avgHoldingDays) + "d"}</span>
+              <span class="fund-summary-chip-value">${roundValue(avgHoldingDays) === "--" ? "--" : roundValue(avgHoldingDays) + "D"}</span>
             </div>`
                 : ""
             }
@@ -5903,6 +5948,70 @@ function showFundDetailsModal(
             </div>
           </div>
 
+        </div>
+        `
+            : ""
+        }
+
+        <!-- Meta Section -->
+        ${
+          extendedData
+            ? `
+        <div class="fund-meta-section">
+          <div class="fund-stats-header">
+            <span class="fund-stats-header-icon">🏷️</span>
+            <span class="fund-stats-header-title">Fund Info</span>
+          </div>
+          <div class="fund-meta-grid">
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">AMC</span>
+              <span class="fund-meta-value">${standardizeTitle(fund.amc) || "--"}</span>
+            </div>
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Launch Date</span>
+              <span class="fund-meta-value">${extendedData.launch_date || "--"}</span>
+            </div>
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">ISIN</span>
+              <span class="fund-meta-value fund-meta-value--mono">${extendedData.isin || "--"}</span>
+            </div>
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Category</span>
+              <span class="fund-meta-value">${
+                extendedData.meta?.scheme_category
+                  ? extendedData.meta.scheme_category
+                      .replace(/\bFund\b/gi, "")
+                      .replace(/\bScheme\b(?=\s*[-–])/gi, "")
+                      .replace(/\s{2,}/g, " ")
+                      .trim()
+                  : "--"
+              }</span>
+            </div>
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">RTA</span>
+              <span class="fund-meta-value">${extendedData.rta || "--"}</span>
+            </div>
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Benchmark</span>
+              <span class="fund-meta-value">
+                ${
+                  extendedData.benchmark?.toUpperCase() === "GROWWDB"
+                    ? "--"
+                    : extendedData.benchmark || "--"
+                }
+              </span>
+            </div>
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Taxation</span>
+              <span class="fund-meta-value fund-meta-value--tax fund-meta-value--tax-${getTaxCategory(extendedData, fund)}">${(() => {
+                const tc = getTaxCategory(extendedData, fund);
+                if (tc === "equity")
+                  return "Equity (1Y / 20% STCG / 12.5% LTCG)";
+                if (tc === "debt") return "Debt (Slab rate)";
+                return "Hybrid (2Y / Slab STCG / 12.5% LTCG)";
+              })()}</span>
+            </div>
+          </div>
         </div>
         `
             : ""
@@ -7381,6 +7490,7 @@ function generateExcelReport(cashFlows, filename) {
 function initializeCharts() {
   const periods = getPeriods();
   const timeFilter = document.getElementById("timeFilter");
+  if (!timeFilter) return;
   timeFilter.innerHTML = "";
 
   // Default: 6M if available, otherwise "All"
@@ -7412,6 +7522,7 @@ function initializeCharts() {
 }
 function updateChart() {
   const canvas = document.getElementById("portfolioChart");
+  if (!canvas) return;
 
   // Don't show spinner here - it's already managed by initializeCharts
   const data = getChartData();
@@ -10545,6 +10656,10 @@ async function deleteSingleUser(userName) {
     localStorage.removeItem(additionalAssetsKey);
     console.log(`🗑️ Cleared additional assets for deleted user: ${userName}`);
 
+    const investorNameKey = `investorName_${userName}`;
+    localStorage.removeItem(investorNameKey);
+    console.log(`🗑️ Cleared investor name for deleted user: ${userName}`);
+
     allUsers = storageManager.getAllUsers();
 
     // If deleted user was current user, switch to another user
@@ -10625,10 +10740,14 @@ async function deleteAllUsers() {
       if (key && key.startsWith("additionalAssets_")) {
         keysToRemove.push(key);
       }
+
+      if (key && key.startsWith("investorName_")) {
+        keysToRemove.push(key);
+      }
     }
     keysToRemove.forEach((key) => localStorage.removeItem(key));
     console.log(
-      `🗑️ Cleared hidden folios for all users (${keysToRemove.length} entries)`,
+      `🗑️ Cleared hidden folios, additional assets, and investor names for all users (${keysToRemove.length} entries)`,
     );
 
     hideProcessingSplash();
@@ -10643,6 +10762,84 @@ async function deleteAllUsers() {
     hideProcessingSplash();
     console.error("Error deleting all users:", err);
     showToast("Failed to delete all users: " + err.message, "error");
+  }
+}
+async function clearAllCacheAndReload() {
+  const confirmed = confirm(
+    "⚠️ This will permanently wipe ALL local data:\n\n" +
+      "  • localStorage\n" +
+      "  • sessionStorage\n" +
+      "  • IndexedDB\n" +
+      "  • Cache Storage (PWA / service worker caches)\n" +
+      "  • Cookies for this domain\n" +
+      "  • Service Worker registrations\n\n" +
+      "The page will hard-reload afterwards.\n\nContinue?",
+  );
+  if (!confirmed) return;
+
+  showProcessingSplash();
+
+  try {
+    // 1. localStorage
+    localStorage.clear();
+    console.log("🗑️ localStorage cleared");
+
+    // 2. sessionStorage
+    sessionStorage.clear();
+    console.log("🗑️ sessionStorage cleared");
+
+    // 3. IndexedDB — delete every database the browser knows about
+    if (indexedDB?.databases) {
+      const dbs = await indexedDB.databases();
+      await Promise.all(
+        dbs.map(
+          (db) =>
+            new Promise((resolve, reject) => {
+              const req = indexedDB.deleteDatabase(db.name);
+              req.onsuccess = resolve;
+              req.onerror = reject;
+              req.onblocked = resolve; // don't hang if blocked
+            }),
+        ),
+      );
+      console.log(`🗑️ IndexedDB: deleted ${dbs.length} database(s)`);
+    } else {
+      // Fallback: try to delete the known app DB by name
+      indexedDB.deleteDatabase("myMFDashboard");
+      console.log("🗑️ IndexedDB: deleted myMFDashboard (fallback)");
+    }
+
+    // 4. Cache Storage
+    if (window.caches) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map((name) => caches.delete(name)));
+      console.log(`🗑️ Cache Storage: deleted ${cacheNames.length} cache(s)`);
+    }
+
+    // 5. Cookies for this domain
+    document.cookie.split(";").forEach((cookie) => {
+      const name = cookie.split("=")[0].trim();
+      // Expire on root path and current path
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${window.location.pathname}`;
+    });
+    console.log("🗑️ Cookies cleared");
+
+    // 6. Service Worker registrations
+    if (navigator.serviceWorker) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((reg) => reg.unregister()));
+      console.log(`🗑️ Service Workers: unregistered ${registrations.length}`);
+    }
+
+    console.log("✅ All cache cleared — hard reloading");
+    // Hard reload bypassing cache
+    window.location.href =
+      window.location.href.split("?")[0] + "?nocache=" + Date.now();
+  } catch (err) {
+    hideProcessingSplash();
+    console.error("❌ Clear cache error:", err);
+    showToast("Cache clear failed: " + err.message, "error");
   }
 }
 function updateCurrentUserDisplay() {
@@ -10678,7 +10875,6 @@ function updateCurrentUserDisplay() {
 
     if (userName === currentUser) {
       item.classList.add("active");
-      console.log("Added active class to:", userName);
     } else {
       item.classList.remove("active");
     }
@@ -11337,7 +11533,6 @@ function displayTaxPlanning() {
   }
 
   const taxData = calculateTaxPlanningData();
-  console.log(taxData.stcgDebtAmount);
   let html = `
     <div class="tax-planning-container">
       <div class="section-header">
@@ -11457,35 +11652,63 @@ function displayTaxPlanning() {
       <div class="holdings-split-content collapsed" id="longTermContent">
   `;
 
-  taxData.ltHoldings.funds.forEach((fund) => {
+  taxData.ltHoldings.funds.forEach((fund, idx) => {
     const gainPercent =
       fund.cost > 0 ? ((fund.unrealizedGain / fund.cost) * 100).toFixed(2) : 0;
+    const itemId = `ltHolding_${idx}`;
+
+    let folioDetailRows = "";
+    if (fund.batchDetails && fund.batchDetails.length > 0) {
+      folioDetailRows = fund.batchDetails
+        .map((bd) => {
+          const bdValue = bd.units * (fund.currentValue / fund.units);
+          const folioDisplay = bd.folio.split("/")[0].trim();
+          const purchaseDateStr = bd.purchaseDate.toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "2-digit",
+          });
+          return `<tr>
+          <td>${folioDisplay}</td>
+          <td>${bd.units.toFixed(3)}</td>
+          <td>₹${formatNumber(bdValue)}</td>
+          <td>${purchaseDateStr}</td>
+          <td>${bd.holdingDays}d</td>
+        </tr>`;
+        })
+        .join("");
+    }
+
     html += `
-    <div class="tax-holding-item">
-      <div class="tax-holding-info">
-        <div class="tax-holding-name">${fund.name}</div>
-        <div class="tax-holding-meta">
-          <span class="tp-holding-meta-pill tp-pill-equity">Equity ${fund.equityPercentage.toFixed(1)}%</span>
-          <span class="tp-holding-meta-pill tp-pill-days">${fund.avgHoldingDays}d avg</span>
-          <span class="tp-holding-meta-pill tp-pill-units">${fund.units.toFixed(3)} units</span>
-          <span class="tp-holding-meta-pill tp-pill-units">Cost ₹${formatNumber(fund.cost)}</span>
+    <div class="tax-holding-wrap">
+      <div class="tax-holding-item" id="${itemId}" onclick="toggleTaxHoldingItem('${itemId}')">
+        <div class="tax-holding-info">
+          <div class="tax-holding-name">${fund.name}</div>
+          <div class="tax-holding-meta">
+            <span class="tp-holding-meta-pill tp-pill-taxcat tp-pill-taxcat--${fund.taxCategory || "equity"}">${fund.taxCategory ? fund.taxCategory.charAt(0).toUpperCase() + fund.taxCategory.slice(1) : "Equity"}</span>
+            <span class="tp-holding-meta-pill tp-pill-days">${fund.avgHoldingDays}d avg</span>
+            <span class="tp-holding-meta-pill tp-pill-units">${fund.units.toFixed(3)} units</span>
+            <span class="tp-holding-meta-pill tp-pill-units">Cost ₹${formatNumber(fund.cost)}</span>
+          </div>
         </div>
+        <div class="tax-holding-values">
+          <div class="tax-holding-value">₹${formatNumber(fund.currentValue)}</div>
+          <div class="tax-holding-percentage ${fund.unrealizedGain >= 0 ? "gain" : "loss"}">
+            ${fund.unrealizedGain >= 0 ? "+₹" : "-₹"}${formatNumber(Math.abs(fund.unrealizedGain))} 
+            (${fund.unrealizedGain >= 0 ? "+" : ""}${gainPercent}%)
+          </div>
+        </div>
+        <i class="fa-solid fa-chevron-down tax-holding-chevron"></i>
       </div>
-      <div class="tax-holding-values">
-        <div class="tax-holding-value">₹${formatNumber(fund.currentValue)}</div>
-        <div class="tax-holding-percentage ${
-          fund.unrealizedGain >= 0 ? "gain" : "loss"
-        }">
-          ${fund.unrealizedGain >= 0 ? "+₹" : "-₹"}${formatNumber(
-            Math.abs(fund.unrealizedGain),
-          )} 
-          (${fund.unrealizedGain >= 0 ? "+" : ""}${gainPercent}%)
-        </div>
+      <div class="tax-holding-detail" id="${itemId}_detail">
+        <table class="tax-holding-detail-table">
+          <colgroup><col><col><col><col><col></colgroup><thead><tr><th>Folio</th><th>Units</th><th>Value</th><th>Purchase</th><th>Held</th></tr></thead>
+          <tbody>${folioDetailRows}</tbody>
+        </table>
       </div>
     </div>
   `;
   });
-
   html += `
       </div>
     </div>
@@ -11522,30 +11745,59 @@ function displayTaxPlanning() {
       <div class="holdings-split-content collapsed" id="shortTermContent">
   `;
 
-  taxData.stHoldings.funds.forEach((fund) => {
+  taxData.stHoldings.funds.forEach((fund, idx) => {
     const gainPercent =
       fund.cost > 0 ? ((fund.unrealizedGain / fund.cost) * 100).toFixed(2) : 0;
+    const itemId = `stHolding_${idx}`;
+
+    let folioDetailRows = "";
+    if (fund.batchDetails && fund.batchDetails.length > 0) {
+      folioDetailRows = fund.batchDetails
+        .map((bd) => {
+          const bdValue = bd.units * (fund.currentValue / fund.units);
+          const folioDisplay = bd.folio.split("/")[0].trim();
+          const purchaseDateStr = bd.purchaseDate.toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "2-digit",
+          });
+          return `<tr>
+          <td>${folioDisplay}</td>
+          <td>${bd.units.toFixed(3)}</td>
+          <td>₹${formatNumber(bdValue)}</td>
+          <td>${purchaseDateStr}</td>
+          <td>${bd.holdingDays}d</td>
+        </tr>`;
+        })
+        .join("");
+    }
+
     html += `
-    <div class="tax-holding-item">
-      <div class="tax-holding-info">
-        <div class="tax-holding-name">${fund.name}</div>
-        <div class="tax-holding-meta">
-          <span class="tp-holding-meta-pill tp-pill-equity">Equity ${fund.equityPercentage.toFixed(1)}%</span>
-          <span class="tp-holding-meta-pill tp-pill-days">${fund.avgHoldingDays}d avg</span>
-          <span class="tp-holding-meta-pill tp-pill-units">${fund.units.toFixed(3)} units</span>
-          <span class="tp-holding-meta-pill tp-pill-units">Cost ₹${formatNumber(fund.cost)}</span>
+    <div class="tax-holding-wrap">
+      <div class="tax-holding-item" id="${itemId}" onclick="toggleTaxHoldingItem('${itemId}')">
+        <div class="tax-holding-info">
+          <div class="tax-holding-name">${fund.name}</div>
+          <div class="tax-holding-meta">
+            <span class="tp-holding-meta-pill tp-pill-taxcat tp-pill-taxcat--${fund.taxCategory || "equity"}">${fund.taxCategory ? fund.taxCategory.charAt(0).toUpperCase() + fund.taxCategory.slice(1) : "Equity"}</span>
+            <span class="tp-holding-meta-pill tp-pill-days">${fund.avgHoldingDays}d avg</span>
+            <span class="tp-holding-meta-pill tp-pill-units">${fund.units.toFixed(3)} units</span>
+            <span class="tp-holding-meta-pill tp-pill-units">Cost ₹${formatNumber(fund.cost)}</span>
+          </div>
         </div>
+        <div class="tax-holding-values">
+          <div class="tax-holding-value">₹${formatNumber(fund.currentValue)}</div>
+          <div class="tax-holding-percentage ${fund.unrealizedGain >= 0 ? "gain" : "loss"}">
+            ${fund.unrealizedGain >= 0 ? "+₹" : "-₹"}${formatNumber(Math.abs(fund.unrealizedGain))} 
+            (${fund.unrealizedGain >= 0 ? "+" : ""}${gainPercent}%)
+          </div>
+        </div>
+        <i class="fa-solid fa-chevron-down tax-holding-chevron"></i>
       </div>
-      <div class="tax-holding-values">
-        <div class="tax-holding-value">₹${formatNumber(fund.currentValue)}</div>
-        <div class="tax-holding-percentage ${
-          fund.unrealizedGain >= 0 ? "gain" : "loss"
-        }">
-          ${fund.unrealizedGain >= 0 ? "+₹" : "-₹"}${formatNumber(
-            Math.abs(fund.unrealizedGain),
-          )} 
-          (${fund.unrealizedGain >= 0 ? "+" : ""}${gainPercent}%)
-        </div>
+      <div class="tax-holding-detail" id="${itemId}_detail">
+        <table class="tax-holding-detail-table">
+          <colgroup><col><col><col><col><col></colgroup><thead><tr><th>Folio</th><th>Units</th><th>Value</th><th>Purchase</th><th>Held</th></tr></thead>
+          <tbody>${folioDetailRows}</tbody>
+        </table>
       </div>
     </div>
   `;
@@ -11556,26 +11808,108 @@ function displayTaxPlanning() {
     </div>
   `;
 
-  // Tax Optimization Tips
+  // Current Tax Rates Section
   html += `
-    <div class="tax-note">
-      <i class="fa-solid fa-lightbulb"></i>
-      <div>
-        <strong>Tax Optimization Tips</strong>
-        <ul>
-          <li><strong>LTCG Tax:</strong> 12.5% on gains above ₹1.25L for equity funds (holding ≥ 1 year)</li>
-          <li><strong>STCG Tax:</strong> 20% for equity funds (holding < 1 year), as per slab for debt funds</li>
-          <li><strong>Strategy:</strong> Hold equity funds for at least 1 year to benefit from lower LTCG tax rates</li>
-          <li><strong>Harvesting:</strong> Consider booking LTCG up to ₹1.25L annually to use the tax-free limit</li>
-          <li><strong>Rebalancing:</strong> Plan redemptions to minimize tax impact by timing them strategically</li>
-        </ul>
+    <div class="tax-rates-section">
+      <div class="tax-rates-header">
+        <span class="tax-rates-icon">📋</span>
+        <span class="tax-rates-title">Current Tax Rates</span>
       </div>
+      <div class="tax-rates-table-wrapper">
+        <table class="tax-rates-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>STCG (Short-Term)</th>
+              <th>LTCG (Long-Term)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Equity Funds</strong> <span class="tax-rates-sub">(≥65% equity)</span></td>
+              <td data-label="STCG">20% (flat)</td>
+              <td data-label="LTCG">12.5% on gains above ₹1.25L <span class="tax-rates-sub">(no indexation)</span></td>
+            </tr>
+            <tr>
+              <td><strong>Hybrid Funds</strong> <span class="tax-rates-sub">(Equity-oriented, ≥65% equity)</span></td>
+              <td data-label="STCG">20% (flat)</td>
+              <td data-label="LTCG">12.5% on gains above ₹1.25L <span class="tax-rates-sub">(no indexation)</span></td>
+            </tr>
+            <tr>
+              <td><strong>Debt / Specified Funds</strong> <span class="tax-rates-sub">(Post 1 Apr 2023)</span></td>
+              <td data-label="STCG">Taxed at slab rates <span class="tax-rates-sub">(any period)</span></td>
+              <td data-label="LTCG">No LTCG benefit – taxed at slab rates</td>
+            </tr>
+            <tr>
+              <td><strong>Debt Funds</strong> <span class="tax-rates-sub">(Pre-1 Apr 2023)</span></td>
+              <td data-label="STCG">≤ 24 months: Taxed at slab rates</td>
+              <td data-label="LTCG">&gt; 24 months: 12.5% <span class="tax-rates-sub">(no indexation)</span></td>
+            </tr>
+            <tr>
+              <td><strong>ELSS Funds</strong></td>
+              <td data-label="STCG">Not applicable <span class="tax-rates-sub">(3-year lock-in)</span></td>
+              <td data-label="LTCG">&gt; 36 months: 12.5% on gains above ₹1.25L <span class="tax-rates-sub">(no indexation)</span></td>
+            </tr>
+            <tr>
+              <td><strong>Gold ETFs / Silver ETFs</strong> <span class="tax-rates-sub">(Listed)</span></td>
+              <td data-label="STCG">≤ 12 months: Taxed at slab rates</td>
+              <td data-label="LTCG">&gt; 12 months: 12.5% <span class="tax-rates-sub">(no indexation)</span></td>
+            </tr>
+            <tr>
+              <td><strong>Gold Mutual Funds / Gold FoFs</strong></td>
+              <td data-label="STCG">≤ 24 months: Taxed at slab rates</td>
+              <td data-label="LTCG">&gt; 24 months: 12.5% <span class="tax-rates-sub">(no indexation)</span></td>
+            </tr>
+            <tr>
+              <td><strong>International Funds / FoFs</strong></td>
+              <td data-label="STCG">≤ 24 months: Taxed at slab rates</td>
+              <td data-label="LTCG">&gt; 24 months: 12.5% <span class="tax-rates-sub">(no indexation)</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="tax-rates-notes">
+        <p>• Rates exclude surcharge &amp; cess.</p>
+        <p>• ₹1.25 lakh annual exemption applies only to equity-oriented funds (Section 112A).</p>
+        <p>• Hybrid funds with &lt;65% equity are taxed like debt/international funds.</p>
+        <p>• Use FIFO for SIP redemptions and always verify the purchase date and fund classification.</p>
+        <p>• Hold equity funds for at least 1 year to benefit from lower LTCG tax rates.</p>
+        <p>• Consider booking LTCG up to ₹1.25L annually to use the tax-free limit.</p>
+        <p>• Plan redemptions to minimize tax impact by timing them strategically.</p>
+      </div>
+    </div>
+  `;
+
+  // Disclaimer
+  html += `
+    <div class="tax-disclaimer">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <span>Tax calculations are estimates only and should not be considered professional advice; please verify the results independently before making financial decisions.</span>
     </div>
   `;
 
   html += `</div>`;
 
   container.innerHTML = html;
+}
+
+function groupBatchesByFolioDate(batches) {
+  const map = {};
+  batches.forEach((b) => {
+    const dateKey = b.purchaseDate.toISOString().slice(0, 10); // YYYY-MM-DD
+    const key = `${b.folio}__${dateKey}`;
+    if (!map[key]) {
+      map[key] = {
+        folio: b.folio,
+        units: 0,
+        purchaseDate: b.purchaseDate,
+        holdingDays: b.holdingDays,
+      };
+    }
+    map[key].units += b.units;
+    // holdingDays will be the same for same date; keep as-is
+  });
+  return Object.values(map).sort((a, b) => b.holdingDays - a.holdingDays);
 }
 
 function calculateTaxPlanningData() {
@@ -11615,6 +11949,10 @@ function calculateTaxPlanningData() {
     let stCost = 0;
     let ltTotalHoldingDays = 0;
     let stTotalHoldingDays = 0;
+
+    // Per-batch lists for expandable detail rows (one row per SIP/purchase batch)
+    const ltBatchList = [];
+    const stBatchList = [];
 
     // Get remaining units from FIFO queue
     const folioSummaries = fund.advancedMetrics?.folioSummaries || {};
@@ -11658,15 +11996,30 @@ function calculateTaxPlanningData() {
           (today - batch.purchaseDate) / (1000 * 60 * 60 * 24),
         );
         const batchCost = batch.units * batch.nav;
+        const folioNum = folioSummary.folio;
 
         if (holdingDays >= threshold) {
           ltUnits += batch.units;
           ltCost += batchCost;
           ltTotalHoldingDays += holdingDays * batch.units;
+          ltBatchList.push({
+            folio: folioNum,
+            units: batch.units,
+            nav: batch.nav,
+            purchaseDate: batch.purchaseDate,
+            holdingDays,
+          });
         } else {
           stUnits += batch.units;
           stCost += batchCost;
           stTotalHoldingDays += holdingDays * batch.units;
+          stBatchList.push({
+            folio: folioNum,
+            units: batch.units,
+            nav: batch.nav,
+            purchaseDate: batch.purchaseDate,
+            holdingDays,
+          });
         }
       });
     });
@@ -11686,7 +12039,9 @@ function calculateTaxPlanningData() {
         avgHoldingDays: ltAvgHolding,
         equityPercentage: equityPercentage,
         isEquityOriented: isEquityOriented,
+        taxCategory: taxCat,
         units: ltUnits,
+        batchDetails: groupBatchesByFolioDate(ltBatchList),
       });
 
       data.ltHoldings.totalValue += ltValue;
@@ -11708,7 +12063,9 @@ function calculateTaxPlanningData() {
         avgHoldingDays: stAvgHolding,
         equityPercentage: equityPercentage,
         isEquityOriented: isEquityOriented,
+        taxCategory: taxCat,
         units: stUnits,
+        batchDetails: groupBatchesByFolioDate(stBatchList),
       });
 
       data.stHoldings.totalValue += stValue;
@@ -11770,9 +12127,50 @@ function toggleHoldingsSplit(section) {
     content.classList.remove("collapsed");
     icon.classList.add("rotated");
   } else {
+    // Close all open detail panels before collapsing
+    content.querySelectorAll(".tax-holding-detail.open").forEach((detail) => {
+      detail.classList.remove("open");
+    });
+    content.querySelectorAll(".tax-holding-item.expanded").forEach((item) => {
+      item.classList.remove("expanded");
+    });
+    content
+      .querySelectorAll(".tax-holding-wrap.detail-open")
+      .forEach((wrap) => {
+        wrap.classList.remove("detail-open");
+      });
     content.style.maxHeight = "0";
     content.classList.add("collapsed");
     icon.classList.remove("rotated");
+  }
+}
+
+function toggleTaxHoldingItem(itemId) {
+  const item = document.getElementById(itemId);
+  const detail = document.getElementById(`${itemId}_detail`);
+  if (!item || !detail) return;
+
+  const wrap = item.closest(".tax-holding-wrap");
+  const content = item.closest(".holdings-split-content");
+  const isOpen = detail.classList.contains("open");
+
+  if (isOpen) {
+    const detailHeight = detail.scrollHeight;
+    detail.classList.remove("open");
+    item.classList.remove("expanded");
+    if (wrap) wrap.classList.remove("detail-open");
+    // Shrink parent simultaneously — subtract detail height right now
+    if (content && !content.classList.contains("collapsed")) {
+      content.style.maxHeight = content.scrollHeight - detailHeight + "px";
+    }
+  } else {
+    detail.classList.add("open");
+    item.classList.add("expanded");
+    if (wrap) wrap.classList.add("detail-open");
+    // Add 600px headroom so the expanding panel is never clipped
+    if (content && !content.classList.contains("collapsed")) {
+      content.style.maxHeight = content.scrollHeight + 600 + "px";
+    }
   }
 }
 
@@ -12782,9 +13180,11 @@ function updateFooterInfo() {
         })
       : "--";
 
-    // Update upload tab dates
-    document.getElementById("lastNavUpdateDate").textContent = navDate;
-    document.getElementById("lastStatsUpdateDate").textContent = statsDate;
+    // Update upload tab dates (elements may not exist on all views)
+    const navEl = document.getElementById("lastNavUpdateDate");
+    const statsEl = document.getElementById("lastStatsUpdateDate");
+    if (navEl) navEl.textContent = navDate;
+    if (statsEl) statsEl.textContent = statsDate;
   }
 }
 

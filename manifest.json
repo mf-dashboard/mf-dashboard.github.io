@@ -1,7 +1,11 @@
 {
   "name": "My MF Dashboard",
   "short_name": "MYMF",
-  "description": "Comprehensive mutual fund portfolio tracker for Indian investors",
+  "description": "Track, analyze and optimize your mutual fund portfolio with advanced insights, projections and tax analysis.",
+  "id": "/",
+  "scope": "/",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "prefer_related_applications": false,
   "start_url": "/",
   "display": "standalone",
   "background_color": "#181b2f",
