@@ -14,7 +14,20 @@ class IDBHelper {
   }
 
   async init() {
-    if (this.db) return this.db;
+    if (this.db) {
+      // Probe the cached connection — if it's stale/closing, a transaction attempt will throw
+      try {
+        const probe = this.db.transaction([this.storeName], "readonly");
+        probe.abort();
+        return this.db;
+      } catch (e) {
+        console.warn(
+          "IDB: cached connection is stale, reopening...",
+          e.message,
+        );
+        this.db = null;
+      }
+    }
 
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.version);
@@ -22,6 +35,24 @@ class IDBHelper {
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         this.db = request.result;
+
+        // Handle forced closure when another tab upgrades the DB version
+        this.db.onversionchange = () => {
+          console.warn(
+            "IDB: version change detected, closing connection gracefully",
+          );
+          this.db.close();
+          this.db = null;
+        };
+
+        // Handle unexpected connection closure
+        this.db.onclose = () => {
+          console.warn(
+            "IDB: connection closed unexpectedly, will reopen on next use",
+          );
+          this.db = null;
+        };
+
         resolve(this.db);
       };
 
@@ -300,7 +331,6 @@ class StorageManager {
       const mfStats = await this.idb.loadFile(`mf-stats-${user}.json`);
 
       if (casData && mfStats) {
-        console.log(`✅ Portfolio data loaded for user: ${user}`);
         return { casData, mfStats };
       }
 

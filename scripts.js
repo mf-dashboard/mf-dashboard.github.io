@@ -44,6 +44,11 @@ let familySectorChart = null;
 let familyAmcChart = null;
 let projectionChartInstance = null;
 
+// Guards against Phase 2 re-rendering charts while Phase 1's setTimeout
+// chain is still in flight, which would cause "Canvas already in use" errors.
+// Set false before Phase 1 renders; set true ~600 ms later once settled.
+let phase1RenderComplete = false;
+
 const default6M = 10000;
 const default12M = 7000;
 
@@ -185,18 +190,24 @@ async function loadParsedCASJson() {
     const statsMissing = !mfStats || Object.keys(mfStats).length === 0;
     if (statsMissing) {
       console.log("📊 mfStats not loaded — fetching from backend (initial)...");
+      // _fetchTwoPhase inside fetchOrUpdateMFStats("initial") calls processPortfolio
+      // for the non-summary path, so we only need to handle the summary case below.
       await fetchOrUpdateMFStats("initial");
+      if (isSummaryCAS) {
+        processSummaryCAS();
+      } else {
+        enableSummaryIncompatibleTabs();
+      }
     } else {
       console.log(
         `✅ mfStats already present (${Object.keys(mfStats).length} funds) — skipping fetch`,
       );
-    }
-
-    if (isSummaryCAS) {
-      processSummaryCAS();
-    } else {
-      await processPortfolio();
-      enableSummaryIncompatibleTabs();
+      if (isSummaryCAS) {
+        processSummaryCAS();
+      } else {
+        await processPortfolio();
+        enableSummaryIncompatibleTabs();
+      }
     }
 
     // Build user key from investor name in the JSON
@@ -250,6 +261,11 @@ async function loadParsedCASJson() {
       true,
       currentUser,
     );
+
+    // Fire phase 2 only if we did a fresh two-phase fetch (not when mfStats was already loaded)
+    if (statsMissing) {
+      _fetchExtendedInBackground();
+    }
 
     localStorage.setItem(`investorName_${currentUser}`, fullInvestorName);
 
@@ -361,7 +377,8 @@ async function loadFileFromTab() {
       processSummaryCAS();
     } else {
       await fetchOrUpdateMFStats("initial");
-      await processPortfolio();
+      // Note: processPortfolio is called inside fetchOrUpdateMFStats Phase 1
+      // for initial uploads via _fetchTwoPhase. No second call needed.
       enableSummaryIncompatibleTabs();
     }
 
@@ -415,7 +432,6 @@ async function loadFileFromTab() {
 
     const hiddenFoliosKey = `hiddenFolios_${currentUser}`;
     localStorage.removeItem(hiddenFoliosKey);
-    console.log(`🗑️ Cleared hidden folios for user: ${currentUser}`);
 
     // Save to IndexedDB BEFORE updating UI
     await storageManager.savePortfolioData(
@@ -425,11 +441,13 @@ async function loadFileFromTab() {
       currentUser,
     );
 
+    // Now that currentUser is set and core data is saved, fire phase 2 in background
+    _fetchExtendedInBackground();
+
     // Store the file signature for this user
     lastUploadedFileInfo = fileSignature;
     localStorage.setItem(`lastCASFileInfo_${currentUser}`, fileSignature);
     localStorage.setItem(`investorName_${currentUser}`, fullInvestorName); // Store full name
-    console.log(`💾 File signature saved for user: ${currentUser}`);
 
     allUsers = storageManager.getAllUsers();
 
@@ -460,10 +478,7 @@ async function loadFileFromTab() {
     const hideElement = document.querySelector("." + hideCard);
     if (hideElement) hideElement.classList.add("hidden");
 
-    showToast(
-      `Portfolio loaded and saved successfully for ${currentUser}!`,
-      "success",
-    );
+    showToast(`Portfolio loaded for ${currentUser}!`, "success");
     updateFooterInfo();
 
     invalidateFamilyDashboardCache();
@@ -521,7 +536,7 @@ async function getSearchKeys() {
 }
 
 // PORTFOLIO PROCESSING
-async function processPortfolio() {
+async function processPortfolio(skipAnalytics = false) {
   document.getElementById("dashboard").classList.add("active");
 
   aggregateFundWiseData();
@@ -531,7 +546,9 @@ async function processPortfolio() {
 
   requestAnimationFrame(() => {
     updateFundBreakdown();
-    calculateAndDisplayPortfolioAnalytics();
+    if (!skipAnalytics) {
+      calculateAndDisplayPortfolioAnalytics();
+    }
     displayCapitalGains();
     initializeTransactionSections();
     updateCompactDashboard();
@@ -543,7 +560,6 @@ async function processPortfolio() {
   requestIdleCallback(
     async () => {
       const portfolioValuation = await calculatePortfolioDailyValuation();
-      console.log("Portfolio valuation data:", portfolioValuation);
 
       window.portfolioValuationHistory = portfolioValuation;
 
@@ -2988,8 +3004,15 @@ function displayCapitalGains() {
     return bNum - aNum;
   });
 
-  // Determine which FY to show by default — always prefer current FY (even with no data)
+  // Determine which FY to show by default.
+  // Prefer current FY when it has data; otherwise fall back to the most recent
+  // previous FY that has data.  If no previous FY exists either, keep current FY.
   let defaultFY = currentFY;
+  if (!hasCurrentYearData && years.length > 0) {
+    // Find the most recent FY that is not the current FY and has data
+    const prevFY = years.find((fy) => fy !== currentFY);
+    if (prevFY) defaultFY = prevFY;
+  }
 
   // Always show the FY section; include current FY pill even if no data
   const allPillYears = years.includes(currentFY)
@@ -5673,14 +5696,12 @@ function showFundDetailsModal(
               "</span>" +
               "</div>"
             : "") +
-          (folioPctOfFund !== null
-            ? '<div class="folio-compact-cell folio-compact-cell--pct">' +
-              '<span class="folio-compact-cell-label">% of Fund</span>' +
-              '<span class="folio-compact-cell-value">' +
-              folioPctOfFund +
-              "</span>" +
-              "</div>"
-            : "") +
+          '<div class="folio-compact-cell folio-compact-cell--pct">' +
+          '<span class="folio-compact-cell-label">% of Fund</span>' +
+          '<span class="folio-compact-cell-value">' +
+          (folioPctOfFund ?? "0%") +
+          "</span>" +
+          "</div>" +
           "</div>"
         );
       })
@@ -5974,6 +5995,10 @@ function showFundDetailsModal(
             <div class="fund-meta-item">
               <span class="fund-meta-label">ISIN</span>
               <span class="fund-meta-value fund-meta-value--mono">${extendedData.isin || "--"}</span>
+            </div>
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Scheme Code</span>
+              <span class="fund-meta-value fund-meta-value--mono">${extendedData.scheme_code || "--"}</span>
             </div>
             <div class="fund-meta-item">
               <span class="fund-meta-label">Category</span>
@@ -7280,63 +7305,90 @@ function downloadFundTransactions(fundKey, folioNumbersStr) {
 }
 function initializeTransactionSections() {
   const excelContainer = document.querySelector(".excel");
-
   if (!excelContainer) {
     console.warn("Excel container not found");
     return;
   }
 
-  // Remove existing transaction wrapper if it exists
   const existingWrapper = document.getElementById("transactionSectionsWrapper");
-  if (existingWrapper) {
-    existingWrapper.remove();
-  }
+  if (existingWrapper) existingWrapper.remove();
 
-  // Create a clean button container for the transactions tab
-  const transactionWrapper = document.createElement("div");
-  transactionWrapper.id = "transactionSectionsWrapper";
-  transactionWrapper.className = "transaction-buttons-container";
+  const allCount = (allTimeFlows || []).filter(
+    (f) => f.type !== "VALUATION",
+  ).length;
+  const activeCount = (activeFlows || []).filter(
+    (f) => f.type !== "VALUATION",
+  ).length;
 
-  transactionWrapper.innerHTML = `
-    <div class="transaction-header">
-      <h2>Portfolio Transactions</h2>
-      <p class="transaction-subtitle">View and download all your mutual fund transactions</p>
+  const wrapper = document.createElement("div");
+  wrapper.id = "transactionSectionsWrapper";
+  wrapper.className = "tx-page-wrapper";
+
+  wrapper.innerHTML = `
+    <div class="tx-page-header">
+      <div class="tx-page-title-row">
+        <h2 class="tx-page-title">Transactions</h2>
+        <span class="tx-stat-pill tx-stat-pill--total">Total ${allCount}</span>
+        <span class="tx-stat-pill tx-stat-pill--active">Active ${activeCount}</span>
+      </div>
     </div>
-    
-    <div class="transaction-cards-grid">
-      <div class="transaction-card">
-        <div class="transaction-card-icon">📊</div>
-        <h3>All-Time Transactions</h3>
-        <p>Complete history of all investments and redemptions across all funds</p>
-        <div class="transaction-card-actions">
-          <button class="primary-btn" onclick="showAllTimeTransactions()">
-            <span>View Transactions</span>
-          </button>
-          <button class="secondary-btn" onclick="generateExcelReport(allTimeFlows, 'all_time_holdings_transactions.xlsx')">
-            <span>Download Excel</span>
-          </button>
-        </div>
-      </div>
 
-      <div class="transaction-card">
-        <div class="transaction-card-icon">💼</div>
-        <h3>Active Holdings Transactions</h3>
-        <p>Transactions for funds you currently hold in your portfolio</p>
-        <div class="transaction-card-actions">
-          <button class="primary-btn" onclick="showActiveTransactions()">
-            <span>View Transactions</span>
-          </button>
-          <button class="secondary-btn" onclick="generateExcelReport(activeFlows, 'active_holdings_transactions.xlsx')">
-            <span>Download Excel</span>
+    <div class="tx-section">
+      <div class="tx-section-header">
+        <div class="tx-section-left">
+          <span class="tx-section-icon">💼</span>
+          <span class="tx-section-title">Active Holdings Transactions</span>
+          <span class="tx-count-badge">${activeCount}</span>
+        </div>
+        <div class="tx-section-actions">
+          <input class="tx-search tx-search-active" type="text" placeholder="Find by fund…"
+                 oninput="filterTxTable('activeTxTable', this.value)" />
+          <button class="tx-dl-btn" onclick="generateExcelReport(activeFlows, 'active_holdings_transactions.xlsx')">
+            <i class="fa-solid fa-download"></i> Excel
           </button>
         </div>
       </div>
+      <div class="tx-table-wrap" id="activeTxTableWrap"></div>
+    </div>
+
+    <div class="tx-section">
+      <div class="tx-section-header">
+        <div class="tx-section-left">
+          <span class="tx-section-icon">📊</span>
+          <span class="tx-section-title">All-Time Transactions</span>
+          <span class="tx-count-badge">${allCount}</span>
+        </div>
+        <div class="tx-section-actions">
+          <input class="tx-search tx-search-alltime" type="text" placeholder="Find by fund…"
+                 oninput="filterTxTable('allTxTable', this.value)" />
+          <button class="tx-dl-btn" onclick="generateExcelReport(allTimeFlows, 'all_time_holdings_transactions.xlsx')">
+            <i class="fa-solid fa-download"></i> Excel
+          </button>
+        </div>
+      </div>
+      <div class="tx-table-wrap" id="allTxTableWrap"></div>
     </div>
   `;
 
-  // Clear the excel container and append the new wrapper
   excelContainer.innerHTML = "";
-  excelContainer.appendChild(transactionWrapper);
+  excelContainer.appendChild(wrapper);
+
+  // Render tables inline — Active first, All-Time second
+  const activeWrap = document.getElementById("activeTxTableWrap");
+  activeWrap.appendChild(createTransactionTable(activeFlows, "activeTxTable"));
+
+  const allWrap = document.getElementById("allTxTableWrap");
+  allWrap.appendChild(createTransactionTable(allTimeFlows, "allTxTable"));
+}
+
+function filterTxTable(tableId, query) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  const q = query.trim().toLowerCase();
+  table.querySelectorAll("tbody tr").forEach((row) => {
+    const scheme = (row.cells[0]?.textContent || "").trim().toLowerCase();
+    row.style.display = !q || scheme.includes(q) ? "" : "none";
+  });
 }
 function createTransactionTable(cashFlows, tableId) {
   const filteredFlows = cashFlows.filter((cf) => cf.type !== "VALUATION");
@@ -7354,6 +7406,7 @@ function createTransactionTable(cashFlows, tableId) {
 
   const table = document.createElement("table");
   table.className = "transaction-table";
+  table.id = tableId;
 
   const header = document.createElement("thead");
   header.innerHTML = `
@@ -10522,8 +10575,6 @@ function initializeUserManagement() {
       currentUser = users[0];
     }
 
-    console.log("Initializing user management. Current user:", currentUser);
-
     populateUserList(users);
 
     updateCurrentUserDisplay();
@@ -10593,8 +10644,6 @@ function populateUserList(users) {
 
     container.appendChild(userItem);
   });
-
-  console.log("User list populated. Current user:", currentUser);
 }
 
 function switchToUser(userName) {
@@ -10851,7 +10900,7 @@ function updateCurrentUserDisplay() {
     return;
   }
 
-  console.log("Updating current user display:", currentUser);
+  console.log("Current User:", currentUser);
 
   const display = document.getElementById("currentUserDisplay");
   if (display) {
@@ -11673,7 +11722,7 @@ function displayTaxPlanning() {
           <td>${bd.units.toFixed(3)}</td>
           <td>₹${formatNumber(bdValue)}</td>
           <td>${purchaseDateStr}</td>
-          <td>${bd.holdingDays}d</td>
+          <td>${bd.holdingDays}D</td>
         </tr>`;
         })
         .join("");
@@ -11766,7 +11815,7 @@ function displayTaxPlanning() {
           <td>${bd.units.toFixed(3)}</td>
           <td>₹${formatNumber(bdValue)}</td>
           <td>${purchaseDateStr}</td>
-          <td>${bd.holdingDays}d</td>
+          <td>${bd.holdingDays}D</td>
         </tr>`;
         })
         .join("");
@@ -11838,7 +11887,7 @@ function displayTaxPlanning() {
             <tr>
               <td><strong>Debt / Specified Funds</strong> <span class="tax-rates-sub">(Post 1 Apr 2023)</span></td>
               <td data-label="STCG">Taxed at slab rates <span class="tax-rates-sub">(any period)</span></td>
-              <td data-label="LTCG">No LTCG benefit – taxed at slab rates</td>
+              <td data-label="LTCG">No LTCG benefit - taxed at slab rates</td>
             </tr>
             <tr>
               <td><strong>Debt Funds</strong> <span class="tax-rates-sub">(Pre-1 Apr 2023)</span></td>
@@ -12191,17 +12240,13 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
       // For initial load, fetch ALL funds
       if (portfolioData.cas_type === "SUMMARY") {
         portfolioData.folios.forEach((folio) => {
-          if (folio.isin) {
-            targetIsins.add(folio.isin);
-          }
+          if (folio.isin) targetIsins.add(folio.isin);
         });
       } else {
         portfolioData.folios.forEach((folio) => {
           if (folio.schemes && Array.isArray(folio.schemes)) {
             folio.schemes.forEach((scheme) => {
-              if (scheme.isin) {
-                targetIsins.add(scheme.isin);
-              }
+              if (scheme.isin) targetIsins.add(scheme.isin);
             });
           }
         });
@@ -12212,9 +12257,7 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
         portfolioData.folios.forEach((folio) => {
           const hasValue =
             folio.current_value && parseFloat(folio.current_value || 0) > 0;
-          if (folio.isin && hasValue) {
-            targetIsins.add(folio.isin);
-          }
+          if (folio.isin && hasValue) targetIsins.add(folio.isin);
         });
       } else {
         portfolioData.folios.forEach((folio) => {
@@ -12224,10 +12267,7 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
                 scheme.isActive ||
                 (scheme.currentValue &&
                   parseFloat(scheme.currentValue || 0) > 0);
-
-              if (scheme.isin && hasValue) {
-                targetIsins.add(scheme.isin);
-              }
+              if (scheme.isin && hasValue) targetIsins.add(scheme.isin);
             });
           }
         });
@@ -12246,9 +12286,8 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
     const searchKeys = uniqueIsins
       .map((isin) => {
         const searchValue = searchKeyJson[isin];
-        if (!searchValue) {
+        if (!searchValue)
           console.log(`⚠️ No search value found for ISIN: ${isin}`);
-        }
         return searchValue;
       })
       .filter(Boolean);
@@ -12260,59 +12299,185 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
       return mfStats || {};
     }
 
-    // Step 4: Call API with search keys
-    const response = await fetch(BACKEND_SERVER + "/api/mf-stats", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        searchKeys: uniqueSearchKeys,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    // Step 5: Parse response
-    const result = await response.json();
-
-    if (!result.success && result.error) {
-      throw new Error(result.error);
-    }
-
-    const newStats = result.data || result;
-
+    // Step 4: For "initial" new upload, use two-phase core → extended
+    // For "auto" / "update" (returning user update), use the original full endpoint
     if (updateType === "initial") {
-      // For initial load, replace mfStats completely
-      mfStats = newStats;
-      console.log(
-        "✅ MF Stats fetched successfully (initial):",
-        Object.keys(mfStats).length,
-        "funds",
-      );
+      return await _fetchTwoPhase(uniqueSearchKeys);
     } else {
-      // For updates, merge with existing data (preserve historical data)
-      mfStats = {
-        ...mfStats, // Keep existing data for inactive funds
-        ...newStats, // Update/add data for active funds
-      };
-      console.log(
-        "✅ MF Stats updated successfully:",
-        Object.keys(newStats).length,
-        "active funds updated,",
-        Object.keys(mfStats).length,
-        "total funds in cache",
-      );
+      return await _fetchFull(uniqueSearchKeys, updateType);
     }
-
-    return mfStats;
   } catch (err) {
     console.error("❌ Failed to fetch MF stats:", err);
     showToast("Failed to fetch MF stats: " + err.message, "error");
     return mfStats || {};
   }
+}
+
+// Phase 1: fetch core (nav_history + essential fields), render immediately
+// Phase 2: fetch extended (return_stats, holdings, portfolio_stats) in background, merge silently
+async function _fetchTwoPhase(uniqueSearchKeys) {
+  // ── Phase 1: Core ──────────────────────────────────────────────
+  updateProcessingProgress(30, "Fetching NAV history...");
+
+  const coreResponse = await fetch(BACKEND_SERVER + "/api/mf-stats/core", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ searchKeys: uniqueSearchKeys }),
+  });
+
+  if (!coreResponse.ok)
+    throw new Error(`Core API error: ${coreResponse.status}`);
+
+  const coreResult = await coreResponse.json();
+  if (!coreResult.success && coreResult.error)
+    throw new Error(coreResult.error);
+
+  mfStats = coreResult.data || {};
+  console.log(
+    `✅ Phase 1 done: ${Object.keys(mfStats).length} funds loaded with core data`,
+  );
+
+  // ── Render portfolio with core data immediately ─────────────────
+  updateProcessingProgress(60, "Rendering portfolio...");
+
+  // Block Phase 2 from re-rendering until Phase 1's setTimeout chain has flushed.
+  phase1RenderComplete = false;
+
+  if (isSummaryCAS) {
+    processSummaryCAS();
+  } else {
+    // skipAnalytics=true: portfolio_stats (needed for Asset Allocation, Market Cap,
+    // Sector, Fund House, Holdings cards) only arrives in Phase 2. Rendering those
+    // cards here with core-only data produces bogus output (e.g. "Debt 100%").
+    // Phase 2 will call calculateAndDisplayPortfolioAnalytics() once it has merged
+    // portfolio_stats, so we skip it here and let Phase 2 always render the cards.
+    await processPortfolio(true);
+    enableSummaryIncompatibleTabs();
+  }
+
+  // calculateAndDisplayPortfolioAnalytics uses a 100ms outer + up to 200ms inner
+  // setTimeout chain. Wait 600ms (2× safety margin) before allowing Phase 2 to
+  // trigger another render, preventing "Canvas already in use" errors.
+  setTimeout(() => {
+    phase1RenderComplete = true;
+  }, 600);
+
+  // Note: we do NOT save to IDB here — currentUser hasn't been set yet at this point
+  // in the loadFileFromTab flow. The caller saves after resolving the user name.
+  // Phase 2 is also fired by the caller after currentUser is set.
+
+  return mfStats;
+}
+
+async function _fetchExtendedInBackground(uniqueSearchKeys) {
+  try {
+    // Build isin+scheme_code pairs from the core data already in mfStats
+    // No need to pass searchKeys — we have scheme_codes from phase 1
+    const funds = Object.entries(mfStats)
+      .filter(([isin, data]) => data.scheme_code)
+      .map(([isin, data]) => ({ isin, scheme_code: data.scheme_code }));
+
+    if (funds.length === 0) {
+      console.warn("No scheme_codes available for extended fetch, skipping");
+      return;
+    }
+
+    const extResponse = await fetch(BACKEND_SERVER + "/api/mf-stats/extended", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ funds }),
+    });
+
+    if (!extResponse.ok) {
+      console.warn(`Extended API error: ${extResponse.status}, skipping`);
+      return;
+    }
+
+    const extResult = await extResponse.json();
+    if (!extResult.success) {
+      console.warn("Extended fetch returned failure, skipping");
+      return;
+    }
+
+    const extData = extResult.data || {};
+
+    // Merge only portfolio_stats — everything else already came from core
+    Object.keys(extData).forEach((isin) => {
+      if (mfStats[isin]) {
+        mfStats[isin].portfolio_stats = extData[isin].portfolio_stats || {};
+      }
+    });
+
+    console.log(
+      `✅ Phase 2 done: portfolio_stats merged for ${Object.keys(extData).length} funds`,
+    );
+
+    // Save updated mfStats
+    await storageManager.savePortfolioData(
+      portfolioData,
+      mfStats,
+      false,
+      currentUser,
+    );
+
+    // portfolio_stats feeds sector, AMC, market-cap, holdings and asset-allocation cards.
+    // Phase 1 skips rendering these cards (skipAnalytics=true) because portfolio_stats
+    // isn't available yet. Phase 2 is always the authoritative render for these cards.
+    // The phase1RenderComplete guard is still respected to avoid "Canvas already in use"
+    // races if Phase 2 somehow completes before Phase 1's setTimeout chain drains.
+    if (phase1RenderComplete) {
+      calculateAndDisplayPortfolioAnalytics();
+    } else {
+      // Phase 1 skipped analytics entirely, so no race risk — render immediately.
+      setTimeout(() => calculateAndDisplayPortfolioAnalytics(), 0);
+    }
+    if (currentTab === "health-score") {
+      displayHealthScore();
+    }
+
+    storageManager.updateLastFullUpdate(currentUser);
+    updateFooterInfo();
+  } catch (err) {
+    console.warn("⚠️ Phase 2 (extended) fetch failed silently:", err.message);
+  }
+}
+
+async function _fetchFull(uniqueSearchKeys, updateType) {
+  const response = await fetch(BACKEND_SERVER + "/api/mf-stats", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ searchKeys: uniqueSearchKeys }),
+  });
+
+  if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+  const result = await response.json();
+  if (!result.success && result.error) throw new Error(result.error);
+
+  const newStats = result.data || result;
+
+  if (updateType === "initial") {
+    mfStats = newStats;
+    console.log(
+      "✅ MF Stats fetched successfully (initial):",
+      Object.keys(mfStats).length,
+      "funds",
+    );
+  } else {
+    mfStats = {
+      ...mfStats,
+      ...newStats,
+    };
+    console.log(
+      "✅ MF Stats updated successfully:",
+      Object.keys(newStats).length,
+      "active funds updated,",
+      Object.keys(mfStats).length,
+      "total funds in cache",
+    );
+  }
+
+  return mfStats;
 }
 async function updateMFStats() {
   if (!portfolioData) {
@@ -12343,9 +12508,7 @@ async function updateMFStats() {
 
   try {
     await updateAllUsersStats("manual");
-
-    hideProcessingSplash();
-    showToast("Fund statistics updated successfully for all users!", "success");
+    // splash is hidden inside updateAllUsersStats after phase 1 renders
     updateFooterInfo();
   } catch (err) {
     hideProcessingSplash();
@@ -12423,10 +12586,7 @@ async function updateAllUsersStats(updateType = "auto") {
         casData.folios.forEach((folio) => {
           const hasValue =
             folio.current_value && parseFloat(folio.current_value || 0) > 0;
-
-          if (folio.isin && hasValue) {
-            allIsins.add(folio.isin);
-          }
+          if (folio.isin && hasValue) allIsins.add(folio.isin);
         });
       } else {
         casData.folios.forEach((folio) => {
@@ -12436,10 +12596,7 @@ async function updateAllUsersStats(updateType = "auto") {
                 scheme.isActive ||
                 (scheme.currentValue &&
                   parseFloat(scheme.currentValue || 0) > 0);
-
-              if (scheme.isin && hasValue) {
-                allIsins.add(scheme.isin);
-              }
+              if (scheme.isin && hasValue) allIsins.add(scheme.isin);
             });
           }
         });
@@ -12461,7 +12618,6 @@ async function updateAllUsersStats(updateType = "auto") {
   const searchKeys = [...allIsins]
     .map((isin) => searchKeyJson[isin])
     .filter(Boolean);
-
   const uniqueSearchKeys = [...new Set(searchKeys)];
 
   if (uniqueSearchKeys.length === 0) {
@@ -12469,26 +12625,30 @@ async function updateAllUsersStats(updateType = "auto") {
     return false;
   }
 
-  // Single API call for all users
   try {
-    const response = await fetch(BACKEND_SERVER + "/api/mf-stats", {
+    // ── Phase 1: Core (Groww search + mfapi NAV) ──────────────────
+    console.log("⚡ Stats update Phase 1: fetching core...");
+    const coreResponse = await fetch(BACKEND_SERVER + "/api/mf-stats/core", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ searchKeys: uniqueSearchKeys }),
     });
 
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    if (!coreResponse.ok)
+      throw new Error(`Core API error: ${coreResponse.status}`);
 
-    const result = await response.json();
-    if (!result.success && result.error) throw new Error(result.error);
+    const coreResult = await coreResponse.json();
+    if (!coreResult.success && coreResult.error)
+      throw new Error(coreResult.error);
 
-    const newStats = result.data || result;
+    const coreStats = coreResult.data || {};
 
-    // Update each user's data
+    // Save core stats for all users and refresh current user's view
     for (const [user, userData] of userDataMap.entries()) {
       try {
-        // Merge: keep existing stats for inactive funds, update active funds
-        const updatedMfStats = { ...userData.mfStats, ...newStats };
+        const updatedMfStats = { ...userData.mfStats, ...coreStats };
+        // Update the map so phase 2 sees the merged state
+        userDataMap.set(user, { ...userData, mfStats: updatedMfStats });
 
         await storageManager.savePortfolioData(
           userData.casData,
@@ -12496,24 +12656,16 @@ async function updateAllUsersStats(updateType = "auto") {
           false,
           user,
         );
-
-        storageManager.updateLastFullUpdate(user);
         storageManager.updateLastNavUpdate(user);
-
-        if (updateType === "manual") {
-          storageManager.markManualStatsUpdate(user);
-          storageManager.markManualNavUpdate(user);
-        }
-
-        console.log(`✅ Updated stats for user: ${user}`);
+        console.log(`✅ Core stats saved for user: ${user}`);
       } catch (err) {
-        console.error(`Error saving data for user ${user}:`, err);
+        console.error(`Error saving core stats for user ${user}:`, err);
       }
     }
 
-    // Refresh current user's view
+    // Refresh current user's view with core data, then hide splash
     if (currentUser && userDataMap.has(currentUser)) {
-      mfStats = { ...userDataMap.get(currentUser).mfStats, ...newStats };
+      mfStats = { ...userDataMap.get(currentUser).mfStats };
 
       if (isSummaryCAS) {
         processSummaryCAS();
@@ -12524,14 +12676,99 @@ async function updateAllUsersStats(updateType = "auto") {
       }
     }
 
-    console.log(
-      `✅ Stats updated for ${allIsins.size} active funds across ${users.length} users`,
-    );
+    hideProcessingSplash();
+    showToast("Fund statistics updated! Loading additional data...", "success");
     invalidateFamilyDashboardCache();
+
+    // ── Phase 2: Extended (Groww portfolio stats only) — background ─
+    console.log("🔄 Stats update Phase 2: fetching extended in background...");
+    _updateAllUsersExtendedInBackground(userDataMap, updateType);
+
     return true;
   } catch (err) {
     console.error("❌ Stats update failed:", err);
     throw err;
+  }
+}
+
+async function _updateAllUsersExtendedInBackground(userDataMap, updateType) {
+  try {
+    // Collect scheme_codes from current mfStats (populated by phase 1)
+    const funds = Object.entries(mfStats)
+      .filter(([isin, data]) => data.scheme_code)
+      .map(([isin, data]) => ({ isin, scheme_code: data.scheme_code }));
+
+    if (funds.length === 0) {
+      console.warn("No scheme_codes for extended update, skipping");
+      return;
+    }
+
+    const extResponse = await fetch(BACKEND_SERVER + "/api/mf-stats/extended", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ funds }),
+    });
+
+    if (!extResponse.ok) {
+      console.warn(`Extended API error: ${extResponse.status}, skipping`);
+      return;
+    }
+
+    const extResult = await extResponse.json();
+    if (!extResult.success) {
+      console.warn("Extended fetch returned failure, skipping");
+      return;
+    }
+
+    const extData = extResult.data || {};
+
+    // Merge portfolio_stats into each user's saved data
+    for (const [user, userData] of userDataMap.entries()) {
+      try {
+        const updatedMfStats = { ...userData.mfStats };
+        Object.keys(extData).forEach((isin) => {
+          if (updatedMfStats[isin]) {
+            updatedMfStats[isin].portfolio_stats =
+              extData[isin].portfolio_stats || {};
+          }
+        });
+
+        await storageManager.savePortfolioData(
+          userData.casData,
+          updatedMfStats,
+          false,
+          user,
+        );
+
+        storageManager.updateLastFullUpdate(user);
+        if (updateType === "manual") {
+          storageManager.markManualStatsUpdate(user);
+          storageManager.markManualNavUpdate(user);
+        }
+
+        console.log(`✅ Extended stats saved for user: ${user}`);
+      } catch (err) {
+        console.error(`Error saving extended stats for user ${user}:`, err);
+      }
+    }
+
+    // Merge into current mfStats in memory
+    Object.keys(extData).forEach((isin) => {
+      if (mfStats[isin]) {
+        mfStats[isin].portfolio_stats = extData[isin].portfolio_stats || {};
+      }
+    });
+
+    // Lightweight re-render — only portfolio_stats affects health/analytics
+    calculateAndDisplayPortfolioAnalytics();
+    invalidateFamilyDashboardCache();
+    updateFooterInfo();
+
+    console.log(
+      `✅ Extended stats merged for ${Object.keys(extData).length} funds`,
+    );
+  } catch (err) {
+    console.warn("⚠️ Stats update Phase 2 failed silently:", err.message);
   }
 }
 
@@ -13280,7 +13517,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       isSummaryCAS = portfolioData.cas_type === "SUMMARY";
 
       console.log(
-        "✅ Loaded from IndexedDB - User:",
+        "✅ Portfolio Data Loaded from IndexedDB - User:",
         currentUser,
         " - CAS Type:",
         isSummaryCAS ? "SUMMARY" : "DETAILED",

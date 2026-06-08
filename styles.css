@@ -1241,6 +1241,10 @@ button:disabled {
   animation: fadeInUp 0.6s ease-out;
 }
 
+#transactionSectionsWrapper {
+  margin: 10px 10px 20px 10px;
+}
+
 .transaction-section-header {
   display: flex;
   justify-content: space-between;
@@ -1616,81 +1620,190 @@ button:disabled {
   display: block;
 }
 
-.transaction-buttons-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-.transaction-header {
-  text-align: center;
-  margin-bottom: 40px;
-}
-
-.transaction-header h2 {
-  font-size: 28px;
-  font-weight: 700;
-  background: var(--scrollbar-thumb);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 10px;
-}
-
-.transaction-subtitle {
-  color: var(--text-tertiary);
-  font-size: 14px;
-}
-
-.transaction-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 30px;
-  margin-top: 30px;
-}
-
-.transaction-card {
-  background: var(--bg-card);
-  backdrop-filter: blur(10px);
-  padding: 30px;
-  border-radius: 16px;
-  box-shadow: var(--shadow-lg);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  transition: all 0.3s ease;
-  text-align: center;
-}
-
-.transaction-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 10px rgba(102, 126, 234, 0.2);
-}
-
-.transaction-card-icon {
-  font-size: 48px;
-  margin-bottom: 20px;
-}
-
-.transaction-card h3 {
-  color: var(--text-primary);
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 12px;
-}
-
-.transaction-card p {
-  color: var(--text-tertiary);
-  font-size: 13px;
-  line-height: 1.6;
-  margin-bottom: 24px;
-  min-height: 40px;
-}
-
-.transaction-card-actions {
+/* ── Compact Transactions Page ──────────────────────────── */
+.tx-page-wrapper {
   display: flex;
   flex-direction: column;
+  gap: 20px;
+}
+
+.tx-page-header {
+  padding: 4px 0 8px;
+}
+
+.tx-page-title-row {
+  display: flex;
+  align-items: baseline;
   gap: 12px;
 }
 
+.tx-page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.tx-page-subtitle {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* ── Transactions header stat pills ── */
+.tx-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+
+.tx-stat-pill--total {
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.12);
+  border: 1px solid rgba(102, 126, 234, 0.22);
+}
+
+.tx-stat-pill--active {
+  color: var(--success-dark, #065f46);
+  background: var(--success-light, #d1fae5);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+:root[data-theme="dark"] .tx-stat-pill--active {
+  color: var(--success);
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.tx-section {
+  background: var(--bg-card);
+  border: 1px solid rgba(102, 126, 234, 0.12);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.tx-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(102, 126, 234, 0.05);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.tx-section-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tx-section-icon {
+  font-size: 15px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.tx-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.tx-count-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.12);
+  padding: 2px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.tx-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tx-search {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 8px;
+  background: var(--bg-white);
+  color: var(--text-primary);
+  outline: none;
+  width: 160px;
+  transition: border-color 0.2s ease;
+}
+
+.tx-search:focus {
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+.tx-search::placeholder {
+  color: var(--text-tertiary);
+}
+
+.tx-dl-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.08);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease;
+}
+
+.tx-dl-btn:hover {
+  background: rgba(102, 126, 234, 0.16);
+}
+
+.tx-table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 480px;
+}
+
+.tx-table-wrap::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.tx-table-wrap::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 10px;
+}
+
+.tx-table-wrap::-webkit-scrollbar-thumb {
+  background: rgba(102, 126, 234, 0.25);
+  border-radius: 10px;
+}
+
+.tx-table-wrap::-webkit-scrollbar-thumb:hover {
+  background: rgba(102, 126, 234, 0.45);
+}
+
+/* Keep primary-btn / secondary-btn for other uses (upload page, etc.) */
 .primary-btn {
   padding: 12px 24px;
   background: var(--scrollbar-thumb);
@@ -3095,6 +3208,7 @@ button.theme-toggle i {
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 
@@ -3240,6 +3354,7 @@ button.theme-toggle i {
   line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -5951,19 +6066,10 @@ button.theme-toggle i {
   gap: 0;
 }
 
-/* last item always spans to fill the remaining cells in its row */
-.fund-meta-item:last-child {
-  grid-column: span 2;
-  border-right: none;
-}
-
 /* tablet: 2 cols — last item fills 2 cells */
 @media (max-width: 885px) and (min-width: 501px) {
   .fund-meta-grid {
     grid-template-columns: repeat(2, 1fr);
-  }
-  .fund-meta-item:last-child {
-    grid-column: span 2;
   }
 }
 
@@ -5971,9 +6077,6 @@ button.theme-toggle i {
 @media (max-width: 500px) {
   .fund-meta-grid {
     grid-template-columns: repeat(2, 1fr);
-  }
-  .fund-meta-item:last-child {
-    grid-column: span 2;
   }
 }
 
@@ -6075,21 +6178,8 @@ button.theme-toggle i {
     padding: 8px 12px;
     font-size: 11px;
   }
-  .transaction-cards-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-
-  .transaction-header h2 {
-    font-size: 22px;
-  }
-
-  .transaction-card {
-    padding: 20px;
-  }
-
-  .transaction-card-icon {
-    font-size: 36px;
+  .tx-search {
+    width: 120px;
   }
   .capital-gains-section {
     padding: 16px;
@@ -6382,7 +6472,6 @@ button.theme-toggle i {
   .folio-card,
   .card,
   .analytics-card,
-  .transaction-card,
   .capital-gains-section {
     box-shadow: var(--shadow-lg);
   }
@@ -6390,8 +6479,7 @@ button.theme-toggle i {
   .folio-card:hover,
   .upload-card:hover,
   .card:hover,
-  .analytics-card:hover,
-  .transaction-card:hover {
+  .analytics-card:hover {
     transform: none;
     box-shadow: var(--shadow-lg);
   }
@@ -6418,8 +6506,10 @@ button.theme-toggle i {
   }
 
   .summary-cards,
-  #transactionSectionsWrapper,
-  #capitalGainsContent,
+  #capitalGainsContent {
+    padding: 10px;
+  }
+
   .secondary-btn {
     padding: 10px;
   }
@@ -7802,6 +7892,10 @@ button.theme-toggle i {
   background: rgba(102, 126, 234, 0.06);
 }
 
+#transactionCalendarSection {
+  margin-bottom: 20px;
+}
+
 /* Responsive: stack fields vertically on mobile */
 @media (max-width: 1024px) {
   .aa-asset-row {
@@ -7831,7 +7925,6 @@ button.theme-toggle i {
   }
 
   .additional-assets-container {
-    border-radius: 0;
     border-left: none;
     border-right: none;
   }
@@ -7845,11 +7938,6 @@ button.theme-toggle i {
   .aa-cell-value {
     font-size: 18px;
   }
-}
-
-/* Instructions row: mobile shows meta+action stacked; desktop hides meta (panel header takes over) */
-.cas-instructions-meta {
-  /* visible on mobile as card title row */
 }
 
 .cas-instructions-action {
@@ -9402,11 +9490,21 @@ button.theme-toggle i {
   font-size: 11px;
   table-layout: fixed;
 }
-#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(1) { width: 28%; } /* Folio */
-#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(2) { width: 16%; } /* Units */
-#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(3) { width: 20%; } /* Value */
-#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(4) { width: 20%; } /* Purchase */
-#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(5) { width: 16%; } /* Held */
+#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(1) {
+  width: 28%;
+} /* Folio */
+#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(2) {
+  width: 16%;
+} /* Units */
+#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(3) {
+  width: 20%;
+} /* Value */
+#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(4) {
+  width: 20%;
+} /* Purchase */
+#taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(5) {
+  width: 16%;
+} /* Held */
 #taxPlanningContent .tax-holding-detail-table thead tr {
   background: rgba(102, 126, 234, 0.07);
 }
@@ -9438,7 +9536,7 @@ button.theme-toggle i {
   color: var(--text-primary);
   font-weight: 600;
   font-size: 10.5px;
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-family: "SF Mono", "Fira Code", monospace;
   letter-spacing: 0.3px;
 }
 /* Purchase date col — slightly muted */
@@ -9503,60 +9601,29 @@ button.theme-toggle i {
   margin-bottom: 0 !important;
 }
 
-/* Transaction section: override transaction-section padding */
-#transactions .transaction-section {
-  border-radius: 16px;
-  overflow: hidden;
-  border: 1px solid rgba(102, 126, 234, 0.12);
-  box-shadow: var(--shadow-sm);
-  padding: 0;
-}
-
-#transactions .transaction-section-header {
-  padding: 11px 16px;
-  background: rgba(102, 126, 234, 0.05);
-  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
-}
-
-#transactions .transaction-section-header h3 {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-#transactions .transaction-section-content {
-  border-top: none;
-}
-
-#transactions .transaction-table thead {
+/* Transactions page — scoped table density */
+#transactions .tx-table-wrap .transaction-table thead {
   background: rgba(102, 126, 234, 0.05);
   border-bottom: 1px solid rgba(102, 126, 234, 0.12);
 }
 
-#transactions .transaction-table th {
+#transactions .tx-table-wrap .transaction-table th {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.7px;
   padding: 7px 10px;
 }
 
-#transactions .transaction-table td {
-  padding: 8px 10px;
+#transactions .tx-table-wrap .transaction-table td {
+  padding: 7px 10px;
   font-size: 12px;
 }
 
-#transactions .transaction-table .tx-type {
+#transactions .tx-table-wrap .transaction-table .tx-type {
   font-size: 10px;
   padding: 2px 8px;
   border-radius: 20px;
   font-weight: 700;
-}
-
-/* Transaction header bar with download actions */
-#transactions .trans-download {
-  padding: 8px 14px;
-  border-top: 1px solid rgba(102, 126, 234, 0.08);
-  margin-top: 0;
 }
 
 /* ── Overlap: table is already gains-table, just fix spacing ── */
@@ -9689,17 +9756,62 @@ button.theme-toggle i {
   border-color: rgba(102, 126, 234, 0.3);
 }
 
-:root[data-theme="dark"] #transactions .transaction-section {
+:root[data-theme="dark"] #transactions .tx-section {
   border-color: rgba(102, 126, 234, 0.22);
 }
 
-:root[data-theme="dark"] #transactions .transaction-section-header {
+:root[data-theme="dark"] #transactions .tx-section-header {
   background: rgba(102, 126, 234, 0.1);
   border-color: rgba(102, 126, 234, 0.18);
 }
 
-:root[data-theme="dark"] #transactions .transaction-table thead {
+:root[data-theme="dark"] #transactions .tx-table-wrap .transaction-table thead {
   background: rgba(102, 126, 234, 0.12);
+}
+
+:root[data-theme="dark"] .tx-search {
+  background: var(--bg-card);
+  border-color: rgba(102, 126, 234, 0.25);
+}
+
+/* ── Transactions page: mobile (≤500px) — hide tables, center Excel buttons ── */
+@media (max-width: 500px) {
+  /* Hide the table scroll wrappers entirely */
+  #transactions .tx-table-wrap {
+    display: none !important;
+  }
+
+  /* Hide the search input — only download button remains */
+  #transactions .tx-search {
+    display: none !important;
+  }
+
+  /* Center the section-actions row (just the Excel button now) */
+  #transactions .tx-section-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+  }
+
+  #transactions .tx-section-left {
+    justify-content: center;
+  }
+
+  #transactions .tx-section-actions {
+    justify-content: center;
+    width: 100%;
+  }
+
+  /* Make Excel download button wider and more prominent on mobile */
+  #transactions .tx-dl-btn {
+    width: 100%;
+    max-width: 220px;
+    justify-content: center;
+    height: 36px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
 }
 
 /* ============================================================
@@ -9747,7 +9859,6 @@ button.theme-toggle i {
   display: grid !important;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
   gap: 12px !important;
-  padding: 16px !important;
   margin-bottom: 0 !important;
   border-bottom: none !important;
   background: transparent !important;
@@ -10114,7 +10225,6 @@ button.theme-toggle i {
 /* ── No-data pill style ── */
 .cg-pill--no-data {
   opacity: 0.65;
-  font-style: italic;
 }
 .cg-pill--no-data.active {
   opacity: 1;
@@ -10183,11 +10293,21 @@ button.theme-toggle i {
   #taxPlanningContent .tax-holding-detail-table {
     font-size: 10px;
   }
-  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(1) { width: 20%; } /* Folio — reduced */
-  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(2) { width: 17%; } /* Units */
-  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(3) { width: 21%; } /* Value */
-  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(4) { width: 26%; } /* Purchase */
-  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(5) { width: 16%; } /* Held */
+  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(1) {
+    width: 20%;
+  } /* Folio — reduced */
+  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(2) {
+    width: 17%;
+  } /* Units */
+  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(3) {
+    width: 21%;
+  } /* Value */
+  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(4) {
+    width: 26%;
+  } /* Purchase */
+  #taxPlanningContent .tax-holding-detail-table colgroup col:nth-child(5) {
+    width: 16%;
+  } /* Held */
 
   #taxPlanningContent .tax-holding-detail-table th,
   #taxPlanningContent .tax-holding-detail-table td {
