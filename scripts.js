@@ -44,11 +44,6 @@ let familySectorChart = null;
 let familyAmcChart = null;
 let projectionChartInstance = null;
 
-// Guards against Phase 2 re-rendering charts while Phase 1's setTimeout
-// chain is still in flight, which would cause "Canvas already in use" errors.
-// Set false before Phase 1 renders; set true ~600 ms later once settled.
-let phase1RenderComplete = false;
-
 const default6M = 10000;
 const default12M = 7000;
 
@@ -190,21 +185,23 @@ async function loadParsedCASJson() {
     const statsMissing = !mfStats || Object.keys(mfStats).length === 0;
     if (statsMissing) {
       console.log("📊 mfStats not loaded — fetching from backend (initial)...");
-      // _fetchTwoPhase inside fetchOrUpdateMFStats("initial") calls processPortfolio
-      // for the non-summary path, so we only need to handle the summary case below.
+      updateProcessingProgress(40, "Pulling MF stats…");
       await fetchOrUpdateMFStats("initial");
       if (isSummaryCAS) {
+        updateProcessingProgress(90, "Rendering dashboard…");
         processSummaryCAS();
       } else {
         enableSummaryIncompatibleTabs();
       }
     } else {
       console.log(
-        `✅ mfStats already present (${Object.keys(mfStats).length} funds) — skipping fetch`,
+        `✅ mfStats already present (${Object.keys(mfStats).length} funds) — skipping fetch.`,
       );
       if (isSummaryCAS) {
+        updateProcessingProgress(90, "Rendering dashboard…");
         processSummaryCAS();
       } else {
+        updateProcessingProgress(90, "Rendering dashboard…");
         await processPortfolio();
         enableSummaryIncompatibleTabs();
       }
@@ -261,11 +258,6 @@ async function loadParsedCASJson() {
       true,
       currentUser,
     );
-
-    // Fire phase 2 only if we did a fresh two-phase fetch (not when mfStats was already loaded)
-    if (statsMissing) {
-      _fetchExtendedInBackground();
-    }
 
     localStorage.setItem(`investorName_${currentUser}`, fullInvestorName);
 
@@ -361,6 +353,7 @@ async function loadFileFromTab() {
     }
 
     portfolioData = result.data;
+    updateProcessingProgress(20, "CAS read");
 
     // Detect CAS type
     isSummaryCAS = portfolioData.cas_type === "SUMMARY";
@@ -373,12 +366,12 @@ async function loadFileFromTab() {
     );
 
     if (isSummaryCAS) {
+      updateProcessingProgress(40, "Pulling MF stats…");
       await fetchOrUpdateMFStats("initial");
       processSummaryCAS();
     } else {
+      updateProcessingProgress(40, "Pulling MF stats…");
       await fetchOrUpdateMFStats("initial");
-      // Note: processPortfolio is called inside fetchOrUpdateMFStats Phase 1
-      // for initial uploads via _fetchTwoPhase. No second call needed.
       enableSummaryIncompatibleTabs();
     }
 
@@ -440,9 +433,6 @@ async function loadFileFromTab() {
       true,
       currentUser,
     );
-
-    // Now that currentUser is set and core data is saved, fire phase 2 in background
-    _fetchExtendedInBackground();
 
     // Store the file signature for this user
     lastUploadedFileInfo = fileSignature;
@@ -625,6 +615,7 @@ function aggregateFundWiseData() {
       const navHistory = extendedData?.nav_history || [];
       const meta = extendedData?.meta || {};
       const sip_return = extendedData?.sip_return || {};
+      const simple_return = extendedData?.simple_return || {};
       const return_stats = extendedData?.return_stats || {};
       const benchmark = extendedData?.benchmark;
       const holdings = extendedData?.holdings || [];
@@ -644,7 +635,14 @@ function aggregateFundWiseData() {
           meta: meta,
           benchmark: benchmark,
           sip_return: sip_return,
+          simple_return: simple_return,
+          rta: extendedData?.rta,
+          manager: extendedData?.manager,
+          meta_desc: extendedData?.meta_desc,
+          launch_date: extendedData?.launch_date,
+          portfolio_turnover: extendedData?.portfolio_turnover,
           return_stats: return_stats,
+          tax_impact: extendedData?.tax_impact,
           holdings: holdings,
         };
       }
@@ -669,6 +667,21 @@ function aggregateFundWiseData() {
         OTHER: "PURCHASE",
       };
 
+      // Pre-compute a Set of "date|units" keys for SIP Purchase Reversal redemptions.
+      // The paired corrective PURCHASE on the same date for the same units must also
+      // be excluded — otherwise the re-issued purchase gets double-counted in FIFO.
+      const reversalKeys = new Set(
+        scheme.transactions
+          .filter(
+            (t) =>
+              t.type === "REDEMPTION" &&
+              typeof t.description === "string" &&
+              /reversal/i.test(t.description) &&
+              /sip\s*purchase/i.test(t.description),
+          )
+          .map((t) => `${t.date}|${parseFloat(t.units || 0)}`),
+      );
+
       const filteredTxns = scheme.transactions
         .filter((t) => {
           if (["STAMP_DUTY_TAX", "STT_TAX", "MISC"].includes(t.type))
@@ -678,6 +691,25 @@ function aggregateFundWiseData() {
             const units = parseFloat(t.units || 0);
             const nav = parseFloat(t.nav || 0);
             return units > 0 && nav > 0;
+          }
+          // Skip SIP Purchase Reversal transactions typed as REDEMPTION.
+          // These are always paired with a corrective PURCHASE entry that follows,
+          // so including them as redemptions would corrupt FIFO cost basis and unit counts.
+          if (
+            t.type === "REDEMPTION" &&
+            typeof t.description === "string" &&
+            /reversal/i.test(t.description) &&
+            /sip\s*purchase/i.test(t.description)
+          ) {
+            return false;
+          }
+          // Skip the corrective PURCHASE that was issued alongside a reversal.
+          // It shares the same date and unit count as the reversal redemption.
+          if (
+            t.type === "PURCHASE" &&
+            reversalKeys.has(`${t.date}|${parseFloat(t.units || 0)}`)
+          ) {
+            return false;
           }
           return true;
         })
@@ -819,60 +851,86 @@ function processSummaryCAS() {
         : parseFloat(folio.current_value || 0);
     const unrealizedGain = currentValue - cost;
     const unrealizedGainPercentage =
-      cost > 0 ? ((unrealizedGain / cost) * 100).toFixed(2) : 0;
+      cost > 0 ? parseFloat(((unrealizedGain / cost) * 100).toFixed(2)) : 0;
 
     folio.current_value = currentValue;
     folio.nav = latestNav;
     folio.nav_date = extendedData?.latest_nav_date || folio.nav_date;
 
-    fundWiseData[key] = {
-      scheme: folio.scheme,
-      schemeDisplay: sanitizeSchemeName(folio.scheme),
-      isin: folio.isin,
-      amc: amcName,
-      type: extendedData?.category || "Unknown",
-      category: extendedData?.category || "Unknown",
-      folios: [folio.folio],
-      transactions: [],
-      navHistory: navHistory,
-      latestNav: latestNav,
-      meta: meta,
-      benchmark: benchmark,
-      return_stats: return_stats,
-      holdings: holdings,
-      valuation: {
-        date:
-          extendedData?.latest_nav_date ||
-          folio.nav_date ||
-          new Date().toISOString(),
-        nav: latestNav,
-        value: currentValue,
-        cost: cost,
-      },
-      advancedMetrics: {
-        totalInvested: cost,
-        totalWithdrawn: 0,
-        realizedGain: 0,
-        realizedGainPercentage: 0,
-        unrealizedGain: unrealizedGain,
-        unrealizedGainPercentage: unrealizedGainPercentage,
-        remainingCost: cost,
-        currentValue: currentValue,
-        totalUnitsRemaining: units,
-        averageRemainingCostPerUnit: units > 0 ? (cost / units).toFixed(3) : 0,
-        averageHoldingDays: 0,
-        category: getTaxCategory(extendedData, fund),
-        capitalGains: {
-          stcg: 0,
-          ltcg: 0,
-          stcgRedeemed: 0,
-          ltcgRedeemed: 0,
-          byYear: {},
+    if (fundWiseData[key]) {
+      // Merge subsequent folios of the same scheme into the existing entry
+      const existing = fundWiseData[key];
+      const m = existing.advancedMetrics;
+      existing.folios.push(folio.folio);
+      m.totalInvested += cost;
+      m.remainingCost += cost;
+      m.currentValue += currentValue;
+      m.unrealizedGain += unrealizedGain;
+      m.totalUnitsRemaining += units;
+      m.unrealizedGainPercentage =
+        m.remainingCost > 0
+          ? parseFloat(((m.unrealizedGain / m.remainingCost) * 100).toFixed(2))
+          : 0;
+      m.averageRemainingCostPerUnit =
+        m.totalUnitsRemaining > 0
+          ? (m.remainingCost / m.totalUnitsRemaining).toFixed(3)
+          : 0;
+      existing.valuation.value = m.currentValue;
+      existing.valuation.cost = m.remainingCost;
+    } else {
+      fundWiseData[key] = {
+        scheme: folio.scheme,
+        schemeDisplay: sanitizeSchemeName(folio.scheme),
+        isin: folio.isin,
+        amc: amcName,
+        type: extendedData?.category || "Unknown",
+        category: extendedData?.category || "Unknown",
+        folios: [folio.folio],
+        transactions: [],
+        navHistory: navHistory,
+        latestNav: latestNav,
+        meta: meta,
+        benchmark: benchmark,
+        return_stats: return_stats,
+        holdings: holdings,
+        valuation: {
+          date:
+            extendedData?.latest_nav_date ||
+            folio.nav_date ||
+            new Date().toISOString(),
+          nav: latestNav,
+          value: currentValue,
+          cost: cost,
         },
-        folioSummaries: {},
-        dailyValuation: [],
-      },
-    };
+        advancedMetrics: {
+          totalInvested: cost,
+          totalWithdrawn: 0,
+          realizedGain: 0,
+          realizedGainPercentage: 0,
+          unrealizedGain: unrealizedGain,
+          unrealizedGainPercentage: unrealizedGainPercentage,
+          remainingCost: cost,
+          currentValue: currentValue,
+          totalUnitsRemaining: units,
+          averageRemainingCostPerUnit:
+            units > 0 ? (cost / units).toFixed(3) : 0,
+          averageHoldingDays: 0,
+          category: getTaxCategory(extendedData, {
+            scheme: folio.scheme,
+            type: extendedData?.category || "",
+          }),
+          capitalGains: {
+            stcg: 0,
+            ltcg: 0,
+            stcgRedeemed: 0,
+            ltcgRedeemed: 0,
+            byYear: {},
+          },
+          folioSummaries: {},
+          dailyValuation: [],
+        },
+      };
+    }
   });
   console.log("Fund Wise Data:", fundWiseData);
 
@@ -1292,7 +1350,14 @@ function calculateadvancedMetrics(fund) {
 
   let currentValue = 0;
   if (totalUnitsRemaining > 0.001) {
-    currentValue = fund.valuation ? parseFloat(fund.valuation.value || 0) : 0;
+    // Prefer NAV × FIFO-remaining units for accuracy.
+    // fund.valuation.value is computed as latestNAV × all-net-units which is wrong
+    // when units have been partially redeemed and reinvested across the holding period.
+    if (globalNavPerUnit > 0) {
+      currentValue = globalNavPerUnit * totalUnitsRemaining;
+    } else {
+      currentValue = fund.valuation ? parseFloat(fund.valuation.value || 0) : 0;
+    }
   }
 
   const unrealizedGain = currentValue - remainingCost;
@@ -1471,6 +1536,10 @@ function calculateDailyValuationHistory(fund) {
   return dailyValuation;
 }
 function calculateSummary() {
+  // Summary CAS has no transactions — delegate to the summary-specific path
+  // so every call site gets correct data without needing its own isSummaryCAS check
+  if (isSummaryCAS) return calculateSummarySummary();
+
   let totalInvested = 0;
   let totalWithdrawn = 0;
   let currentValue = 0;
@@ -4816,15 +4885,21 @@ function updateSummaryCards(summary) {
   const combinedValue = summary.currentValue + totalAdditional;
 
   // Dynamically update first card based on additional assets
+  // summaryCardsContainer is absent on mobile (compact dashboard has no #main .summary-cards)
   const summaryCardsContainer = document.querySelector("#main .summary-cards");
-  const firstCard = summaryCardsContainer.querySelector(".card:first-child");
+  const firstCard = summaryCardsContainer?.querySelector(".card:first-child");
+  if (!summaryCardsContainer || !firstCard) {
+    // Mobile view — update compact dashboard values and bail out of desktop card logic
+    updateCompactDashboard();
+    return;
+  }
 
   if (hasAdditionalAssets) {
     // Show Total Portfolio card
     firstCard.innerHTML = `
       <h3>Total Portfolio Value</h3>
       <div class="value">₹${formatNumber(combinedValue)}</div>
-      <div class="subtext">MF: ₹${formatNumber(
+      <div class="subtext" id="currentValueSubtext">MF: ₹${formatNumber(
         summary.currentValue,
       )} + Additional: ₹${formatNumber(totalAdditional)}</div>
     `;
@@ -4835,7 +4910,7 @@ function updateSummaryCards(summary) {
       <div class="value">₹<span id="currentValue">${formatNumber(
         summary.currentValue,
       )}</span></div>
-      <div class="subtext">MF Holdings Value</div>
+      <div class="subtext" id="currentValueSubtext"></div>
     `;
   }
 
@@ -4911,11 +4986,42 @@ function updateSummaryCards(summary) {
     document.getElementById("avgHoldingDays").textContent =
       calculateWeightedHoldingDays();
   }
+
+  updateCurrentValue1DIndicator();
+}
+
+function updateCurrentValue1DIndicator() {
+  const subtext = document.getElementById("currentValueSubtext");
+  if (!subtext) return;
+
+  const oneDayReturns = calculateOneDayReturns();
+  const value = oneDayReturns.value;
+  const isPositive = value >= 0;
+  const sign = isPositive ? "+" : "-";
+  const triangle = isPositive ? "▲" : "▼";
+  const absRupees = formatNumber(Math.abs(Math.round(value)));
+  const prevTotal =
+    Object.values(fundWiseData).reduce(
+      (s, f) => s + (f.advancedMetrics?.currentValue || 0),
+      0,
+    ) - value;
+  const absPct =
+    prevTotal !== 0 ? Math.abs((value / prevTotal) * 100).toFixed(2) : "0.00";
+
+  const existing = subtext.querySelector(".one-day-subtext");
+  if (existing) existing.remove();
+  const tag = document.createElement("span");
+  tag.className =
+    "one-day-subtext " +
+    (isPositive ? "one-day-subtext--pos" : "one-day-subtext--neg");
+  tag.textContent = `${triangle} 1D: ₹${absRupees} (${sign}${absPct}%)`;
+  subtext.appendChild(tag);
 }
 
 function updateGainCard(valueId, percentId, gain, percent, xirr) {
   const el = document.getElementById(valueId);
   el.textContent = (gain >= 0 ? "₹" : "-₹") + formatNumber(Math.abs(gain));
+  el.parentElement.classList.remove(gain < 0 ? "positive" : "negative");
   el.parentElement.classList.add(gain >= 0 ? "positive" : "negative");
 
   const xirrText = xirr !== null ? `XIRR: ${xirr.toFixed(2)}%` : "XIRR: --";
@@ -5288,7 +5394,7 @@ function createFundCardWithTransactions(
       ? "folio-card-hero-cell--pnl-gain"
       : "folio-card-hero-cell--pnl-loss";
   const pnlSign = pnl >= 0 ? "+" : "-";
-  const pnlSub = `${pnl >= 0 ? "▲" : "▼"} ${Math.abs(pnlPct)}%`;
+  const pnlSub = `${pnl >= 0 ? "▲" : "▼"} ${pnl >= 0 ? "+" : "-"}${Math.abs(pnlPct)}%`;
 
   const MAX_FOLIO_PILLS = 2;
   const visibleFolios = displayFolios.slice(0, MAX_FOLIO_PILLS);
@@ -5312,6 +5418,14 @@ function createFundCardWithTransactions(
   const heroValueLabel = isActive ? "Current Value" : "Withdrawn";
   const heroValueAmt = isActive ? current : withdrawn;
 
+  const oneDayReturn = isActive ? calculate1DayReturn(fund) : null;
+  const odPositive = !oneDayReturn || oneDayReturn.percent >= 0;
+  const odSign = odPositive ? "+" : "-";
+  const oneDaySubHTML = oneDayReturn
+    ? `<span class="folio-card-hero-sub folio-1d-sub ${odPositive ? "folio-1d-sub--pos" : "folio-1d-sub--neg"}">${odPositive ? "▲" : "▼"} ₹${formatNumber(Math.abs(Math.round(oneDayReturn.rupees)))} (${odSign}${Math.abs(oneDayReturn.percent.toFixed(2))}%)</span>`
+    : "";
+  const oneDayTriangleHTML = "";
+
   // Secondary chips
   const investedLabel = isActive ? "Invested" : "Invested";
   let secondaryChips = `
@@ -5332,7 +5446,7 @@ function createFundCardWithTransactions(
     </div>
     <div class="folio-card-meta-chip">
       <span class="folio-card-meta-label">Avg Hold</span>
-      <span class="folio-card-meta-value">${averageHoldingDays ? Math.round(averageHoldingDays) + "D" : "--"}</span>
+      <span class="folio-card-meta-value">${averageHoldingDays != null && averageHoldingDays > 0 ? Math.round(averageHoldingDays) + "D" : "--"}</span>
     </div>`;
   }
 
@@ -5367,10 +5481,11 @@ function createFundCardWithTransactions(
       <div class="folio-card-hero-cell">
         <span class="folio-card-hero-label">${heroValueLabel}</span>
         <span class="folio-card-hero-value">₹${formatNumber(heroValueAmt)}</span>
+        ${oneDaySubHTML}
       </div>
       <div class="folio-card-hero-cell ${pnlHeroClass}">
         <span class="folio-card-hero-label">P&amp;L</span>
-        <span class="folio-card-hero-value ${pnlClass}">${pnlSign}₹${formatNumber(Math.abs(pnl))}</span>
+        <span class="folio-card-hero-value ${pnlClass}">₹${formatNumber(Math.abs(pnl))}</span>
         <span class="folio-card-hero-sub">${pnlSub}</span>
       </div>
       <div class="folio-card-hero-cell folio-card-hero-cell--xirr">
@@ -5385,66 +5500,35 @@ function createFundCardWithTransactions(
   return card;
 }
 function createSummaryFundCard(fund, fundKey) {
-  const card = document.createElement("div");
-  card.className = "folio-card";
+  // Summary CAS has no transaction history — derive display values from advancedMetrics
+  // and delegate to the same modern card used for detailed CAS.
+  const m = fund.advancedMetrics;
+  const currentValue = Math.round(m.currentValue || 0);
+  const cost = Math.round(m.remainingCost || 0);
+  const unrealizedGain = Math.round(m.unrealizedGain || 0);
+  const unrealizedPct = m.unrealizedGainPercentage || 0;
+  const units = parseFloat(m.totalUnitsRemaining || 0).toFixed(3);
+  const avgNav = m.averageRemainingCostPerUnit || "--";
 
-  const extendedData = mfStats[fund.isin];
-  const displayName = fund.schemeDisplay || fund.scheme;
-
-  const currentValue = fund.advancedMetrics.currentValue;
-  const cost = fund.advancedMetrics.remainingCost;
-  const unrealizedGain = fund.advancedMetrics.unrealizedGain;
-  const unrealizedGainPercentage =
-    fund.advancedMetrics.unrealizedGainPercentage;
-  const units = fund.advancedMetrics.totalUnitsRemaining;
-  const avgNav = fund.advancedMetrics.averageRemainingCostPerUnit;
-
-  function roundValue(val) {
-    if (val === null || val === undefined) return "--";
-    if (typeof val === "number") return Math.round(val * 100) / 100;
-    return val;
-  }
-
-  card.innerHTML = `
-    <h4 title="${displayName}">${displayName}</h4>
-    <div class="folio-info">
-      ${standardizeTitle(fund.amc)}${
-        fund.folios.length > 0
-          ? " • " + fund.folios.map((f) => f.split("/")[0].trim()).join(", ")
-          : ""
-      }</div>
-    <div class="folio-stat"><span class="label">Current Value:</span><span class="value">₹${formatNumber(
-      currentValue,
-    )}</span></div>
-    <div class="folio-stat"><span class="label">Current Cost:</span><span class="value">₹${formatNumber(
-      cost,
-    )}</span></div>
-    <div class="folio-stat fund-card-separator-space"><span class="label">P&L:</span><span class="value ${
-      unrealizedGain >= 0 ? "gain" : "loss"
-    }">₹${formatNumber(
-      Math.abs(unrealizedGain),
-    )} (${unrealizedGainPercentage}%)</span></div>
-    ${
-      currentValue > 0
-        ? `<div class="fund-card-actions">
-      <button class="fund-action-btn primary" onclick="showFundDetailsModal('${fundKey}')">
-        <i class="fa-solid fa-chart-line"></i> View Details
-      </button>
-      ${
-        extendedData && fund.holdings && fund.holdings.length > 0
-          ? `
-      <button class="fund-action-btn secondary" onclick="event.stopPropagation(); showFundHoldings('${fundKey}')">
-        <i class="fa-solid fa-eye"></i> Holdings (${fund.holdings.length})
-      </button>
-      `
-          : ""
-      }`
-        : ""
-    }
-    </div>
-  `;
-
-  return card;
+  return createFundCardWithTransactions(
+    fund,
+    fundKey,
+    cost, // invested
+    0, // withdrawn
+    currentValue, // current
+    cost, // remainingCost
+    unrealizedGain, // overallGain
+    0, // realizedGain
+    0, // realizedGainPercentage
+    unrealizedGain, // unrealizedGain
+    unrealizedPct, // unrealizedGainPercentage
+    units, // remainingUnits
+    avgNav, // averageRemainingCostPerUnit
+    0, // averageHoldingDays (not available in summary CAS)
+    "--", // xirrText (no transactions = no XIRR)
+    "", // statusLabel
+    true, // isActive
+  );
 }
 
 // MODAL FUNCTIONS - FUND DETAILS
@@ -5526,6 +5610,17 @@ function showFundDetailsModal(
     avgHoldingDays = units > 0 ? (totalHoldingDays / units).toFixed(1) : 0;
     unrealizedGainPercentage =
       cost > 0 ? ((unrealizedGain / cost) * 100).toFixed(2) : 0;
+  } else if (isSummaryCAS) {
+    // Summary CAS: read directly from advancedMetrics (no folioSummaries)
+    const m = fund.advancedMetrics;
+    cost = m.remainingCost || 0;
+    unrealizedGain = m.unrealizedGain || 0;
+    units = m.totalUnitsRemaining || 0;
+    current = m.currentValue || 0;
+    avgNav = m.averageRemainingCostPerUnit || 0;
+    avgHoldingDays = 0;
+    unrealizedGainPercentage = m.unrealizedGainPercentage || 0;
+    displayFolios = fund.folios;
   } else {
     // For current holdings, calculate from folio summaries of active folios
     cost = 0;
@@ -5575,7 +5670,9 @@ function showFundDetailsModal(
         current,
       );
     }
-    xirr = calc.calculateXIRR();
+    if (calc.transactions.length >= 2) {
+      xirr = calc.calculateXIRR();
+    }
   } catch (e) {
     console.debug("XIRR calculation failed for", fund.scheme, e);
   }
@@ -5592,7 +5689,77 @@ function showFundDetailsModal(
   // Build Folios section HTML before modal.innerHTML (avoids nested template literal issues)
   let foliosSectionHTML = "";
   const _folioSummaries = fund.advancedMetrics?.folioSummaries;
-  if (_folioSummaries && displayFolios.length >= 1) {
+
+  // For Summary CAS build a simple per-folio table from the raw CAS folio data
+  if (isSummaryCAS && fund.folios.length >= 1) {
+    const summaryRows = fund.folios
+      .map((folioNum) => {
+        const folioData = portfolioData.folios.find(
+          (f) => f.folio === folioNum,
+        );
+        if (!folioData) return "";
+        const fUnits = parseFloat(folioData.units || 0);
+        const fCost = parseFloat(folioData.cost || 0);
+        const fValue = parseFloat(folioData.current_value || 0);
+        const fPnl = fValue - fCost;
+        const fPnlPct = fCost > 0 ? ((fPnl / fCost) * 100).toFixed(2) : "0.00";
+        const pnlClass = fPnl >= 0 ? "gain" : "loss";
+        const fPct =
+          current > 0 ? ((fValue / current) * 100).toFixed(1) + "%" : "--";
+        const folioDisplay = folioNum.split("/")[0].trim();
+        return (
+          '<div class="folio-compact-row">' +
+          '<div class="folio-compact-id">' +
+          '<span class="folio-compact-number">' +
+          folioDisplay +
+          "</span>" +
+          '<span class="folio-compact-badge folio-compact-badge--active">Active</span>' +
+          "</div>" +
+          '<div class="folio-compact-cell"><span class="folio-compact-cell-label">Invested</span>' +
+          '<span class="folio-compact-cell-value">₹' +
+          formatNumber(fCost) +
+          "</span></div>" +
+          '<div class="folio-compact-cell"><span class="folio-compact-cell-label">Cur. Value</span>' +
+          '<span class="folio-compact-cell-value">₹' +
+          formatNumber(fValue) +
+          "</span></div>" +
+          '<div class="folio-compact-cell"><span class="folio-compact-cell-label">Units</span>' +
+          '<span class="folio-compact-cell-value">' +
+          fUnits.toFixed(3) +
+          "</span></div>" +
+          '<div class="folio-compact-cell"><span class="folio-compact-cell-label">P&L</span>' +
+          '<span class="folio-compact-cell-value ' +
+          pnlClass +
+          '">' +
+          "₹" +
+          formatNumber(Math.abs(fPnl)) +
+          ' <span class="folio-compact-pct">(' +
+          (fPnl >= 0 ? "+" : "-") +
+          Math.abs(parseFloat(fPnlPct)) +
+          "%)</span></span></div>" +
+          '<div class="folio-compact-cell folio-compact-cell--pct"><span class="folio-compact-cell-label">% of Fund</span>' +
+          '<span class="folio-compact-cell-value">' +
+          fPct +
+          "</span></div>" +
+          "</div>"
+        );
+      })
+      .join("");
+
+    foliosSectionHTML =
+      '<div class="folio-compact-section">' +
+      '<div class="folio-compact-header">' +
+      '<span class="folio-compact-header-icon">🗂️</span>' +
+      '<span class="folio-compact-header-title">Folios</span>' +
+      '<span class="folio-compact-count">' +
+      fund.folios.length +
+      " folios</span>" +
+      "</div>" +
+      '<div class="folio-compact-table">' +
+      summaryRows +
+      "</div>" +
+      "</div>";
+  } else if (_folioSummaries && displayFolios.length >= 1) {
     const _sorted = [...displayFolios].sort((a, b) => {
       const sa = _folioSummaries[a];
       const sb = _folioSummaries[b];
@@ -5680,11 +5847,11 @@ function showFundDetailsModal(
           '<span class="folio-compact-cell-value ' +
           pnlClass +
           '">' +
-          (pnl >= 0 ? "+" : "-") +
           "₹" +
           formatNumber(Math.abs(pnl)) +
           ' <span class="folio-compact-pct">(' +
-          Math.abs(pnlPct) +
+          (pnl >= 0 ? "+" : "-") +
+          Math.abs(parseFloat(pnlPct)) +
           "%)</span>" +
           "</span>" +
           "</div>" +
@@ -5692,7 +5859,9 @@ function showFundDetailsModal(
             ? '<div class="folio-compact-cell folio-compact-cell--hold">' +
               '<span class="folio-compact-cell-label">Avg Hold</span>' +
               '<span class="folio-compact-cell-value">' +
-              (holdingDays === "--" ? "--" : holdingDays + "D") +
+              (holdingDays != null && holdingDays > 0
+                ? holdingDays + "D"
+                : "--") +
               "</span>" +
               "</div>"
             : "") +
@@ -5736,34 +5905,80 @@ function showFundDetailsModal(
         <!-- Summary Stats Section (Compact Redesign) -->
         <div class="fund-summary-compact">
 
-          <!-- Meta bar: AMC + % of Portfolio -->
+          <!-- Meta bar: Portfolio % (left) + Riskometer (right) -->
           <div class="fund-summary-meta-bar">
-            <div class="fund-summary-meta-item">
-              <span class="fund-summary-meta-label">AMC</span>
-              <span class="fund-summary-meta-value">${standardizeTitle(fund.amc)}</span>
+            <div class="fund-summary-meta-bar-left">
+              ${
+                !isPastHolding && current > 0
+                  ? (() => {
+                      const totalPfValue = Object.values(fundWiseData).reduce(
+                        (s, f) => s + (f.advancedMetrics?.currentValue || 0),
+                        0,
+                      );
+                      const pct =
+                        totalPfValue > 0
+                          ? ((current / totalPfValue) * 100).toFixed(2)
+                          : null;
+                      return pct !== null
+                        ? `<div class="fund-summary-meta-item">
+                <span class="fund-summary-meta-label">Portfolio</span>
+                <span class="fund-summary-portfolio-pct">${pct}% <span class="fund-summary-portfolio-pct-sub">of Total</span></span>
+              </div>`
+                        : "";
+                    })()
+                  : ""
+              }
             </div>
-            ${
-              !isPastHolding && current > 0
-                ? (() => {
-                    const totalPfValue = Object.values(fundWiseData).reduce(
-                      (s, f) => s + (f.advancedMetrics?.currentValue || 0),
-                      0,
-                    );
-                    const pct =
-                      totalPfValue > 0
-                        ? ((current / totalPfValue) * 100).toFixed(2)
-                        : null;
-                    return pct !== null
-                      ? `
-            <div class="fund-summary-meta-divider"></div>
-            <div class="fund-summary-meta-item">
-              <span class="fund-summary-meta-label">Portfolio</span>
-              <span class="fund-summary-portfolio-pct">${pct}% <span class="fund-summary-portfolio-pct-sub">of Total</span></span>
-            </div>`
-                      : "";
-                  })()
-                : ""
-            }
+            <div class="fund-summary-meta-bar-right">
+              ${(() => {
+                const riskNumeric =
+                  extendedData?.return_stats?.risk_rating ?? null;
+                const riskLevels = [
+                  "Low",
+                  "Low to Moderate",
+                  "Moderate",
+                  "Moderately High",
+                  "High",
+                  "Very High",
+                ];
+                const riskLevel =
+                  riskNumeric !== null && !isNaN(parseInt(riskNumeric))
+                    ? (riskLevels[parseInt(riskNumeric) - 1] ?? null)
+                    : null;
+                if (!riskLevel) return "";
+                const riskColors = [
+                  "#10b981",
+                  "#84cc16",
+                  "#f59e0b",
+                  "#fb923c",
+                  "#ef4444",
+                  "#dc2626",
+                ];
+                const activeIdx = riskLevels.findIndex(
+                  (r) => r.toLowerCase() === riskLevel.toLowerCase(),
+                );
+                const riskoDots = riskLevels
+                  .map((r, i) => {
+                    const isActive = i === activeIdx;
+                    const isPast = i < activeIdx;
+                    const dotColor = isActive
+                      ? riskColors[i]
+                      : isPast
+                        ? riskColors[i] + "80"
+                        : "rgba(102,126,234,0.15)";
+                    return `<span class="riskometer-dot ${isActive ? "riskometer-dot--active" : ""}" style="background:${dotColor};box-shadow:${isActive ? "0 0 6px " + riskColors[i] : "none"}" title="${r}"></span>`;
+                  })
+                  .join("");
+                const riskLabelColor =
+                  activeIdx >= 0
+                    ? riskColors[activeIdx]
+                    : "var(--text-secondary)";
+                return `<div class="riskometer">
+                  <div class="riskometer-track">${riskoDots}</div>
+                  <span class="riskometer-label" style="color:${riskLabelColor}">${riskLevel}</span>
+                </div>`;
+              })()}
+            </div>
           </div>
 
           <!-- Hero row: 3 primary financial metrics -->
@@ -5771,13 +5986,21 @@ function showFundDetailsModal(
             <div class="fund-summary-hero-card">
               <span class="fund-summary-hero-label">${isPastHolding ? "Total Withdrawn" : "Current Value"}</span>
               <span class="fund-summary-hero-value">₹${formatNumber(isPastHolding ? cost + unrealizedGain : current)}</span>
+              ${(() => {
+                if (isPastHolding) return "";
+                const od = calculate1DayReturn(fund);
+                if (!od) return "";
+                const pos = od.percent >= 0;
+                const s = pos ? "+" : "-";
+                return `<span class="fund-summary-hero-sub fund-summary-1d-sub ${pos ? "fund-summary-1d-sub--pos" : "fund-summary-1d-sub--neg"}">${pos ? "▲" : "▼"} ₹${formatNumber(Math.abs(Math.round(od.rupees)))} (${s}${Math.abs(od.percent.toFixed(2))}%)</span>`;
+              })()}
             </div>
             <div class="fund-summary-hero-card fund-summary-hero-card--pnl ${unrealizedGain >= 0 ? "gain" : "loss"}">
               <span class="fund-summary-hero-label">P&amp;L</span>
               <span class="fund-summary-hero-value">
-                ${unrealizedGain >= 0 ? "+" : "-"}₹${formatNumber(Math.abs(unrealizedGain))}
+                ₹${formatNumber(Math.abs(unrealizedGain))}
               </span>
-              <span class="fund-summary-hero-sub">${unrealizedGain >= 0 ? "▲" : "▼"} ${Math.abs(unrealizedGainPercentage)}%</span>
+              <span class="fund-summary-hero-sub">${unrealizedGain >= 0 ? "▲" : "▼"} ${unrealizedGain >= 0 ? "+" : "-"}${Math.abs(unrealizedGainPercentage)}%</span>
             </div>
             <div class="fund-summary-hero-card fund-summary-hero-card--xirr">
               <span class="fund-summary-hero-label">XIRR</span>
@@ -5811,7 +6034,13 @@ function showFundDetailsModal(
                 ? `
             <div class="fund-summary-chip">
               <span class="fund-summary-chip-label">Avg Hold</span>
-              <span class="fund-summary-chip-value">${roundValue(avgHoldingDays) === "--" ? "--" : roundValue(avgHoldingDays) + "D"}</span>
+              <span class="fund-summary-chip-value">
+                ${
+                  avgHoldingDays != null && avgHoldingDays > 0
+                    ? roundValue(avgHoldingDays) + "D"
+                    : "--"
+                }
+              </span>
             </div>`
                 : ""
             }
@@ -5825,8 +6054,8 @@ function showFundDetailsModal(
         <!-- Charts Row - Side by side on desktop, stacked on mobile -->
         <div class="fund-details-charts-row">
 
-          <!-- Valuation History -->
-          <div class="fund-chart-card">
+          <!-- Valuation History (hidden for Summary CAS — no nav history without transaction dates) -->
+          <div class="fund-chart-card" ${isSummaryCAS ? 'style="display:none"' : ""}>
             <div class="fund-chart-card-header">
               <span class="fund-chart-card-icon">📈</span>
               <span class="fund-chart-card-title">Valuation History</span>
@@ -5850,23 +6079,151 @@ function showFundDetailsModal(
 
           ${
             extendedData
-              ? `
-          <!-- Performance Comparison -->
-          <div class="fund-chart-card">
+              ? (() => {
+                  const rs = extendedData.return_stats || {};
+                  const br = fund.benchmark_returns || {};
+                  const sipR = extendedData.sip_return || {};
+
+                  function fmtR(val) {
+                    if (val === null || val === undefined || val === "")
+                      return "--";
+                    const n = parseFloat(val);
+                    if (isNaN(n)) return "--";
+                    return (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
+                  }
+                  function fmtOut(fundV, benchV) {
+                    if (fundV === null || fundV === undefined || fundV === "")
+                      return "--";
+                    if (
+                      benchV === null ||
+                      benchV === undefined ||
+                      benchV === ""
+                    )
+                      return "--";
+                    const diff = parseFloat(fundV) - parseFloat(benchV);
+                    if (isNaN(diff)) return "--";
+                    return (diff >= 0 ? "+" : "") + diff.toFixed(2) + "%";
+                  }
+                  function colorCls(val) {
+                    if (val === null || val === undefined || val === "")
+                      return "";
+                    const n = parseFloat(val);
+                    if (isNaN(n)) return "";
+                    return n >= 0 ? "perf-val--gain" : "perf-val--loss";
+                  }
+                  function outColorCls(fundV, benchV) {
+                    if (
+                      fundV === null ||
+                      fundV === undefined ||
+                      benchV === null ||
+                      benchV === undefined
+                    )
+                      return "";
+                    const diff = parseFloat(fundV) - parseFloat(benchV);
+                    if (isNaN(diff)) return "";
+                    return diff >= 0 ? "perf-val--gain" : "perf-val--loss";
+                  }
+
+                  const simpleR = extendedData.simple_return || {};
+
+                  const periods = [
+                    {
+                      label: "3M",
+                      fund: rs.return3m,
+                      sip: sipR.return3m,
+                      abs: simpleR.return3m,
+                      cat: rs.cat_return3m,
+                      bench: null,
+                    },
+                    {
+                      label: "6M",
+                      fund: rs.return6m,
+                      sip: sipR.return6m,
+                      abs: simpleR.return6m,
+                      cat: rs.cat_return6m,
+                      bench: null,
+                    },
+                    {
+                      label: "1Y",
+                      fund: rs.return1y,
+                      sip: sipR.return1y,
+                      abs: simpleR.return1y,
+                      cat: rs.cat_return1y,
+                      bench: br.return1y ?? null,
+                    },
+                    {
+                      label: "3Y",
+                      fund: rs.return3y,
+                      sip: sipR.return3y,
+                      abs: simpleR.return3y,
+                      cat: rs.cat_return3y,
+                      bench: br.return3y ?? null,
+                    },
+                    {
+                      label: "5Y",
+                      fund: rs.return5y,
+                      sip: sipR.return5y,
+                      abs: simpleR.return5y,
+                      cat: rs.cat_return5y,
+                      bench: br.return5y ?? null,
+                    },
+                    {
+                      label: "10Y",
+                      fund: rs.return10y,
+                      sip: sipR.return10y,
+                      abs: simpleR.return10y,
+                      cat: rs.cat_return10y,
+                      bench: null,
+                    },
+                  ];
+
+                  const rows = periods
+                    .map(
+                      (p) => `
+                    <tr class="perf-row">
+                      <td class="perf-cell perf-cell--period">${p.label}</td>
+                      <td class="perf-cell perf-val ${colorCls(p.fund)}">${fmtR(p.fund)}</td>
+                      <td class="perf-cell perf-val ${colorCls(p.sip)}">${fmtR(p.sip)}</td>
+                      <td class="perf-cell perf-val perf-cell--desktop ${colorCls(p.abs)}">${fmtR(p.abs)}</td>
+                      <td class="perf-cell perf-val ${colorCls(p.cat)}">${fmtR(p.cat)}</td>
+                      <td class="perf-cell perf-val ${p.bench !== null && p.bench !== undefined ? colorCls(p.bench) : ""}">${p.bench !== null && p.bench !== undefined ? fmtR(p.bench) : "--"}</td>
+                      <td class="perf-cell perf-val perf-cell--out perf-cell--desktop ${outColorCls(p.fund, p.bench)}">${fmtOut(p.fund, p.bench)}</td>
+                    </tr>`,
+                    )
+                    .join("");
+
+                  const sinceCreated = rs.return_since_created;
+                  const sinceRow =
+                    sinceCreated !== null && sinceCreated !== undefined
+                      ? `<div class="perf-since-row"><span class="perf-since-label">Return Since Inception</span><span class="perf-since-val ${colorCls(sinceCreated)}">${fmtR(sinceCreated)}</span></div>`
+                      : "";
+
+                  return `
+          <!-- Returns Performance Card -->
+          <div class="fund-chart-card fund-perf-card">
             <div class="fund-chart-card-header">
-              <span class="fund-chart-card-icon">📊</span>
-              <span class="fund-chart-card-title">Performance Comparison</span>
-              <div class="fund-chart-legend-pills">
-                <span class="fund-chart-legend-pill" style="--pill-color:#3b82f6">Fund</span>
-                <span class="fund-chart-legend-pill" style="--pill-color:#10b981">Category</span>
-                <span class="fund-chart-legend-pill" style="--pill-color:#f59e0b">Benchmark</span>
-              </div>
+              <span class="fund-chart-card-icon">📈</span>
+              <span class="fund-chart-card-title">Returns</span>
             </div>
-            <div class="fund-chart-canvas-wrapper">
-              <canvas id="modalFundPerformanceChart"></canvas>
+            <div class="perf-table-wrapper">
+              <table class="perf-table">
+                <thead>
+                  <tr class="perf-head-row">
+                    <th class="perf-th perf-th--period">Period</th>
+                    <th class="perf-th">Fund</th>
+                    <th class="perf-th">SIP</th>
+                    <th class="perf-th perf-th--desktop">Abs.</th>
+                    <th class="perf-th">Category</th>
+                    <th class="perf-th">Benchmark</th>
+                    <th class="perf-th perf-th--out perf-th--desktop">Outperform</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
             </div>
-          </div>
-          `
+            ${sinceRow}
+          </div>`;
+                })()
               : ""
           }
         </div>
@@ -5910,8 +6267,8 @@ function showFundDetailsModal(
 
           <!-- Section header -->
           <div class="fund-stats-header">
-            <span class="fund-stats-header-icon">📉</span>
-            <span class="fund-stats-header-title">Fund Statistics</span>
+            <span class="fund-stats-header-icon">📐</span>
+            <span class="fund-stats-header-title">Fund Risk Metrics</span>
             <div class="fund-stats-header-badges">
               ${extendedData.groww_rating ? `<span class="fund-stats-rating-badge">★ ${roundValue(extendedData.groww_rating)}</span>` : ""}
               ${extendedData.expense_ratio ? `<span class="fund-stats-expense-badge">Exp: ${roundValue(extendedData.expense_ratio)}%</span>` : ""}
@@ -5919,40 +6276,21 @@ function showFundDetailsModal(
             </div>
           </div>
 
-          <!-- Returns row -->
-          <div class="fund-stats-group fund-stats-group--returns">
-            <div class="fund-stats-group-label">Returns</div>
-            <div class="fund-stats-group-cells">
-              <div class="fund-stats-cell fund-stats-cell--return">
-                <span class="fund-stats-cell-label">1Y</span>
-                <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.return1y) === "--" ? "--" : roundValue(extendedData.return_stats?.return1y) + "%"}</span>
-              </div>
-              <div class="fund-stats-cell fund-stats-cell--return">
-                <span class="fund-stats-cell-label">3Y</span>
-                <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.return3y) === "--" ? "--" : roundValue(extendedData.return_stats?.return3y) + "%"}</span>
-              </div>
-              <div class="fund-stats-cell fund-stats-cell--return">
-                <span class="fund-stats-cell-label">5Y</span>
-                <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.return5y) === "--" ? "--" : roundValue(extendedData.return_stats?.return5y) + "%"}</span>
-              </div>
-            </div>
-          </div>
-
           <!-- Risk ratios row -->
           <div class="fund-stats-group fund-stats-group--risk">
-            <div class="fund-stats-group-label">Risk</div>
+            <div class="fund-stats-group-label">Metrics</div>
             <div class="fund-stats-group-cells">
               <div class="fund-stats-cell">
                 <span class="fund-stats-cell-label">Alpha</span>
                 <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.alpha)}</span>
               </div>
               <div class="fund-stats-cell">
-                <span class="fund-stats-cell-label">Beta</span>
-                <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.beta)}</span>
-              </div>
-              <div class="fund-stats-cell">
                 <span class="fund-stats-cell-label">Sharpe</span>
                 <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.sharpe_ratio)}</span>
+              </div>
+              <div class="fund-stats-cell">
+                <span class="fund-stats-cell-label">Beta</span>
+                <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.beta)}</span>
               </div>
               <div class="fund-stats-cell">
                 <span class="fund-stats-cell-label">Sortino</span>
@@ -5966,6 +6304,18 @@ function showFundDetailsModal(
                 <span class="fund-stats-cell-label">Std Dev</span>
                 <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.standard_deviation)}</span>
               </div>
+              ${(() => {
+                const portfolioTurnover =
+                  extendedData.portfolio_turnover ??
+                  extendedData.return_stats?.portfolio_turnover ??
+                  null;
+                return portfolioTurnover !== null
+                  ? `<div class="fund-stats-cell">
+                <span class="fund-stats-cell-label">Turnover</span>
+                <span class="fund-stats-cell-value">${portfolioTurnover}%</span>
+              </div>`
+                  : "";
+              })()}
             </div>
           </div>
 
@@ -6026,17 +6376,35 @@ function showFundDetailsModal(
                 }
               </span>
             </div>
-            <div class="fund-meta-item">
-              <span class="fund-meta-label">Taxation</span>
-              <span class="fund-meta-value fund-meta-value--tax fund-meta-value--tax-${getTaxCategory(extendedData, fund)}">${(() => {
-                const tc = getTaxCategory(extendedData, fund);
-                if (tc === "equity")
-                  return "Equity (1Y / 20% STCG / 12.5% LTCG)";
-                if (tc === "debt") return "Debt (Slab rate)";
-                return "Hybrid (2Y / Slab STCG / 12.5% LTCG)";
+            <div class="fund-meta-item fund-meta-item--managers">
+              <span class="fund-meta-label">Fund Manager(s)</span>
+              <span class="fund-meta-value">${(() => {
+                const mgr = extendedData.manager || fund.manager;
+                if (!mgr) return "--";
+                if (Array.isArray(mgr)) return mgr.join(", ") || "--";
+                return mgr;
               })()}</span>
             </div>
           </div>
+          <!-- Taxation row -->
+          <div class="fund-meta-row-full">
+            <div class="fund-meta-item fund-meta-item--full">
+              <span class="fund-meta-label">Taxation</span>
+              <span class="fund-meta-value fund-meta-value--tax">${extendedData.tax_impact || "--"}</span>
+            </div>
+          </div>
+          ${
+            extendedData.meta_desc
+              ? `
+          <!-- Fund Description row -->
+          <div class="fund-meta-row-full">
+            <div class="fund-meta-item fund-meta-item--full fund-meta-item--desc">
+              <span class="fund-meta-label">About this Fund</span>
+              <p class="fund-meta-desc">${extendedData.meta_desc}</p>
+            </div>
+          </div>`
+              : ""
+          }
         </div>
         `
             : ""
@@ -6054,9 +6422,11 @@ function showFundDetailsModal(
               <span>View Holdings</span>
               <span class="fund-quick-action-badge">${fund.holdings?.length || 0}</span>
             </button>
-            <button class="fund-quick-action-btn" onclick="showFundTransactions('${fundKey}', '${fund.folios.join(",")}')">
+            <button class="fund-quick-action-btn${isSummaryCAS ? " fund-quick-action-btn--disabled" : ""}"
+              ${isSummaryCAS ? 'disabled title="Not available for Summary CAS"' : `onclick="showFundTransactions('${fundKey}', '${fund.folios.join(",")}')"`}>
               <i class="fa-solid fa-exchange-alt"></i>
               <span>View Transactions</span>
+              ${isSummaryCAS ? '<span class="fund-quick-action-badge" style="opacity:0.5">N/A</span>' : ""}
             </button>
           </div>
         </div>
@@ -6079,11 +6449,6 @@ function showFundDetailsModal(
   setTimeout(() => {
     renderModalFundValuationChart(fundKey, "3M");
     if (extendedData) {
-      renderModalFundPerformanceChart(
-        fundKey,
-        extendedData,
-        fund.benchmark_returns,
-      );
       renderModalCompositionCharts(fundKey, extendedData);
     }
   }, 50);
@@ -8648,8 +9013,14 @@ function updateCompactDashboard() {
     compact1DReturns: document.getElementById("compact1DReturns"),
   };
 
-  if (!Object.values(elements).every((el) => el !== null)) {
-    console.warn("Some compact dashboard elements not found");
+  const missingEls = Object.entries(elements)
+    .filter(([, v]) => v === null)
+    .map(([k]) => k);
+  if (missingEls.length > 0) {
+    console.warn(
+      "Compact dashboard elements not found:",
+      missingEls.join(", "),
+    );
     return;
   }
 
@@ -8681,14 +9052,30 @@ function updateCompactDashboard() {
   elements.compactXIRR.textContent =
     summary.activeXirr !== null ? summary.activeXirr.toFixed(2) + "%" : "--";
 
+  const compactXIRRRow = document.getElementById("compactXIRRRow");
+  if (compactXIRRRow) compactXIRRRow.style.display = isSummaryCAS ? "none" : "";
+
+  // Rebalance grid: last visible row spans full width if total visible count is odd
+  const compactStats = document.querySelector(".compact-stats");
+  if (compactStats) {
+    const visibleRows = Array.from(
+      compactStats.querySelectorAll(".compact-stat-row"),
+    ).filter((el) => el.style.display !== "none");
+    visibleRows.forEach((el, i) => {
+      el.classList.toggle(
+        "compact-stat-row--full",
+        visibleRows.length % 2 !== 0 && i === visibleRows.length - 1,
+      );
+    });
+  }
+
   const totalReturnPercent =
     summary.totalInvested > 0
       ? ((summary.unrealizedGain / summary.costPrice) * 100).toFixed(2)
       : 0;
 
-  elements.compactTotalReturns.textContent = `${
-    summary.unrealizedGain >= 0 ? "+" : ""
-  }₹${formatNumber(Math.abs(summary.unrealizedGain))} (${totalReturnPercent}%)`;
+  const pnlSign = summary.unrealizedGain >= 0 ? "+" : "-";
+  elements.compactTotalReturns.textContent = `₹${formatNumber(Math.abs(summary.unrealizedGain))} (${pnlSign}${Math.abs(totalReturnPercent)}%)`;
   elements.compactTotalReturns.className =
     "stat-value " + (summary.unrealizedGain >= 0 ? "positive" : "negative");
 
@@ -8704,6 +9091,8 @@ function updateCompactDashboard() {
 }
 function updateCompactPastDashboard() {
   if (!portfolioData || !fundWiseData) return;
+  // Summary CAS has no transaction history — past holdings tab not applicable
+  if (isSummaryCAS) return;
 
   const container = document.getElementById("compactPastDashboard");
   if (!container) return;
@@ -8883,6 +9272,7 @@ function updateCompactHeaderSubtitle(
 }
 function populateCompactHoldings(funds) {
   const list = document.getElementById("compactHoldingsList");
+  if (!list) return;
   list.innerHTML = "";
 
   const fundsWithMetrics = funds.map((fund) => {
@@ -8910,7 +9300,9 @@ function populateCompactHoldings(funds) {
         );
       }
 
-      xirr = calc.calculateXIRR();
+      if (calc.transactions.length >= 2) {
+        xirr = calc.calculateXIRR();
+      }
     } catch (e) {
       console.debug("XIRR calculation failed for", fund.scheme, e);
     }
@@ -8963,7 +9355,9 @@ function populateCompactHoldings(funds) {
     const currentValue = fund.advancedMetrics?.currentValue || 0;
     const invested = fund.advancedMetrics?.remainingCost || 0;
     const returns = fund.advancedMetrics?.unrealizedGain || 0;
-    const returnsPercent = fund.advancedMetrics?.unrealizedGainPercentage || 0;
+    const returnsPercent = parseFloat(
+      fund.advancedMetrics?.unrealizedGainPercentage || 0,
+    );
     const isProfit = returns >= 0;
 
     const xirr = fund.calculatedXIRR;
@@ -8974,13 +9368,13 @@ function populateCompactHoldings(funds) {
     const returnsPercentText =
       returnsPercent === 0
         ? "--"
-        : `${returnsSign}₹${formatNumber(Math.abs(returns))} (${returnsSign}${Math.abs(parseFloat(returnsPercent.toFixed(2)))}%)`;
+        : `₹${formatNumber(Math.abs(returns))} (${returnsSign}${Math.abs(returnsPercent.toFixed(2))}%)`;
 
     const oneDayReturn = fund.oneDayReturn;
     const oneDayPositive = !oneDayReturn || oneDayReturn.percent >= 0;
     const odSign = oneDayPositive ? "+" : "-";
     const oneDayText = oneDayReturn
-      ? `${odSign}₹${formatNumber(Math.abs(oneDayReturn.rupees))} (${odSign}${Math.abs(oneDayReturn.percent.toFixed(2))}%)`
+      ? `₹${formatNumber(Math.abs(oneDayReturn.rupees))} (${odSign}${Math.abs(oneDayReturn.percent.toFixed(2))}%)`
       : "--";
 
     const item = document.createElement("div");
@@ -8997,19 +9391,24 @@ function populateCompactHoldings(funds) {
           <div class="chi-left">
             <div class="chi-name">${fund.schemeDisplay || fund.scheme}</div>
             <div class="chi-stats-line">
-              <span class="chi-stat-pill ${isProfit ? "chi-stat-pill--pos" : "chi-stat-pill--neg"}">
-                <span class="chi-stat-label">Abs.</span>
-                <span class="chi-stat-value">${returnsPercentText}</span>
+              <span class="chi-stat-pill ${oneDayPositive ? "chi-stat-pill--pos" : "chi-stat-pill--neg"}">
+                <span class="chi-stat-label">1D</span>
+                <span class="chi-stat-value">${oneDayText}</span>
               </span>
-              <span class="chi-stat-pill ${xirrVal < 0 ? "chi-stat-pill--neg" : "chi-stat-pill--pos"}">
+              ${
+                !isSummaryCAS
+                  ? `<span class="chi-stat-pill ${xirrVal < 0 ? "chi-stat-pill--neg" : "chi-stat-pill--pos"}">
                 <span class="chi-stat-label">XIRR</span>
                 <span class="chi-stat-value">${xirrText}</span>
-              </span>
+              </span>`
+                  : ""
+              }
             </div>
           </div>
           <div class="chi-right">
             <div class="chi-current ${isProfit ? "chi-current--gain" : "chi-current--loss"}">₹${formatNumber(currentValue)}</div>
-            <div class="chi-invested">₹${formatNumber(invested)}</div>
+            <div class="chi-invested">Inv: ₹${formatNumber(invested)}</div>
+            <div class="chi-returns ${isProfit ? "chi-returns--gain" : "chi-returns--loss"}">${returnsPercentText}</div>
           </div>
         </div>
       </div>
@@ -9062,7 +9461,7 @@ function populateCompactPastHoldings(fundsWithMetrics, listElement = null) {
       invested > 0
         ? parseFloat((realizedGain / invested) * 100).toFixed(2)
         : "0.00";
-    const gainText = `${gainSign}₹${formatNumber(Math.abs(realizedGain))} (${gainSign}${Math.abs(realizedGainPercent)}%)`;
+    const gainText = `₹${formatNumber(Math.abs(realizedGain))} (${gainSign}${Math.abs(realizedGainPercent)}%)`;
 
     const item = document.createElement("div");
     item.className = "compact-holding-item chi-hero chi-hero--past";
@@ -9301,10 +9700,9 @@ function calculateOneDayReturns() {
 
   const percentChange = (totalOneDayChange / totalPreviousDayValue) * 100;
 
+  const odSign = totalOneDayChange >= 0 ? "+" : "-";
   return {
-    text: `₹${formatNumber(
-      Math.abs(Math.round(totalOneDayChange)),
-    )} (${percentChange.toFixed(2)}%)`,
+    text: `₹${formatNumber(Math.abs(Math.round(totalOneDayChange)))} (${odSign}${Math.abs(percentChange).toFixed(2)}%)`,
     value: totalOneDayChange,
   };
 }
@@ -10417,9 +10815,9 @@ function displayFamilyUserBreakdown(userBreakdown) {
         <div class="family-stat-row ${pnlClass}">
           <span class="label">P&L</span>
           <span class="value ${gainClass}">
-            ${data.unrealizedGain >= 0 ? "+" : ""}₹${formatNumber(Math.abs(data.unrealizedGain))}
+            ₹${formatNumber(Math.abs(data.unrealizedGain))}
           </span>
-          <span class="sub-value">${data.unrealizedGain >= 0 ? "+" : ""}${gainPercent}%</span>
+          <span class="sub-value">${data.unrealizedGain >= 0 ? "+" : "-"}${Math.abs(gainPercent)}%</span>
         </div>
       </div>
     `;
@@ -10498,7 +10896,7 @@ function updateCompactFamilyDashboard(metrics) {
           </span>
         </div>
 
-        <div class="compact-stat-row">
+        <div class="compact-stat-row compact-stat-row--full">
           <span class="stat-label">Total Invested</span>
           <span class="stat-value">₹${formatNumber(metrics.totalCost)}</span>
         </div>
@@ -10520,7 +10918,7 @@ function updateCompactFamilyDashboard(metrics) {
 
     const isProfit = data.unrealizedGain >= 0;
     const gainSign = isProfit ? "+" : "-";
-    const pnlText = `${gainSign}₹${formatNumber(Math.abs(data.unrealizedGain))} (${gainSign}${Math.abs(gainPercent)}%)`;
+    const pnlText = `₹${formatNumber(Math.abs(data.unrealizedGain))} (${gainSign}${Math.abs(gainPercent)}%)`;
 
     const item = document.createElement("div");
     item.className = "compact-holding-item chi-hero";
@@ -10690,7 +11088,7 @@ async function deleteSingleUser(userName) {
 
   if (!confirmDelete) return;
 
-  showProcessingSplash();
+  showSimpleSplash("Deleting user…");
 
   try {
     const wasCurrentUser = userName === currentUser;
@@ -10738,7 +11136,7 @@ async function deleteSingleUser(userName) {
     populateUserList(allUsers);
     updateCurrentUserDisplay();
 
-    hideProcessingSplash();
+    hideSimpleSplash();
     showToast(`User ${investorName} deleted successfully`, "success");
 
     toggleFamilyDashboard();
@@ -10751,7 +11149,7 @@ async function deleteSingleUser(userName) {
       }, 500);
     }
   } catch (err) {
-    hideProcessingSplash();
+    hideSimpleSplash();
     console.error("Error deleting user:", err);
     showToast("Failed to delete user", "error");
   }
@@ -10774,7 +11172,7 @@ async function deleteAllUsers() {
 
   if (!doubleConfirm) return;
 
-  showProcessingSplash();
+  showSimpleSplash("Deleting all users…");
 
   try {
     await storageManager.deleteAllUsers();
@@ -10799,7 +11197,7 @@ async function deleteAllUsers() {
       `🗑️ Cleared hidden folios, additional assets, and investor names for all users (${keysToRemove.length} entries)`,
     );
 
-    hideProcessingSplash();
+    hideSimpleSplash();
     showToast("All users deleted, reloading...", "success");
 
     invalidateFamilyDashboardCache();
@@ -10808,7 +11206,7 @@ async function deleteAllUsers() {
       location.reload();
     }, 500);
   } catch (err) {
-    hideProcessingSplash();
+    hideSimpleSplash();
     console.error("Error deleting all users:", err);
     showToast("Failed to delete all users: " + err.message, "error");
   }
@@ -10826,7 +11224,7 @@ async function clearAllCacheAndReload() {
   );
   if (!confirmed) return;
 
-  showProcessingSplash();
+  showSimpleSplash("Clearing all data…");
 
   try {
     // 1. localStorage
@@ -10886,7 +11284,7 @@ async function clearAllCacheAndReload() {
     window.location.href =
       window.location.href.split("?")[0] + "?nocache=" + Date.now();
   } catch (err) {
-    hideProcessingSplash();
+    hideSimpleSplash();
     console.error("❌ Clear cache error:", err);
     showToast("Cache clear failed: " + err.message, "error");
   }
@@ -11524,8 +11922,10 @@ function updateAdditionalAssetsDisplay() {
   const cashValue = assets.cash;
   const totalAdditional = goldValue + silverValue + cashValue;
 
-  document.getElementById("goldValue").textContent =
-    "₹" + formatNumber(Math.round(goldValue));
+  // These elements only exist on desktop; bail silently on mobile
+  const _goldEl = document.getElementById("goldValue");
+  if (!_goldEl) return;
+  _goldEl.textContent = "₹" + formatNumber(Math.round(goldValue));
   document.getElementById("silverValue").textContent =
     "₹" + formatNumber(Math.round(silverValue));
   document.getElementById("cashValue").textContent =
@@ -12299,146 +12699,12 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
       return mfStats || {};
     }
 
-    // Step 4: For "initial" new upload, use two-phase core → extended
-    // For "auto" / "update" (returning user update), use the original full endpoint
-    if (updateType === "initial") {
-      return await _fetchTwoPhase(uniqueSearchKeys);
-    } else {
-      return await _fetchFull(uniqueSearchKeys, updateType);
-    }
+    // For initial uploads and updates, always use the unified /api/mf-stats endpoint
+    return await _fetchFull(uniqueSearchKeys, updateType);
   } catch (err) {
     console.error("❌ Failed to fetch MF stats:", err);
     showToast("Failed to fetch MF stats: " + err.message, "error");
     return mfStats || {};
-  }
-}
-
-// Phase 1: fetch core (nav_history + essential fields), render immediately
-// Phase 2: fetch extended (return_stats, holdings, portfolio_stats) in background, merge silently
-async function _fetchTwoPhase(uniqueSearchKeys) {
-  // ── Phase 1: Core ──────────────────────────────────────────────
-  updateProcessingProgress(30, "Fetching NAV history...");
-
-  const coreResponse = await fetch(BACKEND_SERVER + "/api/mf-stats/core", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ searchKeys: uniqueSearchKeys }),
-  });
-
-  if (!coreResponse.ok)
-    throw new Error(`Core API error: ${coreResponse.status}`);
-
-  const coreResult = await coreResponse.json();
-  if (!coreResult.success && coreResult.error)
-    throw new Error(coreResult.error);
-
-  mfStats = coreResult.data || {};
-  console.log(
-    `✅ Phase 1 done: ${Object.keys(mfStats).length} funds loaded with core data`,
-  );
-
-  // ── Render portfolio with core data immediately ─────────────────
-  updateProcessingProgress(60, "Rendering portfolio...");
-
-  // Block Phase 2 from re-rendering until Phase 1's setTimeout chain has flushed.
-  phase1RenderComplete = false;
-
-  if (isSummaryCAS) {
-    processSummaryCAS();
-  } else {
-    // skipAnalytics=true: portfolio_stats (needed for Asset Allocation, Market Cap,
-    // Sector, Fund House, Holdings cards) only arrives in Phase 2. Rendering those
-    // cards here with core-only data produces bogus output (e.g. "Debt 100%").
-    // Phase 2 will call calculateAndDisplayPortfolioAnalytics() once it has merged
-    // portfolio_stats, so we skip it here and let Phase 2 always render the cards.
-    await processPortfolio(true);
-    enableSummaryIncompatibleTabs();
-  }
-
-  // calculateAndDisplayPortfolioAnalytics uses a 100ms outer + up to 200ms inner
-  // setTimeout chain. Wait 600ms (2× safety margin) before allowing Phase 2 to
-  // trigger another render, preventing "Canvas already in use" errors.
-  setTimeout(() => {
-    phase1RenderComplete = true;
-  }, 600);
-
-  // Note: we do NOT save to IDB here — currentUser hasn't been set yet at this point
-  // in the loadFileFromTab flow. The caller saves after resolving the user name.
-  // Phase 2 is also fired by the caller after currentUser is set.
-
-  return mfStats;
-}
-
-async function _fetchExtendedInBackground(uniqueSearchKeys) {
-  try {
-    // Build isin+scheme_code pairs from the core data already in mfStats
-    // No need to pass searchKeys — we have scheme_codes from phase 1
-    const funds = Object.entries(mfStats)
-      .filter(([isin, data]) => data.scheme_code)
-      .map(([isin, data]) => ({ isin, scheme_code: data.scheme_code }));
-
-    if (funds.length === 0) {
-      console.warn("No scheme_codes available for extended fetch, skipping");
-      return;
-    }
-
-    const extResponse = await fetch(BACKEND_SERVER + "/api/mf-stats/extended", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ funds }),
-    });
-
-    if (!extResponse.ok) {
-      console.warn(`Extended API error: ${extResponse.status}, skipping`);
-      return;
-    }
-
-    const extResult = await extResponse.json();
-    if (!extResult.success) {
-      console.warn("Extended fetch returned failure, skipping");
-      return;
-    }
-
-    const extData = extResult.data || {};
-
-    // Merge only portfolio_stats — everything else already came from core
-    Object.keys(extData).forEach((isin) => {
-      if (mfStats[isin]) {
-        mfStats[isin].portfolio_stats = extData[isin].portfolio_stats || {};
-      }
-    });
-
-    console.log(
-      `✅ Phase 2 done: portfolio_stats merged for ${Object.keys(extData).length} funds`,
-    );
-
-    // Save updated mfStats
-    await storageManager.savePortfolioData(
-      portfolioData,
-      mfStats,
-      false,
-      currentUser,
-    );
-
-    // portfolio_stats feeds sector, AMC, market-cap, holdings and asset-allocation cards.
-    // Phase 1 skips rendering these cards (skipAnalytics=true) because portfolio_stats
-    // isn't available yet. Phase 2 is always the authoritative render for these cards.
-    // The phase1RenderComplete guard is still respected to avoid "Canvas already in use"
-    // races if Phase 2 somehow completes before Phase 1's setTimeout chain drains.
-    if (phase1RenderComplete) {
-      calculateAndDisplayPortfolioAnalytics();
-    } else {
-      // Phase 1 skipped analytics entirely, so no race risk — render immediately.
-      setTimeout(() => calculateAndDisplayPortfolioAnalytics(), 0);
-    }
-    if (currentTab === "health-score") {
-      displayHealthScore();
-    }
-
-    storageManager.updateLastFullUpdate(currentUser);
-    updateFooterInfo();
-  } catch (err) {
-    console.warn("⚠️ Phase 2 (extended) fetch failed silently:", err.message);
   }
 }
 
@@ -12463,6 +12729,16 @@ async function _fetchFull(uniqueSearchKeys, updateType) {
       Object.keys(mfStats).length,
       "funds",
     );
+
+    // Render portfolio immediately — all data (nav, portfolio_stats, etc.) is present
+    updateProcessingProgress(70, "Data aggregated");
+    if (isSummaryCAS) {
+      processSummaryCAS();
+    } else {
+      updateProcessingProgress(90, "Rendering dashboard…");
+      await processPortfolio();
+      enableSummaryIncompatibleTabs();
+    }
   } else {
     mfStats = {
       ...mfStats,
@@ -12491,7 +12767,7 @@ async function updateMFStats() {
     storageManager.hasManualStatsUpdateThisMonth()
   ) {
     showToast(
-      "Manual fund statistics update already used this month. You can manually update once per month (in addition to the automatic monthly update after the 10th).",
+      "Manual fund statistics update already used this month. You can manually update once per month (in addition to the automatic monthly update after the 15th).",
       "info",
     );
     return;
@@ -12503,15 +12779,13 @@ async function updateMFStats() {
 
   if (!confirmUpdate) return;
 
-  showProcessingSplash();
-  showToast("Updating fund statistics for all users...", "info");
+  showSimpleSplash("Updating fund statistics…");
 
   try {
     await updateAllUsersStats("manual");
-    // splash is hidden inside updateAllUsersStats after phase 1 renders
     updateFooterInfo();
   } catch (err) {
-    hideProcessingSplash();
+    hideSimpleSplash();
     console.error("Update error:", err);
     showToast("Failed to update statistics: " + err.message, "error");
   }
@@ -12541,17 +12815,16 @@ async function updateNavManually() {
 
   if (!confirmUpdate) return;
 
-  showProcessingSplash();
-  showToast("Updating NAV for all users...", "info");
+  showSimpleSplash("Updating NAV…");
 
   try {
     await updateAllUsersNav("manual");
 
-    hideProcessingSplash();
+    hideSimpleSplash();
     showToast("NAV updated successfully for all users!", "success");
     updateFooterInfo();
   } catch (err) {
-    hideProcessingSplash();
+    hideSimpleSplash();
     console.error("NAV update error:", err);
     showToast("Failed to update NAV: " + err.message, "error");
   }
@@ -12626,29 +12899,25 @@ async function updateAllUsersStats(updateType = "auto") {
   }
 
   try {
-    // ── Phase 1: Core (Groww search + mfapi NAV) ──────────────────
-    console.log("⚡ Stats update Phase 1: fetching core...");
-    const coreResponse = await fetch(BACKEND_SERVER + "/api/mf-stats/core", {
+    // Single unified fetch via /api/mf-stats — full data in one go
+    console.log("⚡ Fetching unified stats for all users...");
+    const response = await fetch(BACKEND_SERVER + "/api/mf-stats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ searchKeys: uniqueSearchKeys }),
     });
 
-    if (!coreResponse.ok)
-      throw new Error(`Core API error: ${coreResponse.status}`);
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
 
-    const coreResult = await coreResponse.json();
-    if (!coreResult.success && coreResult.error)
-      throw new Error(coreResult.error);
+    const result = await response.json();
+    if (!result.success && result.error) throw new Error(result.error);
 
-    const coreStats = coreResult.data || {};
+    const newStats = result.data || {};
 
-    // Save core stats for all users and refresh current user's view
+    // Save updated stats for all users and refresh current user's view
     for (const [user, userData] of userDataMap.entries()) {
       try {
-        const updatedMfStats = { ...userData.mfStats, ...coreStats };
-        // Update the map so phase 2 sees the merged state
-        userDataMap.set(user, { ...userData, mfStats: updatedMfStats });
+        const updatedMfStats = { ...userData.mfStats, ...newStats };
 
         await storageManager.savePortfolioData(
           userData.casData,
@@ -12657,15 +12926,21 @@ async function updateAllUsersStats(updateType = "auto") {
           user,
         );
         storageManager.updateLastNavUpdate(user);
-        console.log(`✅ Core stats saved for user: ${user}`);
+        storageManager.updateLastFullUpdate(user);
+        if (updateType === "manual") {
+          storageManager.markManualStatsUpdate(user);
+          storageManager.markManualNavUpdate(user);
+        }
+        console.log(`✅ Stats saved for user: ${user}`);
       } catch (err) {
-        console.error(`Error saving core stats for user ${user}:`, err);
+        console.error(`Error saving stats for user ${user}:`, err);
       }
     }
 
-    // Refresh current user's view with core data, then hide splash
+    // Refresh current user's view and hide splash
     if (currentUser && userDataMap.has(currentUser)) {
-      mfStats = { ...userDataMap.get(currentUser).mfStats };
+      const userData = userDataMap.get(currentUser);
+      mfStats = { ...userData.mfStats, ...newStats };
 
       if (isSummaryCAS) {
         processSummaryCAS();
@@ -12676,99 +12951,15 @@ async function updateAllUsersStats(updateType = "auto") {
       }
     }
 
-    hideProcessingSplash();
-    showToast("Fund statistics updated! Loading additional data...", "success");
+    hideSimpleSplash();
+    showToast("Fund statistics updated successfully!", "success");
     invalidateFamilyDashboardCache();
-
-    // ── Phase 2: Extended (Groww portfolio stats only) — background ─
-    console.log("🔄 Stats update Phase 2: fetching extended in background...");
-    _updateAllUsersExtendedInBackground(userDataMap, updateType);
+    updateFooterInfo();
 
     return true;
   } catch (err) {
     console.error("❌ Stats update failed:", err);
     throw err;
-  }
-}
-
-async function _updateAllUsersExtendedInBackground(userDataMap, updateType) {
-  try {
-    // Collect scheme_codes from current mfStats (populated by phase 1)
-    const funds = Object.entries(mfStats)
-      .filter(([isin, data]) => data.scheme_code)
-      .map(([isin, data]) => ({ isin, scheme_code: data.scheme_code }));
-
-    if (funds.length === 0) {
-      console.warn("No scheme_codes for extended update, skipping");
-      return;
-    }
-
-    const extResponse = await fetch(BACKEND_SERVER + "/api/mf-stats/extended", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ funds }),
-    });
-
-    if (!extResponse.ok) {
-      console.warn(`Extended API error: ${extResponse.status}, skipping`);
-      return;
-    }
-
-    const extResult = await extResponse.json();
-    if (!extResult.success) {
-      console.warn("Extended fetch returned failure, skipping");
-      return;
-    }
-
-    const extData = extResult.data || {};
-
-    // Merge portfolio_stats into each user's saved data
-    for (const [user, userData] of userDataMap.entries()) {
-      try {
-        const updatedMfStats = { ...userData.mfStats };
-        Object.keys(extData).forEach((isin) => {
-          if (updatedMfStats[isin]) {
-            updatedMfStats[isin].portfolio_stats =
-              extData[isin].portfolio_stats || {};
-          }
-        });
-
-        await storageManager.savePortfolioData(
-          userData.casData,
-          updatedMfStats,
-          false,
-          user,
-        );
-
-        storageManager.updateLastFullUpdate(user);
-        if (updateType === "manual") {
-          storageManager.markManualStatsUpdate(user);
-          storageManager.markManualNavUpdate(user);
-        }
-
-        console.log(`✅ Extended stats saved for user: ${user}`);
-      } catch (err) {
-        console.error(`Error saving extended stats for user ${user}:`, err);
-      }
-    }
-
-    // Merge into current mfStats in memory
-    Object.keys(extData).forEach((isin) => {
-      if (mfStats[isin]) {
-        mfStats[isin].portfolio_stats = extData[isin].portfolio_stats || {};
-      }
-    });
-
-    // Lightweight re-render — only portfolio_stats affects health/analytics
-    calculateAndDisplayPortfolioAnalytics();
-    invalidateFamilyDashboardCache();
-    updateFooterInfo();
-
-    console.log(
-      `✅ Extended stats merged for ${Object.keys(extData).length} funds`,
-    );
-  } catch (err) {
-    console.warn("⚠️ Stats update Phase 2 failed silently:", err.message);
   }
 }
 
@@ -13014,9 +13205,9 @@ async function checkAndPerformAutoUpdates() {
     return;
   }
 
-  // Check if full update is needed (after 10th of month)
+  // Check if full update is needed (after 15th of month)
   if (storageManager.needsFullUpdate()) {
-    console.log("📅 Monthly update required (after 10th)");
+    console.log("📅 Monthly update required (after 15th)");
     const updated = await updateFullMFStats();
     if (updated) {
       showToast("Portfolio statistics updated for the month!", "success");
@@ -13428,18 +13619,33 @@ function updateFooterInfo() {
 // MISC HELPERS
 function updatePortfolioDataWithActiveStatus() {
   portfolioData.folios.forEach((folio) => {
-    folio.schemes.forEach((scheme) => {
-      const key = scheme.scheme.trim().toLowerCase();
+    // Detailed CAS: each folio has a nested schemes[]
+    // Summary CAS:  each folio IS the scheme entry (no nested schemes)
+    if (Array.isArray(folio.schemes)) {
+      folio.schemes.forEach((scheme) => {
+        const key = scheme.scheme.trim().toLowerCase();
+        const fund = fundWiseData[key];
+
+        if (fund && fund.advancedMetrics) {
+          scheme.currentValue = fund.advancedMetrics.currentValue;
+          scheme.isActive = fund.advancedMetrics.currentValue > 0;
+        } else {
+          scheme.currentValue = 0;
+          scheme.isActive = false;
+        }
+      });
+    } else if (folio.scheme) {
+      const key = folio.scheme.trim().toLowerCase();
       const fund = fundWiseData[key];
 
       if (fund && fund.advancedMetrics) {
-        scheme.currentValue = fund.advancedMetrics.currentValue;
-        scheme.isActive = fund.advancedMetrics.currentValue > 0;
+        folio.current_value = fund.advancedMetrics.currentValue;
+        folio.isActive = fund.advancedMetrics.currentValue > 0;
       } else {
-        scheme.currentValue = 0;
-        scheme.isActive = false;
+        folio.current_value = 0;
+        folio.isActive = false;
       }
-    });
+    }
   });
 }
 let currentWidthCategory;
@@ -13509,7 +13715,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       if (hideElement) hideElement.classList.add("hidden");
 
       dashboard.classList.remove("disabled");
-      showProcessingSplash();
+      showSimpleSplash("Loading portfolio…");
 
       portfolioData = stored.casData;
       mfStats = stored.mfStats;
@@ -13523,34 +13729,43 @@ window.addEventListener("DOMContentLoaded", async () => {
         isSummaryCAS ? "SUMMARY" : "DETAILED",
       );
 
-      if (isSummaryCAS) {
-        processSummaryCAS();
-      } else {
-        await processPortfolio();
-        enableSummaryIncompatibleTabs();
-      }
+      try {
+        if (isSummaryCAS) {
+          processSummaryCAS();
+        } else {
+          await processPortfolio();
+          enableSummaryIncompatibleTabs();
+        }
 
-      toggleFamilyDashboard();
+        toggleFamilyDashboard();
+        hideSimpleSplash();
+        showToast(`Portfolio loaded for ${currentUser}!`, "success");
 
-      hideProcessingSplash();
-      showToast(`Portfolio loaded for ${currentUser}!`, "success");
-
-      updateFooterInfo();
-      enableAllTabs();
-
-      updateAdditionalAssetsDisplay();
-
-      if (isSummaryCAS) {
-        disableSummaryIncompatibleTabs();
-      }
-
-      dashboard.classList.add("active");
-      switchDashboardTab("main");
-
-      setTimeout(async () => {
-        await checkAndPerformAutoUpdates();
         updateFooterInfo();
-      }, 2000);
+        enableAllTabs();
+
+        updateAdditionalAssetsDisplay();
+
+        if (isSummaryCAS) {
+          disableSummaryIncompatibleTabs();
+        }
+
+        dashboard.classList.add("active");
+        switchDashboardTab("main");
+
+        setTimeout(async () => {
+          await checkAndPerformAutoUpdates();
+          updateFooterInfo();
+        }, 2000);
+      } catch (processErr) {
+        hideSimpleSplash();
+        console.error("Portfolio processing error:", processErr);
+        showToast(
+          "Failed to load portfolio. Please re-upload your CAS.",
+          "error",
+        );
+        showUploadSection();
+      }
 
       return;
     }
@@ -13558,6 +13773,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     console.log(`📡 No data for user: ${currentUser}`);
     showUploadSection();
   } catch (err) {
+    hideSimpleSplash();
     console.error("Load error:", err);
     showUploadSection();
   }

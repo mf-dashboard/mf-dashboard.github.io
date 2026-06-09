@@ -515,6 +515,22 @@ button:disabled {
   margin-top: 2px;
 }
 
+/* 1D change subtext on Current Value card */
+.one-day-subtext {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+.one-day-subtext--pos {
+  color: var(--success);
+}
+
+.one-day-subtext--neg {
+  color: var(--danger);
+}
+
 /* P&L gain cell tint */
 .card.positive {
   background: rgba(16, 185, 129, 0.05);
@@ -748,6 +764,15 @@ button:disabled {
 }
 .folio-card-hero-cell--pnl-loss .folio-card-hero-sub {
   color: var(--danger);
+}
+
+/* 1D change in folio card Current Value cell */
+.folio-1d-sub--pos {
+  color: var(--success) !important;
+}
+
+.folio-1d-sub--neg {
+  color: var(--danger) !important;
 }
 
 /* Secondary chip strip */
@@ -3066,6 +3091,10 @@ button.theme-toggle i {
   overflow: hidden;
 }
 
+.compact-stat-row--full {
+  grid-column: 1 / -1;
+}
+
 .compact-stat-row.expandable {
   cursor: pointer;
   user-select: none;
@@ -3445,6 +3474,19 @@ button.theme-toggle i {
   color: var(--text-muted);
 }
 
+.chi-returns {
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.chi-returns--gain {
+  color: var(--success);
+}
+
+.chi-returns--loss {
+  color: var(--danger);
+}
+
 /* Chevron on right */
 .chi-chevron {
   display: flex;
@@ -3454,6 +3496,7 @@ button.theme-toggle i {
   font-size: 10px;
   flex-shrink: 0;
   opacity: 0.5;
+  display: none;
 }
 
 /* Dark mode overrides */
@@ -3893,12 +3936,25 @@ button.theme-toggle i {
 .fund-summary-meta-bar {
   display: flex;
   align-items: center;
-  gap: 0;
+  justify-content: space-between;
   padding: 10px 18px;
   background: rgba(102, 126, 234, 0.08);
   border-bottom: 1px solid rgba(102, 126, 234, 0.12);
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.fund-summary-meta-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fund-summary-meta-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .fund-summary-meta-item {
@@ -4035,6 +4091,14 @@ button.theme-toggle i {
   margin-top: 1px;
 }
 
+.fund-summary-1d-sub--pos {
+  color: var(--success);
+}
+
+.fund-summary-1d-sub--neg {
+  color: var(--danger);
+}
+
 .fund-summary-hero-card--pnl.gain .fund-summary-hero-sub {
   color: var(--success);
 }
@@ -4125,7 +4189,7 @@ button.theme-toggle i {
 /* Charts side by side on desktop */
 .fund-details-charts-row {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -4473,6 +4537,15 @@ button.theme-toggle i {
 
 .fund-quick-action-btn:active {
   transform: translateY(0);
+}
+
+.fund-quick-action-btn--disabled,
+.fund-quick-action-btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .fund-quick-action-badge {
@@ -6080,16 +6153,9 @@ button.theme-toggle i {
   }
 }
 
-.fund-meta-value--tax-equity {
-  color: var(--success);
-}
-
-.fund-meta-value--tax-debt {
-  color: var(--danger);
-}
-
-.fund-meta-value--tax-hybrid {
-  color: #d97706;
+.fund-meta-value--tax {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 @media (max-width: 500px) {
@@ -8069,7 +8135,7 @@ button.theme-toggle i {
   .fund-quick-action-btn {
     width: 100%;
     min-width: unset;
-    justify-content: flex-start;
+    justify-content: center;
     padding: 12px 16px;
   }
 }
@@ -10320,5 +10386,255 @@ button.theme-toggle i {
   #taxPlanningContent .tax-holding-detail-table th {
     font-size: 9px;
     letter-spacing: 0.3px;
+  }
+}
+
+/* =============================================
+   Returns Performance Card (replaces bar chart)
+   ============================================= */
+
+.fund-perf-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.perf-table-wrapper {
+  overflow-x: auto;
+  flex: 1;
+}
+
+.perf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.perf-head-row {
+  border-bottom: 1px solid rgba(102, 126, 234, 0.18);
+}
+
+.perf-th {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding: 8px 10px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.perf-th--period {
+  text-align: left;
+  padding-left: 14px;
+}
+
+.perf-th--out {
+  color: #667eea;
+}
+
+.perf-row {
+  border-bottom: 1px solid rgba(102, 126, 234, 0.06);
+  transition: background 0.15s;
+}
+
+.perf-row:last-child {
+  border-bottom: none;
+}
+
+.perf-row:hover {
+  background: rgba(102, 126, 234, 0.04);
+}
+
+.perf-cell {
+  padding: 9px 10px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.perf-cell--period {
+  text-align: left;
+  padding-left: 14px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+}
+
+.perf-cell--out {
+  font-weight: 800;
+  font-size: 11.5px;
+}
+
+.perf-val {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.perf-val--gain {
+  color: var(--success);
+}
+
+.perf-val--loss {
+  color: var(--danger);
+}
+
+.perf-since-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-top: 1px solid rgba(102, 126, 234, 0.12);
+  background: rgba(102, 126, 234, 0.04);
+}
+
+.perf-since-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.perf-since-val {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.perf-since-val.perf-val--gain {
+  color: var(--success);
+}
+.perf-since-val.perf-val--loss {
+  color: var(--danger);
+}
+
+/* =============================================
+   Fund Risk Metrics — Risk level & Turnover
+   ============================================= */
+
+.fund-stats-group--risk-meta {
+  align-items: stretch;
+  border-bottom: none;
+}
+
+.fund-stats-group--risk-meta .fund-stats-group-label {
+  background: rgba(239, 68, 68, 0.05);
+  color: var(--danger);
+}
+
+.fund-stats-risk-meta-row {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0;
+  padding: 10px 14px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.fund-stats-risk-level-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.riskometer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.riskometer-track {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.riskometer-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.riskometer-dot--active {
+  width: 13px;
+  height: 13px;
+}
+
+.riskometer-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.fund-stats-turnover-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* turnover is now inline in the metrics row — no special override needed */
+
+/* =============================================
+   Fund Info – full-width rows
+   ============================================= */
+
+.fund-meta-row-full {
+  border-top: 1px solid rgba(102, 126, 234, 0.08);
+}
+
+.fund-meta-item--full {
+  border-right: none;
+  border-bottom: none;
+  padding: 10px 18px;
+}
+
+.fund-meta-item--managers {
+  /* spans naturally in a 4-col grid */
+}
+
+.fund-meta-desc {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+@media (max-width: 500px) {
+  .perf-th,
+  .perf-cell {
+    padding: 7px 6px;
+    font-size: 10.5px;
+  }
+  .perf-th--period,
+  .perf-cell--period {
+    padding-left: 10px;
+  }
+  .riskometer-dot {
+    width: 8px;
+    height: 8px;
+  }
+  .riskometer-dot--active {
+    width: 11px;
+    height: 11px;
+  }
+}
+
+/* Abs + Outperf columns: desktop/tablet only (hidden on mobile) */
+.perf-cell--desktop,
+.perf-th--desktop {
+  /* visible by default (desktop/tablet) */
+}
+
+@media (max-width: 500px) {
+  .perf-cell--desktop,
+  .perf-th--desktop {
+    display: none;
   }
 }

@@ -30,7 +30,7 @@
       data-cf-beacon='{"token": "4d8174ccb12041b3a010d11343f45f18"}'
     ></script> -->
     <!-- End Cloudflare Web Analytics -->
-    <link rel="stylesheet" href="styles.css?v=20260608" />
+    <link rel="stylesheet" href="styles.css?v=20260609" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -55,26 +55,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260608" />
+    <link rel="manifest" href="/manifest.json?v=20260609" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
-    <div class="loader hidden">
-      <div class="loader-con">
-        <div style="--i: 0" class="pfile"></div>
-        <div style="--i: 1" class="pfile"></div>
-        <div class="pfile" style="--i: 2"></div>
-        <div style="--i: 3" class="pfile"></div>
-        <div style="--i: 4" class="pfile"></div>
-        <div style="--i: 5" class="pfile"></div>
-      </div>
-      <div class="loader-text">
-        <p>Working some data magic.</p>
-        &nbsp;
-        <p>Your dashboard will be ready in ~2 minutes!</p>
-      </div>
-    </div>
-
     <div class="container">
       <div class="dashboard" id="dashboard">
         <div class="dashboard-tabs">
@@ -211,21 +195,30 @@
               </button>
               <button
                 class="mobile-menu-item overlap-analysis-button"
-                onclick="switchDashboardTab('overlap-analysis')"
+                onclick="
+                  switchDashboardTab('overlap-analysis');
+                  closeMobileMenu();
+                "
               >
                 <i class="fa-solid fa-layer-group"></i>
                 <span>Overlap Analysis</span>
               </button>
               <button
                 class="mobile-menu-item expense-impact-button"
-                onclick="switchDashboardTab('expense-impact')"
+                onclick="
+                  switchDashboardTab('expense-impact');
+                  closeMobileMenu();
+                "
               >
                 <i class="fa-solid fa-receipt"></i>
                 <span>Expense Impact</span>
               </button>
               <button
                 class="mobile-menu-item health-score-button"
-                onclick="switchDashboardTab('health-score')"
+                onclick="
+                  switchDashboardTab('health-score');
+                  closeMobileMenu();
+                "
               >
                 <i class="fa-solid fa-heart-pulse"></i>
                 <span>Portfolio Health</span>
@@ -787,7 +780,7 @@
             <div class="card">
               <h3>Current Value</h3>
               <div class="value">₹<span id="currentValue">0</span></div>
-              <div class="subtext">Current MF Holdings Value</div>
+              <div class="subtext" id="currentValueSubtext"></div>
             </div>
             <div class="card">
               <h3>Current Cost</h3>
@@ -863,7 +856,7 @@
                   <span class="stat-value" id="compactInvested">₹0</span>
                 </div>
 
-                <div class="compact-stat-row">
+                <div class="compact-stat-row" id="compactXIRRRow">
                   <span class="stat-label">XIRR</span>
                   <span class="stat-value" id="compactXIRR">0%</span>
                 </div>
@@ -1082,8 +1075,8 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260608"></script>
-    <script src="utils.js?v=20260608"></script>
-    <script src="scripts.js?v=20260608"></script>
+    <script src="indexeddb-helper.js?v=20260609"></script>
+    <script src="utils.js?v=20260609"></script>
+    <script src="scripts.js?v=20260609"></script>
   </body>
 </html>

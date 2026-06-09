@@ -66,20 +66,33 @@ const titleCache = new Map();
 function sanitizeSchemeName(schemeName) {
   if (!schemeName) return "";
 
-  const parts = schemeName.split("-");
+  // Step 1: strip trailing parenthetical qualifiers like:
+  //   "( formerly Parag Parikh Long Term Value Fund )"
+  //   "( Non - Demat )"  "( Non Demat )"
+  let name = schemeName
+    .replace(/\(\s*formerly[^)]*\)/gi, "") // ( formerly ... )
+    .replace(/\(\s*non\s*-?\s*demat\s*\)/gi, "") // ( Non - Demat )
+    .trim();
 
-  if (parts.length === 1) {
-    const match = schemeName.match(/.*?\bFund\b/i);
-    return match ? match[0].trim() : schemeName.trim();
+  // Step 2: split on " - " and keep only the fund name part
+  // (everything before the first plan/option/growth/direct segment)
+  const segments = name.split(/\s+-\s+/);
+  const planKeywords =
+    /^(direct|regular|growth|dividend|idcw|option|plan|reinvest|payout)/i;
+
+  let fundNameParts = [];
+  for (const seg of segments) {
+    if (planKeywords.test(seg.trim())) break;
+    fundNameParts.push(seg.trim());
   }
 
-  const firstPart = parts[0].trim();
-  const secondPart = parts[1].trim();
+  const fundName = fundNameParts.join(" - ").trim() || segments[0].trim();
 
-  let cleaned = fixCapitalization(
-    /fund/i.test(secondPart) ? `${firstPart} - ${secondPart}` : firstPart,
-  );
-  return cleaned;
+  // Step 3: extract up to and including the first occurrence of "Fund"
+  const fundMatch = fundName.match(/^.*?Fund/i);
+  const result = fundMatch ? fundMatch[0].trim() : fundName;
+
+  return fixCapitalization(result);
 }
 
 function fixCapitalization(text) {
@@ -742,24 +755,316 @@ function unlockBodyScroll() {
   document.body.style.paddingRight = "";
 }
 
+// ─── Processing Splash ────────────────────────────────────────────────────────
+// Step definitions drive the animated progress sequence shown to the user.
+// percent thresholds MUST match updateProcessingProgress() call-sites in scripts.js:
+//    0 → showProcessingSplash()               – CAS file handed to backend
+//   20 → updateProcessingProgress(20, …)      – CAS parsed and read
+//   40 → updateProcessingProgress(40, …)      – MF stats fetch started
+//   70 → updateProcessingProgress(70, …)      – Stats received, aggregating data
+//   90 → updateProcessingProgress(90, …)      – Rendering charts & dashboard
+//  100 → hideProcessingSplash()               – All done
+const SPLASH_STEPS = [
+  { at: 0, label: "Reading CAS", icon: "📄" },
+  { at: 20, label: "CAS Read", icon: "✅" },
+  { at: 40, label: "Pulling MF stats", icon: "🔍" },
+  { at: 70, label: "Data Aggregated", icon: "🗂️" },
+  { at: 90, label: "Rendering Dashboard", icon: "📊" },
+  { at: 100, label: "Done!", icon: "🎉" },
+];
+
+function _getOrCreateSplashOverlay() {
+  let overlay = document.getElementById("folio-splash-overlay");
+  if (overlay) return overlay;
+
+  overlay = document.createElement("div");
+  overlay.id = "folio-splash-overlay";
+  overlay.innerHTML = `
+    <style>
+      #folio-splash-overlay {
+        position: fixed; inset: 0; z-index: 9999;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(var(--bg-primary-rgb, 15,15,20), 0.82);
+        backdrop-filter: blur(18px);
+        opacity: 0; transition: opacity 0.25s ease;
+        pointer-events: none;
+      }
+      #folio-splash-overlay.fsp-visible {
+        opacity: 1; pointer-events: all;
+      }
+      .fsp-card {
+        background: var(--card-bg, #16161e);
+        border: 1px solid var(--border-color, rgba(255,255,255,0.08));
+        border-radius: 20px;
+        padding: 36px 40px 32px;
+        width: min(420px, 88vw);
+        box-shadow: 0 32px 80px rgba(0,0,0,0.55);
+        display: flex; flex-direction: column; gap: 28px;
+      }
+      .fsp-header {
+        display: flex; flex-direction: column; align-items: center; gap: 10px;
+        text-align: center;
+      }
+      .fsp-logo-ring {
+        width: 56px; height: 56px; border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent, #7c6ef7) 0%, var(--accent-secondary, #5bb8f5) 100%);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 24px;
+        box-shadow: 0 0 0 8px rgba(124,110,247,0.12);
+        animation: fsp-pulse 2.4s ease-in-out infinite;
+      }
+      @keyframes fsp-pulse {
+        0%, 100% { box-shadow: 0 0 0 8px rgba(124,110,247,0.12); }
+        50%       { box-shadow: 0 0 0 16px rgba(124,110,247,0.04); }
+      }
+      .fsp-title {
+        font-size: 15px; font-weight: 600; letter-spacing: 0.01em;
+        color: var(--text-primary, #e8e8f0);
+      }
+      .fsp-steps { display: flex; flex-direction: column; gap: 10px; }
+      .fsp-step {
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 14px; border-radius: 12px;
+        background: var(--bg-secondary, rgba(255,255,255,0.04));
+        border: 1px solid transparent;
+        transition: all 0.35s cubic-bezier(.4,0,.2,1);
+        opacity: 0.35;
+      }
+      .fsp-step.fsp-step--done {
+        opacity: 1;
+        border-color: rgba(80,210,140,0.25);
+        background: rgba(80,210,140,0.06);
+      }
+      .fsp-step.fsp-step--active {
+        opacity: 1;
+        border-color: rgba(var(--accent-rgb, 124,110,247), 0.4);
+        background: rgba(var(--accent-rgb, 124,110,247), 0.08);
+      }
+      .fsp-step-icon {
+        width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 14px;
+        background: var(--bg-tertiary, rgba(255,255,255,0.06));
+        border: 1.5px solid rgba(255,255,255,0.08);
+        transition: all 0.3s ease;
+      }
+      .fsp-step--active .fsp-step-icon {
+        background: rgba(var(--accent-rgb, 124,110,247), 0.18);
+        border-color: rgba(var(--accent-rgb, 124,110,247), 0.5);
+        animation: fsp-spin-soft 1.8s linear infinite;
+      }
+      .fsp-step--done .fsp-step-icon {
+        background: rgba(80,210,140,0.15);
+        border-color: rgba(80,210,140,0.4);
+        animation: none;
+      }
+      @keyframes fsp-spin-soft {
+        0%   { box-shadow:  3px 0 0 0 rgba(var(--accent-rgb,124,110,247),0.6); }
+        25%  { box-shadow:  0  3px 0 0 rgba(var(--accent-rgb,124,110,247),0.6); }
+        50%  { box-shadow: -3px 0 0 0 rgba(var(--accent-rgb,124,110,247),0.6); }
+        75%  { box-shadow:  0 -3px 0 0 rgba(var(--accent-rgb,124,110,247),0.6); }
+        100% { box-shadow:  3px 0 0 0 rgba(var(--accent-rgb,124,110,247),0.6); }
+      }
+      .fsp-step-label {
+        font-size: 13px; font-weight: 500;
+        color: var(--text-secondary, #a0a0b8);
+        transition: color 0.3s ease;
+      }
+      .fsp-step--active .fsp-step-label,
+      .fsp-step--done   .fsp-step-label {
+        color: var(--text-primary, #e8e8f0);
+      }
+      .fsp-step-check {
+        margin-left: auto; font-size: 13px; opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+      .fsp-step--done .fsp-step-check { opacity: 1; }
+
+      /* Bubbles */
+      .fsp-bubbles {
+        position: absolute; inset: 0; overflow: hidden;
+        pointer-events: none; border-radius: 20px;
+      }
+      .fsp-bubble {
+        position: absolute; border-radius: 50%;
+        background: radial-gradient(circle at 35% 35%,
+          rgba(var(--accent-rgb,124,110,247),0.25),
+          rgba(var(--accent-rgb,124,110,247),0.04) 70%);
+        animation: fsp-float linear infinite;
+      }
+      @keyframes fsp-float {
+        0%   { transform: translateY(0)   scale(1);   opacity: 0; }
+        10%  { opacity: 1; }
+        90%  { opacity: 0.6; }
+        100% { transform: translateY(-340px) scale(1.1); opacity: 0; }
+      }
+    </style>
+    <div class="fsp-card" style="position:relative;overflow:hidden;">
+      <div class="fsp-bubbles" id="fsp-bubbles"></div>
+      <div class="fsp-header">
+        <div class="fsp-logo-ring" id="fsp-ring">📄</div>
+        <div class="fsp-title">Processing your portfolio…</div>
+      </div>
+      <div class="fsp-steps" id="fsp-steps"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Build step rows
+  const stepsContainer = overlay.querySelector("#fsp-steps");
+  SPLASH_STEPS.forEach((step, i) => {
+    const row = document.createElement("div");
+    row.className = "fsp-step";
+    row.id = `fsp-step-${i}`;
+    row.innerHTML = `
+      <div class="fsp-step-icon">${step.icon}</div>
+      <span class="fsp-step-label">${step.label}</span>
+      <span class="fsp-step-check">✓</span>
+    `;
+    stepsContainer.appendChild(row);
+  });
+
+  // Spawn bubbles
+  const bubbleContainer = overlay.querySelector("#fsp-bubbles");
+  for (let b = 0; b < 9; b++) {
+    const bEl = document.createElement("div");
+    bEl.className = "fsp-bubble";
+    const size = 18 + Math.random() * 36;
+    bEl.style.cssText = `
+      width:${size}px; height:${size}px;
+      left:${5 + Math.random() * 90}%;
+      bottom:${-size}px;
+      animation-duration:${3.5 + Math.random() * 4}s;
+      animation-delay:${Math.random() * 5}s;
+    `;
+    bubbleContainer.appendChild(bEl);
+  }
+
+  return overlay;
+}
+
+function _splashSetStep(percent) {
+  const overlay = document.getElementById("folio-splash-overlay");
+  if (!overlay) return;
+
+  // Find active step index: last step whose threshold ≤ current percent
+  let activeIdx = 0;
+  SPLASH_STEPS.forEach((s, i) => {
+    if (percent >= s.at) activeIdx = i;
+  });
+
+  SPLASH_STEPS.forEach((_, i) => {
+    const row = overlay.querySelector(`#fsp-step-${i}`);
+    if (!row) return;
+    row.classList.remove("fsp-step--active", "fsp-step--done");
+    if (i < activeIdx) row.classList.add("fsp-step--done");
+    else if (i === activeIdx) row.classList.add("fsp-step--active");
+  });
+
+  // Update ring emoji to match active step
+  const ring = overlay.querySelector("#fsp-ring");
+  if (ring) ring.textContent = SPLASH_STEPS[activeIdx].icon;
+}
+
 function showProcessingSplash() {
-  document.querySelector(".loader").classList.remove("hidden");
+  // Hide legacy .loader if present (no-op if absent)
+  const legacy = document.querySelector(".loader");
+  if (legacy) legacy.classList.add("hidden");
+
+  const overlay = _getOrCreateSplashOverlay();
+  // Reset to step 0
+  _splashSetStep(0);
+  // Trigger fade-in on next frame
+  requestAnimationFrame(() => overlay.classList.add("fsp-visible"));
 }
 
 function hideProcessingSplash() {
-  document.querySelector(".loader").classList.add("hidden");
+  const overlay = document.getElementById("folio-splash-overlay");
+  if (!overlay) return;
+
+  // Jump to 100 % and flash Done state briefly before fading out
+  // _splashSetStep(100);
+  updateProcessingProgress(100, "Done!");
+  setTimeout(() => {
+    overlay.classList.remove("fsp-visible");
+  }, 620);
 }
 
 function updateProcessingProgress(percent, message) {
-  const progressBar = document.getElementById("processingProgress");
-  const progressText = document.getElementById("processingText");
+  _splashSetStep(percent);
 
-  if (progressBar) {
-    progressBar.style.width = `${percent}%`;
+  // Optionally drive the title text if a message is provided
+  const overlay = document.getElementById("folio-splash-overlay");
+  if (overlay && message) {
+    const title = overlay.querySelector(".fsp-title");
+    if (title) title.textContent = message;
   }
-  if (progressText) {
-    progressText.textContent = message;
+}
+
+// ─── Simple Spinner Splash ────────────────────────────────────────────────────
+// Lightweight overlay for short operations (refresh, NAV update, stats update,
+// delete). No step progression — just a spinner and a single message line.
+function showSimpleSplash(message = "Please wait…") {
+  // Hide the full step-splash if it somehow leaked through
+  const fullSplash = document.getElementById("folio-splash-overlay");
+  if (fullSplash) fullSplash.classList.remove("fsp-visible");
+
+  let overlay = document.getElementById("folio-simple-splash");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "folio-simple-splash";
+    overlay.innerHTML = `
+      <style>
+        #folio-simple-splash {
+          position: fixed; inset: 0; z-index: 9999;
+          display: flex; align-items: center; justify-content: center;
+          background: rgba(var(--bg-primary-rgb, 15,15,20), 0.75);
+          backdrop-filter: blur(14px);
+          opacity: 0; transition: opacity 0.2s ease;
+          pointer-events: none;
+        }
+        #folio-simple-splash.fss-visible {
+          opacity: 1; pointer-events: all;
+        }
+        .fss-pill {
+          display: flex; align-items: center; gap: 12px;
+          background: var(--card-bg, #16161e);
+          border: 1px solid var(--border-color, rgba(255,255,255,0.08));
+          border-radius: 50px;
+          padding: 14px 24px;
+          box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+        }
+        .fss-spinner {
+          width: 18px; height: 18px; flex-shrink: 0;
+          border: 2px solid rgba(var(--accent-rgb,124,110,247),0.2);
+          border-top-color: var(--accent, #7c6ef7);
+          border-radius: 50%;
+          animation: fss-spin 0.7s linear infinite;
+        }
+        @keyframes fss-spin { to { transform: rotate(360deg); } }
+        .fss-label {
+          font-size: 13px; font-weight: 500;
+          color: var(--text-primary, #e8e8f0);
+          white-space: nowrap;
+        }
+      </style>
+      <div class="fss-pill">
+        <div class="fss-spinner"></div>
+        <span class="fss-label" id="fss-label-text"></span>
+      </div>
+    `;
+    document.body.appendChild(overlay);
   }
+
+  const label = overlay.querySelector("#fss-label-text");
+  if (label) label.textContent = message;
+  // Show immediately — no rAF, avoids race where hide fires before the frame runs
+  overlay.classList.add("fss-visible");
+}
+
+function hideSimpleSplash() {
+  const overlay = document.getElementById("folio-simple-splash");
+  if (overlay) overlay.classList.remove("fss-visible");
 }
 
 function initializeModalSwipe(modalElement) {
