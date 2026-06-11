@@ -185,6 +185,24 @@ class StorageManager {
     this.idb = new IDBHelper();
     this.manifestKey = "portfolio-manifest";
     this.usersKey = "portfolio-users";
+    // Tracks update state across ALL users (updates are performed for
+    // everyone at once, so "needs update" / "manual update used" checks
+    // must be global rather than per-user).
+    this.globalManifestKey = "portfolio-global-update-manifest";
+  }
+
+  getGlobalManifest() {
+    try {
+      return JSON.parse(
+        localStorage.getItem(this.globalManifestKey) || "null",
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  saveGlobalManifest(manifest) {
+    localStorage.setItem(this.globalManifestKey, JSON.stringify(manifest));
   }
 
   getAllUsers() {
@@ -212,6 +230,7 @@ class StorageManager {
       if (users.length === 0) {
         localStorage.removeItem(this.usersKey);
         localStorage.removeItem("lastActiveUser");
+        localStorage.removeItem(this.globalManifestKey);
         console.log("🗑️ All users deleted, cleared user-specific localStorage");
       } else {
         localStorage.setItem(this.usersKey, JSON.stringify(users));
@@ -252,6 +271,7 @@ class StorageManager {
 
       localStorage.removeItem(this.usersKey);
       localStorage.removeItem("lastActiveUser");
+      localStorage.removeItem(this.globalManifestKey);
 
       console.log("✅ All users deleted successfully");
       return true;
@@ -362,42 +382,52 @@ class StorageManager {
 
   updateLastNavUpdate(userName = null) {
     const user = userName || currentUser;
-    if (!user) return;
+    if (user) {
+      const manifest = this.getManifest(user) || {};
+      manifest.lastNavUpdate = new Date().toISOString();
+      this.saveManifest(manifest, user);
+    }
 
-    const manifest = this.getManifest(user) || {};
-    manifest.lastNavUpdate = new Date().toISOString();
-    this.saveManifest(manifest, user);
+    const globalManifest = this.getGlobalManifest() || {};
+    globalManifest.lastNavUpdate = new Date().toISOString();
+    this.saveGlobalManifest(globalManifest);
   }
 
   markManualStatsUpdate(userName = null) {
     const user = userName || currentUser;
-    if (!user) return;
-
-    const manifest = this.getManifest(user) || {};
     const today = new Date().toISOString().split("T")[0];
     const currentMonth = new Date().toISOString().slice(0, 7);
 
-    manifest.lastManualStatsUpdate = today;
-    manifest.lastManualStatsMonth = currentMonth;
-    this.saveManifest(manifest, user);
+    if (user) {
+      const manifest = this.getManifest(user) || {};
+      manifest.lastManualStatsUpdate = today;
+      manifest.lastManualStatsMonth = currentMonth;
+      this.saveManifest(manifest, user);
+    }
+
+    const globalManifest = this.getGlobalManifest() || {};
+    globalManifest.lastManualStatsUpdate = today;
+    globalManifest.lastManualStatsMonth = currentMonth;
+    this.saveGlobalManifest(globalManifest);
   }
 
   markManualNavUpdate(userName = null) {
     const user = userName || currentUser;
-    if (!user) return;
-
-    const manifest = this.getManifest(user) || {};
     const today = new Date().toISOString().split("T")[0];
 
-    manifest.lastManualNavUpdate = today;
-    this.saveManifest(manifest, user);
+    if (user) {
+      const manifest = this.getManifest(user) || {};
+      manifest.lastManualNavUpdate = today;
+      this.saveManifest(manifest, user);
+    }
+
+    const globalManifest = this.getGlobalManifest() || {};
+    globalManifest.lastManualNavUpdate = today;
+    this.saveGlobalManifest(globalManifest);
   }
 
-  needsFullUpdate(userName = null) {
-    const user = userName || currentUser;
-    if (!user) return false;
-
-    const manifest = this.getManifest(user);
+  needsFullUpdate() {
+    const manifest = this.getGlobalManifest();
     if (!manifest || !manifest.lastFullUpdate) return true;
 
     const lastUpdate = new Date(manifest.lastFullUpdate);
@@ -413,11 +443,8 @@ class StorageManager {
     return false;
   }
 
-  needsNavUpdate(userName = null) {
-    const user = userName || currentUser;
-    if (!user) return false;
-
-    const manifest = this.getManifest(user);
+  needsNavUpdate() {
+    const manifest = this.getGlobalManifest();
     if (!manifest || !manifest.lastNavUpdate) return true;
 
     const lastUpdate = new Date(manifest.lastNavUpdate);
@@ -426,22 +453,16 @@ class StorageManager {
     return lastUpdate.toDateString() !== today.toDateString();
   }
 
-  hasManualStatsUpdateThisMonth(userName = null) {
-    const user = userName || currentUser;
-    if (!user) return false;
-
-    const manifest = this.getManifest(user);
+  hasManualStatsUpdateThisMonth() {
+    const manifest = this.getGlobalManifest();
     if (!manifest || !manifest.lastManualStatsMonth) return false;
 
     const currentMonth = new Date().toISOString().slice(0, 7);
     return manifest.lastManualStatsMonth === currentMonth;
   }
 
-  hasManualNavUpdateToday(userName = null) {
-    const user = userName || currentUser;
-    if (!user) return false;
-
-    const manifest = this.getManifest(user);
+  hasManualNavUpdateToday() {
+    const manifest = this.getGlobalManifest();
     if (!manifest || !manifest.lastManualNavUpdate) return false;
 
     const today = new Date().toISOString().split("T")[0];
@@ -450,11 +471,15 @@ class StorageManager {
 
   updateLastFullUpdate(userName = null) {
     const user = userName || currentUser;
-    if (!user) return;
+    if (user) {
+      const manifest = this.getManifest(user) || {};
+      manifest.lastFullUpdate = new Date().toISOString();
+      this.saveManifest(manifest, user);
+    }
 
-    const manifest = this.getManifest(user) || {};
-    manifest.lastFullUpdate = new Date().toISOString();
-    this.saveManifest(manifest, user);
+    const globalManifest = this.getGlobalManifest() || {};
+    globalManifest.lastFullUpdate = new Date().toISOString();
+    this.saveGlobalManifest(globalManifest);
   }
 }
 

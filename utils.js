@@ -398,58 +398,48 @@ function buildBarChart(canvasId, labels, data, totalValue = null) {
           data,
           backgroundColor: themeColors.slice(0, data.length),
           borderRadius: 8,
+          barPercentage: 0.8,
+          categoryPercentage: 0.9,
         },
       ],
     },
+    plugins: [ChartDataLabels],
     options: {
       indexAxis: "y",
       responsive: true,
       maintainAspectRatio: false,
-      animation: {
-        duration: 800,
-        easing: "easeInOutQuart",
-      },
+
       plugins: {
-        legend: { display: false },
-        tooltip: {
-          enabled: true,
-          backgroundColor: colors.tooltipBg,
-          borderColor: colors.tooltipBorder,
-          borderWidth: 2,
-          cornerRadius: 8,
-          titleFont: { size: 13, weight: "bold" },
-          bodyFont: { size: 12 },
-          titleColor: "#fff",
-          bodyColor: "#fff",
-          displayColors: false,
-          padding: 8,
-          callbacks: {
-            title: (items) => items[0].label,
-            label: (ctx) => {
-              const percent = ctx.parsed.x;
-              const isFamilyChart = ctx.chart.canvas.id.startsWith("family");
+        legend: {
+          display: false,
+        },
 
-              let resolvedTotal;
-              if (totalValue != null) {
-                resolvedTotal = totalValue;
-              } else if (isFamilyChart && window.familyDashboardCache) {
-                resolvedTotal = window.familyDashboardCache.totalCurrentValue;
-              } else {
-                resolvedTotal = Object.values(window.fundWiseData || {}).reduce(
-                  (sum, fund) =>
-                    sum + (fund.advancedMetrics?.currentValue || 0),
-                  0,
-                );
-              }
+        datalabels: {
+          clip: false,
 
-              const rupeeValue = (resolvedTotal * percent) / 100;
-              return `₹${formatNumber(
-                Math.round(rupeeValue),
-              )} (${percent.toFixed(2)}%)`;
-            },
+          formatter: (value, ctx) => {
+            const label = ctx.chart.data.labels[ctx.dataIndex];
+            return `${label}  ${value.toFixed(1)}%`;
+          },
+
+          color: "#fff",
+
+          anchor: "start",
+          align: "right",
+
+          offset: 8,
+
+          font: {
+            weight: "bold",
+            size: 11,
           },
         },
+
+        tooltip: {
+          // your existing tooltip config
+        },
       },
+
       scales: {
         x: {
           beginAtZero: true,
@@ -457,24 +447,17 @@ function buildBarChart(canvasId, labels, data, totalValue = null) {
           ticks: {
             callback: (v) => v + "%",
             color: colors.textColor,
-            font: { size: 11 },
           },
           grid: {
-            drawBorder: false,
             color: colors.gridColor,
           },
         },
+
         y: {
-          ticks: {
-            color: colors.textColor,
-            font: { size: 11 },
-            callback: function (value, index, ticks) {
-              const label = this.chart.data.labels[index];
-              if (!label) return "";
-              return label.length > 22 ? label.slice(0, 22) + "…" : label;
-            },
+          display: false, // hide axis labels completely
+          grid: {
+            display: false,
           },
-          grid: { display: false },
         },
       },
     },
@@ -1337,4 +1320,43 @@ function formatSipInput(input) {
   const newLength = input.value.length;
   const diff = newLength - oldLength;
   input.setSelectionRange(cursorPos + diff, cursorPos + diff);
+}
+
+// ============================================
+// TEXT BAR CHART (replaces Chart.js bar charts
+// for AMC, Sector, and Holdings distributions)
+// ============================================
+
+/**
+ * Renders a text-based horizontal bar chart into a div container.
+ * @param {string} containerId - The id of the target <div>
+ * @param {string[]} labels     - Bar labels
+ * @param {number[]} data       - Percentage values (0–100)
+ */
+function buildTextBarChart(containerId, labels, data) {
+  const container = document.getElementById(containerId);
+  if (!container) {
+    console.warn(`buildTextBarChart: element '${containerId}' not found`);
+    return;
+  }
+
+  container.innerHTML = "";
+
+  labels.forEach((label, i) => {
+    const pct = data[i];
+    const barWidth = Math.min(pct, 100).toFixed(1);
+
+    const row = document.createElement("div");
+    row.className = "tbc-row";
+    row.innerHTML = `
+      <div class="tbc-label-row">
+        <span class="tbc-label" title="${label}">${label}</span>
+        <span class="tbc-pct">${pct.toFixed(1)}%</span>
+      </div>
+      <div class="tbc-track">
+        <div class="tbc-fill" style="width:${barWidth}%"></div>
+      </div>
+    `;
+    container.appendChild(row);
+  });
 }

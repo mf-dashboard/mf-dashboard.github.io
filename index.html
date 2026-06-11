@@ -7,6 +7,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- Cloudflare Web Analytics -->
     <script>
       (() => {
@@ -30,7 +31,7 @@
       data-cf-beacon='{"token": "4d8174ccb12041b3a010d11343f45f18"}'
     ></script> -->
     <!-- End Cloudflare Web Analytics -->
-    <link rel="stylesheet" href="styles.css?v=20260609" />
+    <link rel="stylesheet" href="styles.css?v=20260610" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -55,7 +56,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260609" />
+    <link rel="manifest" href="/manifest.json?v=20260610" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -78,6 +79,14 @@
               <h1 class="dashboard-title">My MF Dashboard</h1>
             </div>
             <div>
+              <button
+                id="screenshotBtnMobile"
+                class="screenshot-btn"
+                onclick="takeFullPageScreenshot()"
+                title="Take screenshot"
+              >
+                <i class="fa-solid fa-camera"></i>
+              </button>
               <button
                 class="theme-toggle"
                 onclick="toggleTheme()"
@@ -332,6 +341,14 @@
             </div>
           </div>
           <div class="theme-container">
+            <button
+              id="screenshotBtnDesktop"
+              class="screenshot-btn"
+              onclick="takeFullPageScreenshot()"
+              title="Take screenshot"
+            >
+              <i class="fa-solid fa-camera"></i>
+            </button>
             <button
               class="theme-toggle"
               onclick="toggleTheme()"
@@ -901,7 +918,7 @@
                   <div class="chart-loading">
                     <div class="chart-spinner"></div>
                   </div>
-                  <canvas id="amcChart"></canvas>
+                  <div id="amcChart" class="text-bar-chart"></div>
                 </div>
               </div>
               <div class="analytics-card loading" id="sectorCard">
@@ -910,7 +927,7 @@
                   <div class="chart-loading">
                     <div class="chart-spinner"></div>
                   </div>
-                  <canvas id="sectorChart"></canvas>
+                  <div id="sectorChart" class="text-bar-chart"></div>
                 </div>
               </div>
               <div class="analytics-card loading" id="holdingsCard">
@@ -928,7 +945,7 @@
                   <div class="chart-loading">
                     <div class="chart-spinner"></div>
                   </div>
-                  <canvas id="holdingsChart"></canvas>
+                  <div id="holdingsChart" class="text-bar-chart"></div>
                 </div>
               </div>
             </div>
@@ -1046,7 +1063,7 @@
                   <div class="chart-loading">
                     <div class="chart-spinner"></div>
                   </div>
-                  <canvas id="familyAmcChart"></canvas>
+                  <div id="familyAmcChart" class="text-bar-chart"></div>
                 </div>
               </div>
               <div class="analytics-card loading" id="familySectorCard">
@@ -1055,7 +1072,7 @@
                   <div class="chart-loading">
                     <div class="chart-spinner"></div>
                   </div>
-                  <canvas id="familySectorChart"></canvas>
+                  <div id="familySectorChart" class="text-bar-chart"></div>
                 </div>
               </div>
             </div>
@@ -1075,8 +1092,8 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260609"></script>
-    <script src="utils.js?v=20260609"></script>
-    <script src="scripts.js?v=20260609"></script>
+    <script src="indexeddb-helper.js?v=20260610"></script>
+    <script src="utils.js?v=20260610"></script>
+    <script src="scripts.js?v=20260610"></script>
   </body>
 </html>

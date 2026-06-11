@@ -37,7 +37,7 @@ let capitalGainsData = {
 
 // Chart instances
 let marketCapChart = null;
-let sectorChart = null;
+let sectorChart = null; // kept for compatibility — no longer Chart.js
 let amcChart = null;
 let holdingsChart = null;
 let familySectorChart = null;
@@ -68,6 +68,86 @@ const BACKEND_SERVER =
 
 console.log("🔧 Backend Server:", BACKEND_SERVER);
 const DEBUG_MODE = false;
+
+// Distinct color palette for composition bars and charts
+// Two variants: light mode (deeper, richer) and dark mode (brighter, more vivid)
+const CHART_COLORS_LIGHT = [
+  "#2563ae", // blue
+  "#16a34a", // green
+  "#d97706", // amber
+  "#dc2626", // red
+  "#7c3aed", // violet
+  "#0891b2", // cyan
+  "#be185d", // pink
+  "#65a30d", // lime
+  "#9f580a", // orange-brown
+  "#1d4ed8", // indigo
+  "#059669", // emerald
+  "#b45309", // warm amber
+];
+
+const CHART_COLORS_DARK = [
+  "#60a5fa", // blue-400
+  "#4ade80", // green-400
+  "#fbbf24", // amber-400
+  "#f87171", // red-400
+  "#a78bfa", // violet-400
+  "#22d3ee", // cyan-400
+  "#f472b6", // pink-400
+  "#a3e635", // lime-400
+  "#fb923c", // orange-400
+  "#818cf8", // indigo-400
+  "#34d399", // emerald-400
+  "#fcd34d", // yellow-300
+];
+
+function isDarkMode() {
+  return document.documentElement.getAttribute("data-theme") === "dark";
+}
+
+function getCompositionColor(index, total) {
+  const palette = isDarkMode() ? CHART_COLORS_DARK : CHART_COLORS_LIGHT;
+  return palette[index % palette.length];
+}
+
+// Colours that match the tbc-fill CSS nth-child palette used by
+// Fund House, Sector, and Holdings text-bar charts.  Asset Allocation
+// and Market Cap bars use this so all four panels share the same hues.
+const TBC_COLORS = [
+  "#667eea",
+  "#f093fb",
+  "#4facfe",
+  "#43e97b",
+  "#fa709a",
+  "#ffd89b",
+  "#a18cd1",
+  "#f5576c",
+  "#34d399",
+  "#fcd34d",
+];
+
+function getTbcColor(index) {
+  return TBC_COLORS[index % TBC_COLORS.length];
+}
+
+// Apply distinct color palette to a Chart.js bar chart instance
+function applyColorToBarChart(chartInstance) {
+  if (!chartInstance || !chartInstance.data) return;
+  const count = chartInstance.data.labels?.length || 0;
+  if (count === 0) return;
+  const palette = isDarkMode() ? CHART_COLORS_DARK : CHART_COLORS_LIGHT;
+  const colors = Array.from(
+    { length: count },
+    (_, i) => palette[i % palette.length],
+  );
+  chartInstance.data.datasets.forEach((ds) => {
+    ds.backgroundColor = colors;
+    ds.borderColor = colors;
+    ds.borderWidth = 0;
+    ds.borderRadius = 4;
+  });
+  chartInstance.update("none");
+}
 
 // ============================================
 // MAIN FUNCTIONS (keep in script.js)
@@ -527,7 +607,12 @@ async function getSearchKeys() {
 
 // PORTFOLIO PROCESSING
 async function processPortfolio(skipAnalytics = false) {
-  document.getElementById("dashboard").classList.add("active");
+  const dashboard = document.getElementById("dashboard");
+  if (!dashboard) {
+    console.warn("Dashboard element not found");
+    return;
+  }
+  dashboard.classList.add("active");
 
   aggregateFundWiseData();
 
@@ -561,6 +646,7 @@ async function processPortfolio(skipAnalytics = false) {
     },
     { timeout: 2000 },
   );
+  loadFamilyDashboard();
 }
 function aggregateFundWiseData() {
   if (isSummaryCAS) {
@@ -2210,18 +2296,14 @@ function calculateAndDisplayPortfolioAnalytics() {
     document.getElementById("amcCard")?.classList.add("loading");
     document.getElementById("holdingsCard")?.classList.add("loading");
 
-    if (sectorChart) {
-      sectorChart.destroy();
-      sectorChart = null;
-    }
-    if (amcChart) {
-      amcChart.destroy();
-      amcChart = null;
-    }
-    if (holdingsChart) {
-      holdingsChart.destroy();
-      holdingsChart = null;
-    }
+    // Clear text bar chart containers
+    const clearTbc = (id) => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = "";
+    };
+    clearTbc("sectorChart");
+    clearTbc("amcChart");
+    clearTbc("holdingsChart");
 
     // Immediately clear asset allocation and market cap bar content so stale
     // data from a previous user doesn't show during the setTimeout delays.
@@ -2245,11 +2327,11 @@ function calculateAndDisplayPortfolioAnalytics() {
       }, 200);
 
       setTimeout(() => {
-        displaySectorSplit(analytics.sector, analytics.totalValue);
+        displayAMCSplit(analytics.amc, analytics.totalValue);
       }, 100);
 
       setTimeout(() => {
-        displayAMCSplit(analytics.amc, analytics.totalValue);
+        displaySectorSplit(analytics.sector, analytics.totalValue);
       }, 100);
 
       setTimeout(() => {
@@ -2269,6 +2351,172 @@ function calculateAndDisplayPortfolioAnalytics() {
     document.getElementById("amcCard")?.classList.remove("loading");
     document.getElementById("holdingsCard")?.classList.remove("loading");
   }
+}
+
+// ============================================================
+// ASSET CLASS CLASSIFICATION (per holding from fund holdings)
+// ============================================================
+function getAssetClass(holding) {
+  const instrument = (holding.instrument_name || "").toLowerCase().trim();
+  const company = (holding.company_name || "").toLowerCase().trim();
+  const nature = (holding.nature_name || "").toLowerCase().trim();
+
+  // Gold
+  if (company.includes("gold etf") || instrument.includes("gold")) {
+    return "Gold";
+  }
+  // Silver
+  if (company.includes("silver etf") || instrument.includes("silver")) {
+    return "Silver";
+  }
+  // REITs + InvITs
+  if (
+    nature === "realest" ||
+    instrument.includes("reit") ||
+    instrument.includes("real estate investment trust") ||
+    instrument.includes("invit")
+  ) {
+    return "REITs";
+  }
+  // Hedged Equity (Futures)
+  if (instrument === "futures") {
+    return "Hedged Equity";
+  }
+  // Foreign Equity
+  if (
+    instrument.includes("foreign") ||
+    instrument.includes("forgn") ||
+    instrument === "ads/adr" ||
+    instrument === "foreign mf"
+  ) {
+    return "Foreign Equity";
+  }
+  // Debt
+  if (
+    nature === "debt" ||
+    [
+      "certificate of deposit",
+      "commercial paper",
+      "treasury bills",
+      "goi sec",
+      "sdl",
+      "debenture",
+    ].includes(instrument)
+  ) {
+    return "Debt";
+  }
+  // Cash & cash equivalents
+  if (
+    nature === "cash" ||
+    ["reverse repo", "cash margin", "net payables"].includes(instrument)
+  ) {
+    return "Cash";
+  }
+  // Domestic Equity
+  if (["equity", "eq"].includes(nature) && instrument === "equity") {
+    return "Domestic Equity";
+  }
+  // Everything else: Mutual Funds, ETFs, Futures, Derivatives, Unknown
+  return "Other";
+}
+
+/**
+ * Map an API-level asset_allocation key to per-holding breakdown buckets using getAssetClass.
+ * Returns an object: { "Domestic Equity": %, "Foreign Equity": %, "Gold": %, ... }
+ * All percentages are proportional slices of the given `allocPct` (the fund-level %).
+ */
+function splitAssetKeyByHoldings(key, allocPct, holdings) {
+  const keyLower = key.trim().toLowerCase();
+
+  // Keys we split further via holdings
+  const splitKeys = [
+    "equity",
+    "commodities",
+    "real estate",
+    "reits",
+    "debt",
+    "cash",
+  ];
+  const needsSplit = splitKeys.some((s) => keyLower.includes(s));
+
+  if (
+    !needsSplit ||
+    !holdings ||
+    !Array.isArray(holdings) ||
+    holdings.length === 0
+  ) {
+    // Direct mapping for non-split keys
+    return { [mapApiKeyToLabel(keyLower)]: allocPct };
+  }
+
+  // Tally corpus_per by asset class among holdings that match this API key
+  const holdingFilter = makeHoldingFilter(keyLower);
+  const buckets = {};
+  let filteredTotal = 0;
+
+  holdings.forEach((h) => {
+    const rawPct = parseFloat(h.corpus_per || 0);
+    if (!holdingFilter(h)) return;
+    const cls = getAssetClass(h);
+    // Hedged Equity (futures) often carries negative corpus — use absolute value
+    const pct = cls === "Hedged Equity" ? Math.abs(rawPct) : rawPct;
+    if (pct <= 0) return;
+    buckets[cls] = (buckets[cls] || 0) + pct;
+    filteredTotal += pct;
+  });
+
+  if (filteredTotal === 0) {
+    // No matching holdings — fall back to direct label
+    return { [mapApiKeyToLabel(keyLower)]: allocPct };
+  }
+
+  // Scale bucket percentages to the fund-level allocPct
+  const result = {};
+  Object.entries(buckets).forEach(([cls, pct]) => {
+    const label = cls.toLowerCase(); // use lowercase internal keys
+    result[label] = (pct / filteredTotal) * allocPct;
+  });
+  return result;
+}
+
+function mapApiKeyToLabel(keyLower) {
+  if (keyLower.includes("equity")) return "domestic equity";
+  if (keyLower.includes("commodit")) return "gold"; // fallback
+  if (keyLower.includes("real estate") || keyLower.includes("reit"))
+    return "reits";
+  if (keyLower.includes("debt")) return "debt";
+  if (keyLower.includes("cash")) return "cash";
+  return "other";
+}
+
+function makeHoldingFilter(keyLower) {
+  if (keyLower.includes("equity")) {
+    return (h) => {
+      const cls = getAssetClass(h);
+      return (
+        cls === "Domestic Equity" ||
+        cls === "Foreign Equity" ||
+        cls === "Hedged Equity"
+      );
+    };
+  }
+  if (keyLower.includes("commodit")) {
+    return (h) => {
+      const cls = getAssetClass(h);
+      return cls === "Gold" || cls === "Silver";
+    };
+  }
+  if (keyLower.includes("real estate") || keyLower.includes("reit")) {
+    return (h) => getAssetClass(h) === "REITs";
+  }
+  if (keyLower.includes("debt")) {
+    return (h) => getAssetClass(h) === "Debt";
+  }
+  if (keyLower.includes("cash")) {
+    return (h) => getAssetClass(h) === "Cash";
+  }
+  // Default: include everything
+  return () => true;
 }
 
 function calculatePortfolioAnalytics() {
@@ -2325,90 +2573,25 @@ function calculatePortfolioAnalytics() {
     if (fundAsset) {
       Object.entries(fundAsset).forEach(([k, v]) => {
         if (v == null || isNaN(parseFloat(v)) || parseFloat(v) <= 0) return;
-        const key = k.trim().toLowerCase();
-
-        if (key.includes("equity")) {
-          result.assetAllocation.equity =
-            (result.assetAllocation.equity || 0) +
-            (parseFloat(v) / 100) * weight * 100;
-        } else if (key.includes("commodities")) {
-          let goldWeight = 0;
-          let silverWeight = 0;
-
-          if (extended?.holdings && Array.isArray(extended.holdings)) {
-            extended.holdings.forEach((holding) => {
-              const companyName = (holding.company_name || "").toLowerCase();
-              const instrumentName = (
-                holding.instrument_name || ""
-              ).toLowerCase();
-              const holdingPercent = parseFloat(holding.corpus_per || 0);
-
-              if (
-                (companyName.includes("gold") ||
-                  instrumentName.includes("gold")) &&
-                (companyName.includes("etf") ||
-                  instrumentName.includes("mutual fund"))
-              ) {
-                goldWeight += holdingPercent;
-              } else if (
-                (companyName.includes("silver") ||
-                  instrumentName.includes("silver")) &&
-                (companyName.includes("etf") ||
-                  instrumentName.includes("mutual fund"))
-              ) {
-                silverWeight += holdingPercent;
-              }
-            });
-          }
-
-          const totalCommodityWeight = goldWeight + silverWeight;
-
-          if (totalCommodityWeight > 0) {
-            const goldProportion = goldWeight / totalCommodityWeight;
-            const silverProportion = silverWeight / totalCommodityWeight;
-
-            result.assetAllocation.gold =
-              (result.assetAllocation.gold || 0) +
-              (parseFloat(v) / 100) * weight * 100 * goldProportion;
-
-            result.assetAllocation.silver =
-              (result.assetAllocation.silver || 0) +
-              (parseFloat(v) / 100) * weight * 100 * silverProportion;
-          } else {
-            const subcategory = extended?.sub_category?.toLowerCase?.() || "";
-            const name = fund?.scheme?.toLowerCase?.() || "";
-
-            let bucket = "debt";
-            if (subcategory.includes("gold") || name.includes("gold")) {
-              bucket = "gold";
-            } else if (
-              subcategory.includes("silver") ||
-              name.includes("silver")
-            ) {
-              bucket = "silver";
-            }
-
-            result.assetAllocation[bucket] =
-              (result.assetAllocation[bucket] || 0) +
-              (parseFloat(v) / 100) * weight * 100;
-          }
-        } else {
-          result.assetAllocation.debt =
-            (result.assetAllocation.debt || 0) +
-            (parseFloat(v) / 100) * weight * 100;
-        }
+        const allocPct = (parseFloat(v) / 100) * weight * 100;
+        const splits = splitAssetKeyByHoldings(k, allocPct, extended?.holdings);
+        Object.entries(splits).forEach(([label, pct]) => {
+          result.assetAllocation[label] =
+            (result.assetAllocation[label] || 0) + pct;
+        });
       });
     } else {
+      // Fallback: no portfolio_stats — classify by fund category
       const category = (fund.type || fund.category || "").toLowerCase();
       if (category.includes("equity")) {
-        result.assetAllocation.equity =
-          (result.assetAllocation.equity || 0) + weight * 100;
+        result.assetAllocation["domestic equity"] =
+          (result.assetAllocation["domestic equity"] || 0) + weight * 100;
       } else if (category.includes("debt") || category.includes("income")) {
-        result.assetAllocation.debt =
-          (result.assetAllocation.debt || 0) + weight * 100;
+        result.assetAllocation["debt"] =
+          (result.assetAllocation["debt"] || 0) + weight * 100;
       } else {
-        result.assetAllocation.other =
-          (result.assetAllocation.other || 0) + weight * 100;
+        result.assetAllocation["other"] =
+          (result.assetAllocation["other"] || 0) + weight * 100;
       }
     }
 
@@ -2600,10 +2783,19 @@ function calculatePortfolioAnalytics() {
     result.assetAllocation._breakdown.cash.physical = cashWeight;
   }
 
-  result.assetAllocation.equity = result.assetAllocation.equity || 0;
-  result.assetAllocation.debt = result.assetAllocation.debt || 0;
-  result.assetAllocation.cash = result.assetAllocation.cash || 0;
-  result.assetAllocation.other = result.assetAllocation.other || 0;
+  // Ensure all standard keys are initialised (new granular schema)
+  result.assetAllocation["domestic equity"] =
+    result.assetAllocation["domestic equity"] || 0;
+  result.assetAllocation["foreign equity"] =
+    result.assetAllocation["foreign equity"] || 0;
+  result.assetAllocation["hedged equity"] =
+    result.assetAllocation["hedged equity"] || 0;
+  result.assetAllocation["debt"] = result.assetAllocation["debt"] || 0;
+  result.assetAllocation["gold"] = result.assetAllocation["gold"] || 0;
+  result.assetAllocation["silver"] = result.assetAllocation["silver"] || 0;
+  result.assetAllocation["cash"] = result.assetAllocation["cash"] || 0;
+  result.assetAllocation["reits"] = result.assetAllocation["reits"] || 0;
+  result.assetAllocation["other"] = result.assetAllocation["other"] || 0;
 
   // Rest of the function remains the same...
   const mcSum =
@@ -2747,12 +2939,13 @@ function aggregateDailyValuations(allDailyValuations) {
 // DISPLAY FUNCTIONS - ANALYTICS
 function displayAssetAllocation(assetAllocation) {
   const preferred = [
-    "equity",
+    "domestic equity",
+    "foreign equity",
+    "hedged equity",
     "debt",
     "gold",
     "silver",
-    "commodities",
-    "real estate",
+    "reits",
     "cash",
     "other",
   ];
@@ -2760,11 +2953,15 @@ function displayAssetAllocation(assetAllocation) {
   const labels = [];
   const data = [];
 
+  // Title-case helper for multi-word keys like "domestic equity", "reits"
+  const toLabel = (k) =>
+    k === "reits" ? "REITs" : k.replace(/\b\w/g, (c) => c.toUpperCase());
+
   // Preferred order first
   preferred.forEach((k) => {
     const val = parseFloat(assetAllocation[k]);
     if (!isNaN(val) && val > 0) {
-      labels.push(k.charAt(0).toUpperCase() + k.slice(1));
+      labels.push(toLabel(k));
       data.push(val);
     }
   });
@@ -2774,7 +2971,7 @@ function displayAssetAllocation(assetAllocation) {
     if (!preferred.includes(k) && k !== "_breakdown") {
       const val = parseFloat(assetAllocation[k]);
       if (!isNaN(val) && val > 0) {
-        labels.push(k.charAt(0).toUpperCase() + k.slice(1));
+        labels.push(toLabel(k));
         data.push(val);
       }
     }
@@ -2814,7 +3011,7 @@ function displayAssetAllocation(assetAllocation) {
 
     const barHTML = sortedLabels
       .map((label, i) => {
-        const color = themeColors[i % themeColors.length];
+        const color = getTbcColor(i);
         const rupeeValue = (totalValue * sortedData[i]) / 100;
 
         return `
@@ -2822,19 +3019,19 @@ function displayAssetAllocation(assetAllocation) {
                style="width: ${sortedData[i]}%; background-color: ${color};"
                title="${label}: ₹${formatNumber(
                  Math.round(rupeeValue),
-               )} (${sortedData[i].toFixed(1)}%)">
+               )} (${sortedData[i].toFixed(2)}%)">
           </div>`;
       })
       .join("");
 
     const legendHTML = sortedLabels
       .map((label, i) => {
-        const color = themeColors[i % themeColors.length];
+        const color = getTbcColor(i);
 
         return `
           <span class="legend-item">
             <span class="legend-color" style="background-color: ${color};"></span>
-            ${label} ${sortedData[i].toFixed(1)}%
+            ${label} ${sortedData[i].toFixed(2)}%
           </span>`;
       })
       .join("");
@@ -2881,21 +3078,21 @@ function displayMarketCapSplit(marketCap) {
 
     const barHTML = sortedLabels
       .map((label, i) => {
-        const color = themeColors[i % themeColors.length];
+        const color = getTbcColor(i);
         const rupeeValue = (totalValue * sortedData[i]) / 100;
         return `
           <div class="composition-segment"
                style="width: ${sortedData[i]}%; background-color: ${color};"
                title="${label}: ₹${formatNumber(
                  Math.round(rupeeValue),
-               )} (${sortedData[i].toFixed(1)}%)">
+               )} (${sortedData[i].toFixed(2)}%)">
           </div>`;
       })
       .join("");
 
     const legendHTML = sortedLabels
       .map((label, i) => {
-        const color = themeColors[i % themeColors.length];
+        const color = getTbcColor(i);
         return `
           <span class="legend-item">
             <span class="legend-color" style="background-color: ${color};"></span>${label}: ${sortedData[
@@ -2920,54 +3117,46 @@ function displayMarketCapSplit(marketCap) {
 
 function displaySectorSplit(sectorObj, totalValue) {
   let entries = Object.entries(sectorObj).sort((a, b) => b[1] - a[1]);
-  const top = entries.slice(0, 10);
-  const rest = entries.slice(10);
+  const top = entries.slice(0, 7); //limit-bar-chart
+  const rest = entries.slice(7);
   const othersValue = rest.reduce((sum, [, v]) => sum + v, 0);
-  if (othersValue > 0) top.push(["Others", othersValue]);
 
-  const filteredTop = top.filter(([name, value]) => {
-    return value >= 1;
-  });
+  const filteredTop = top.filter(([, value]) => value >= 1);
 
   const labels = filteredTop.map(([name]) => name);
-  const data = filteredTop.map(([_, val]) => val);
+  const data = filteredTop.map(([, val]) => val);
 
   const [sortedLabels, sortedData] = sortData(labels, data);
 
-  setTimeout(() => {
-    sectorChart = buildBarChart(
-      "sectorChart",
-      sortedLabels,
-      sortedData,
-      totalValue,
-    );
+  // Append Others at the end after sorting so it's always last
+  if (othersValue > 0) {
+    sortedLabels.push("Others");
+    sortedData.push(othersValue);
+  }
 
-    setTimeout(() => {
-      const sectorCard = document.getElementById("sectorCard");
-      if (!sectorCard) return;
+  const sectorCard = document.getElementById("sectorCard");
+  if (!sectorCard) return;
 
-      sectorCard.classList.remove("loading");
+  const nonZeroEntries = entries.filter(([, v]) => v > 0);
+  const onlyUnclassified =
+    nonZeroEntries.length === 1 &&
+    nonZeroEntries[0][0].toLowerCase() === "unclassified";
 
-      const nonZeroEntries = entries.filter(([_, v]) => v > 0);
-      const onlyUnclassified =
-        nonZeroEntries.length === 1 &&
-        nonZeroEntries[0][0].toLowerCase() === "unclassified";
+  if (onlyUnclassified || sortedData.length === 0) {
+    sectorCard.classList.add("hidden");
+    return;
+  }
 
-      if (onlyUnclassified) {
-        sectorCard.classList.add("hidden");
-      } else {
-        sectorCard.classList.remove("hidden");
-      }
-    }, 150);
-  }, 50);
+  sectorCard.classList.remove("hidden");
+  buildTextBarChart("sectorChart", sortedLabels, sortedData);
+  sectorCard.classList.remove("loading");
 }
 
 function displayAMCSplit(amcObj, totalValue) {
   let entries = Object.entries(amcObj).sort((a, b) => b[1] - a[1]);
-  const top = entries.slice(0, 10);
-  const rest = entries.slice(10);
+  const top = entries.slice(0, 7); //limit-bar-chart
+  const rest = entries.slice(7);
   const othersValue = rest.reduce((sum, [, v]) => sum + v, 0);
-  if (othersValue > 0) top.push(["Others", othersValue]);
 
   const cleaned = top.map(([name, value]) => {
     let shortName = name
@@ -2978,17 +3167,18 @@ function displayAMCSplit(amcObj, totalValue) {
   });
 
   const labels = cleaned.map(([n]) => n);
-  const data = cleaned.map(([_, v]) => v);
+  const data = cleaned.map(([, v]) => v);
 
   const [sortedLabels, sortedData] = sortData(labels, data);
 
-  setTimeout(() => {
-    amcChart = buildBarChart("amcChart", sortedLabels, sortedData, totalValue);
+  // Append Others at the end after sorting so it's always last
+  if (othersValue > 0) {
+    sortedLabels.push("Others");
+    sortedData.push(othersValue);
+  }
 
-    setTimeout(() => {
-      document.getElementById("amcCard")?.classList.remove("loading");
-    }, 150);
-  }, 50);
+  buildTextBarChart("amcChart", sortedLabels, sortedData);
+  document.getElementById("amcCard")?.classList.remove("loading");
 }
 function displayHoldingsSplit(holdingsObj, totalValue) {
   let entries = Object.entries(holdingsObj)
@@ -2996,25 +3186,23 @@ function displayHoldingsSplit(holdingsObj, totalValue) {
     .map(([company, data]) => [company, data.percentage])
     .sort((a, b) => b[1] - a[1]);
 
-  const top = entries.slice(0, 10);
+  const top = entries.slice(0, 7); //limit-bar-chart
+  const rest = entries.slice(7);
+  const othersValue = rest.reduce((sum, [, v]) => sum + v, 0);
 
   const labels = top.map(([name]) => name);
-  const data = top.map(([_, val]) => val);
+  const data = top.map(([, val]) => val);
 
   const [sortedLabels, sortedData] = sortData(labels, data);
 
-  setTimeout(() => {
-    holdingsChart = buildBarChart(
-      "holdingsChart",
-      sortedLabels,
-      sortedData,
-      totalValue,
-    );
+  // Append Others at the end after sorting so it's always last
+  if (othersValue > 0) {
+    sortedLabels.push("Others");
+    sortedData.push(othersValue);
+  }
 
-    setTimeout(() => {
-      document.getElementById("holdingsCard")?.classList.remove("loading");
-    }, 150);
-  }, 50);
+  buildTextBarChart("holdingsChart", sortedLabels, sortedData);
+  document.getElementById("holdingsCard")?.classList.remove("loading");
 }
 function displayWeightedReturns(wr) {
   const container = document.getElementById("weightedReturnsContainer");
@@ -5686,6 +5874,18 @@ function showFundDetailsModal(
     return val;
   }
 
+  function roundValueOrDash(val, noVal) {
+    if (val === null || val === undefined || Number(val) === 0) {
+      return noVal;
+    }
+
+    if (typeof val === "number") {
+      return Math.round(val * 100) / 100;
+    }
+
+    return val;
+  }
+
   // Build Folios section HTML before modal.innerHTML (avoids nested template literal issues)
   let foliosSectionHTML = "";
   const _folioSummaries = fund.advancedMetrics?.folioSummaries;
@@ -6282,38 +6482,43 @@ function showFundDetailsModal(
             <div class="fund-stats-group-cells">
               <div class="fund-stats-cell">
                 <span class="fund-stats-cell-label">Alpha</span>
-                <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.alpha)}</span>
+                <span class="fund-stats-cell-value">${roundValueOrDash(extendedData.return_stats?.alpha, "-")}</span>
               </div>
               <div class="fund-stats-cell">
                 <span class="fund-stats-cell-label">Sharpe</span>
-                <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.sharpe_ratio)}</span>
+                <span class="fund-stats-cell-value">${roundValueOrDash(extendedData.return_stats?.sharpe_ratio, "-")}</span>
               </div>
               <div class="fund-stats-cell">
                 <span class="fund-stats-cell-label">Beta</span>
-                <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.beta)}</span>
+                <span class="fund-stats-cell-value">${roundValueOrDash(extendedData.return_stats?.beta, "-")}</span>
               </div>
               <div class="fund-stats-cell">
                 <span class="fund-stats-cell-label">Sortino</span>
-                <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.sortino_ratio)}</span>
+                <span class="fund-stats-cell-value">${roundValueOrDash(extendedData.return_stats?.sortino_ratio, "-")}</span>
               </div>
               <div class="fund-stats-cell">
                 <span class="fund-stats-cell-label">Info Ratio</span>
-                <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.information_ratio)}</span>
+                <span class="fund-stats-cell-value">${roundValueOrDash(extendedData.return_stats?.information_ratio, "-")}</span>
               </div>
               <div class="fund-stats-cell">
                 <span class="fund-stats-cell-label">Std Dev</span>
-                <span class="fund-stats-cell-value">${roundValue(extendedData.return_stats?.standard_deviation)}</span>
+                <span class="fund-stats-cell-value">${roundValueOrDash(extendedData.return_stats?.standard_deviation, "-")}</span>
               </div>
               ${(() => {
                 const portfolioTurnover =
                   extendedData.portfolio_turnover ??
                   extendedData.return_stats?.portfolio_turnover ??
                   null;
+
                 return portfolioTurnover !== null
                   ? `<div class="fund-stats-cell">
-                <span class="fund-stats-cell-label">Turnover</span>
-                <span class="fund-stats-cell-value">${portfolioTurnover}%</span>
-              </div>`
+                      <span class="fund-stats-cell-label">Turnover</span>
+                      <span class="fund-stats-cell-value">${
+                        roundValueOrDash(portfolioTurnover, "-") === "-"
+                          ? "-"
+                          : roundValue(portfolioTurnover) + "%"
+                      }</span>
+                    </div>`
                   : "";
               })()}
             </div>
@@ -6783,86 +6988,42 @@ function renderModalCompositionCharts(fundKey, extendedData) {
   const assetBarEl = document.getElementById("modalAssetAllocationBar");
   if (assetBarEl) {
     const rawAsset = ps.asset_allocation || {};
-    let equity = 0,
-      debt = 0,
-      gold = 0,
-      silver = 0;
 
+    // Accumulate per-asset-class buckets using getAssetClass on holdings
+    const buckets = {};
     Object.entries(rawAsset).forEach(([key, value]) => {
       const val = parseFloat(value);
       if (isNaN(val) || val <= 0) return;
-
-      const k = key.toLowerCase();
-
-      if (k.includes("equity")) {
-        equity += val;
-      } else if (k.includes("commodities")) {
-        // Check holdings to split commodities between gold and silver
-        let goldWeight = 0;
-        let silverWeight = 0;
-
-        if (extendedData?.holdings && Array.isArray(extendedData.holdings)) {
-          extendedData.holdings.forEach((holding) => {
-            const companyName = (holding.company_name || "").toLowerCase();
-            const instrumentName = (
-              holding.instrument_name || ""
-            ).toLowerCase();
-            const holdingPercent = parseFloat(holding.corpus_per || 0);
-
-            if (
-              (companyName.includes("gold") ||
-                instrumentName.includes("gold")) &&
-              (companyName.includes("etf") ||
-                instrumentName.includes("mutual fund"))
-            ) {
-              goldWeight += holdingPercent;
-            } else if (
-              (companyName.includes("silver") ||
-                instrumentName.includes("silver")) &&
-              (companyName.includes("etf") ||
-                instrumentName.includes("mutual fund"))
-            ) {
-              silverWeight += holdingPercent;
-            }
-          });
-        }
-
-        const totalCommodityWeight = goldWeight + silverWeight;
-
-        if (totalCommodityWeight > 0) {
-          // Split commodities allocation proportionally
-          const goldProportion = goldWeight / totalCommodityWeight;
-          const silverProportion = silverWeight / totalCommodityWeight;
-
-          gold += val * goldProportion;
-          silver += val * silverProportion;
-        } else {
-          // Fallback to checking subcategory and name
-          const subcategory = extendedData?.sub_category?.toLowerCase?.() || "";
-          const name = fundKey?.toLowerCase?.() || "";
-
-          if (subcategory.includes("gold") || name.includes("gold")) {
-            gold += val;
-          } else if (
-            subcategory.includes("silver") ||
-            name.includes("silver")
-          ) {
-            silver += val;
-          } else {
-            debt += val;
-          }
-        }
-      } else {
-        debt += val;
-      }
+      const splits = splitAssetKeyByHoldings(key, val, extendedData?.holdings);
+      Object.entries(splits).forEach(([label, pct]) => {
+        buckets[label] = (buckets[label] || 0) + pct;
+      });
     });
 
-    const segments = [];
-    if (equity > 0) segments.push({ label: "Equity", value: equity });
-    if (debt > 0) segments.push({ label: "Debt", value: debt });
-    if (gold > 0) segments.push({ label: "Gold", value: gold });
-    if (silver > 0) segments.push({ label: "Silver", value: silver });
+    const preferredOrder = [
+      "domestic equity",
+      "foreign equity",
+      "hedged equity",
+      "debt",
+      "gold",
+      "silver",
+      "reits",
+      "cash",
+      "other",
+    ];
+    const toLabel = (k) =>
+      k === "reits" ? "REITs" : k.replace(/\b\w/g, (c) => c.toUpperCase());
 
+    const segments = [];
+    preferredOrder.forEach((k) => {
+      if ((buckets[k] || 0) > 0)
+        segments.push({ label: toLabel(k), value: buckets[k] });
+    });
+    Object.keys(buckets).forEach((k) => {
+      if (!preferredOrder.includes(k) && (buckets[k] || 0) > 0) {
+        segments.push({ label: toLabel(k), value: buckets[k] });
+      }
+    });
     // Sort largest first
     segments.sort((a, b) => b.value - a.value);
 
@@ -6876,11 +7037,11 @@ function renderModalCompositionCharts(fundKey, extendedData) {
       // Apply theme-based colors
       const barHTML = normalized
         .map((s, i) => {
-          const color = themeColors[i % themeColors.length];
+          const color = getTbcColor(i);
           return `
             <div class="composition-segment"
                  style="width: ${s.value}%; background-color: ${color};"
-                 title="${s.label}: ${s.value.toFixed(1)}%">
+                 title="${s.label}: ${s.value.toFixed(2)}%">
             </div>
           `;
         })
@@ -6888,11 +7049,11 @@ function renderModalCompositionCharts(fundKey, extendedData) {
 
       const legendHTML = normalized
         .map((s, i) => {
-          const color = themeColors[i % themeColors.length];
+          const color = getTbcColor(i);
           return `
             <span class="legend-item">
               <span class="legend-color" style="background-color: ${color};"></span>
-              ${s.label}: ${s.value.toFixed(1)}%
+              ${s.label}: ${s.value.toFixed(2)}%
             </span>
           `;
         })
@@ -6944,11 +7105,11 @@ function renderModalCompositionCharts(fundKey, extendedData) {
 
       const barHTML = segments
         .map((s, i) => {
-          const color = themeColors[i % themeColors.length];
+          const color = getTbcColor(i);
           return `
             <div class="composition-segment"
                  style="width: ${s.value}%; background-color: ${color};"
-                 title="${s.label}: ${s.value.toFixed(1)}%">
+                 title="${s.label}: ${s.value.toFixed(2)}%">
             </div>
           `;
         })
@@ -6956,11 +7117,11 @@ function renderModalCompositionCharts(fundKey, extendedData) {
 
       const legendHTML = segments
         .map((s, i) => {
-          const color = themeColors[i % themeColors.length];
+          const color = getTbcColor(i);
           return `
             <span class="legend-item">
               <span class="legend-color" style="background-color: ${color};"></span>
-              ${s.label}: ${s.value.toFixed(1)}%
+              ${s.label}: ${s.value.toFixed(2)}%
             </span>
           `;
         })
@@ -7139,7 +7300,7 @@ function createHoldingsTable(holdings, othersPercentage = 0) {
       <th>Company Name</th>
       <th>% of Portfolio</th>
       <th>Nature</th>
-      <th>Sector</th>
+      <th>Instrument</th>
     </tr>
   `;
   table.appendChild(header);
@@ -7154,7 +7315,7 @@ function createHoldingsTable(holdings, othersPercentage = 0) {
         <td>${company}</td>
         <td>${data.percentage.toFixed(2)}%</td>
         <td>${data.nature}</td>
-        <td>${data.sector}</td>
+        <td>${data.instrument}</td>
       `;
       body.appendChild(row);
     });
@@ -9407,7 +9568,7 @@ function populateCompactHoldings(funds) {
           </div>
           <div class="chi-right">
             <div class="chi-current ${isProfit ? "chi-current--gain" : "chi-current--loss"}">₹${formatNumber(currentValue)}</div>
-            <div class="chi-invested">Inv: ₹${formatNumber(invested)}</div>
+            <div class="chi-invested">₹${formatNumber(invested)}</div>
             <div class="chi-returns ${isProfit ? "chi-returns--gain" : "chi-returns--loss"}">${returnsPercentText}</div>
           </div>
         </div>
@@ -9783,8 +9944,6 @@ async function loadFamilyDashboard() {
   if (holdingsSection) holdingsSection.style.display = "block";
 
   if (familyDashboardInitialized && familyDashboardCache) {
-    console.log("📊 Using cached family dashboard data");
-
     displayFamilySummaryCards(familyDashboardCache);
     displayFamilyAnalytics(familyDashboardCache);
     displayFamilyUserBreakdown(familyDashboardCache.userBreakdown);
@@ -9845,6 +10004,16 @@ function calculateFamilyMetrics(allUserData) {
     weightedReturns: { return1y: null, return3y: null, return5y: null },
   };
 
+  // Accumulators for family-level 1D change (populated inside the per-user loop below)
+  let family1DChange = 0;
+  let family1DPrevValue = 0;
+  let family1DFundsWithData = 0;
+
+  // Per-user 1D accumulators (keyed by userName, populated inside the loop)
+  const user1DChange = {};
+  const user1DPrevValue = {};
+  const user1DFundsWithData = {};
+
   Object.entries(allUserData).forEach(
     ([userName, { casData, mfStats: userMfStats }]) => {
       const userFundWiseData = {};
@@ -9880,6 +10049,7 @@ function calculateFamilyMetrics(allUserData) {
             unrealizedGain: unrealizedGain,
             units: units,
             holdings: extendedData?.holdings || [],
+            navHistory: extendedData?.nav_history || [],
             advancedMetrics: {
               currentValue: currentValue,
               remainingCost: cost,
@@ -10021,6 +10191,7 @@ function calculateFamilyMetrics(allUserData) {
             unrealizedGain: unrealizedGain,
             totalUnitsRemaining: totalUnits,
           };
+          fund.navHistory = extendedData?.nav_history || [];
         });
       }
 
@@ -10050,14 +10221,40 @@ function calculateFamilyMetrics(allUserData) {
           metrics.combinedFundData[fundKey].totalCost += fund.cost;
           metrics.combinedFundData[fundKey].totalUnits += fund.units;
           metrics.combinedFundData[fundKey].users.push(userName);
+
+          // Accumulate 1D change using navHistory + totalUnitsRemaining already on this fund
+          const od = calculate1DayReturn(fund);
+          if (od && od.rupees != null) {
+            family1DChange += od.rupees;
+            family1DPrevValue += fund.currentValue - od.rupees;
+            family1DFundsWithData++;
+            // Per-user accumulation
+            user1DChange[userName] = (user1DChange[userName] || 0) + od.rupees;
+            user1DPrevValue[userName] =
+              (user1DPrevValue[userName] || 0) +
+              (fund.currentValue - od.rupees);
+            user1DFundsWithData[userName] =
+              (user1DFundsWithData[userName] || 0) + 1;
+          }
         }
       });
+
+      const userOD =
+        (user1DFundsWithData[userName] || 0) > 0 &&
+        (user1DPrevValue[userName] || 0) > 0
+          ? {
+              rupees: user1DChange[userName],
+              percent:
+                (user1DChange[userName] / user1DPrevValue[userName]) * 100,
+            }
+          : null;
 
       metrics.userBreakdown[userName] = {
         currentValue: userCurrentValue,
         cost: userCost,
         unrealizedGain: userCurrentValue - userCost,
         holdings: userHoldings,
+        oneDayChange: userOD,
       };
 
       metrics.totalCurrentValue += userCurrentValue;
@@ -10068,6 +10265,13 @@ function calculateFamilyMetrics(allUserData) {
 
   metrics.totalUnrealizedGain = metrics.totalCurrentValue - metrics.totalCost;
   metrics.totalHoldings = Object.keys(metrics.combinedFundData).length;
+  metrics.total1DChange =
+    family1DFundsWithData > 0 && family1DPrevValue > 0
+      ? {
+          rupees: family1DChange,
+          percent: (family1DChange / family1DPrevValue) * 100,
+        }
+      : null;
 
   const totalValue = metrics.totalCurrentValue;
 
@@ -10091,97 +10295,28 @@ function calculateFamilyMetrics(allUserData) {
       if (fundAsset) {
         Object.entries(fundAsset).forEach(([k, v]) => {
           if (v == null || isNaN(parseFloat(v)) || parseFloat(v) <= 0) return;
-          const key = k.trim().toLowerCase();
-
-          if (key.includes("equity")) {
-            metrics.assetAllocation.equity =
-              (metrics.assetAllocation.equity || 0) +
-              (parseFloat(v) / 100) * weight * 100;
-          } else if (key.includes("commodities")) {
-            // Check holdings to split commodities between gold and silver
-            let goldWeight = 0;
-            let silverWeight = 0;
-
-            if (
-              extendedData?.holdings &&
-              Array.isArray(extendedData.holdings)
-            ) {
-              extendedData.holdings.forEach((holding) => {
-                const companyName = (holding.company_name || "").toLowerCase();
-                const instrumentName = (
-                  holding.instrument_name || ""
-                ).toLowerCase();
-                const holdingPercent = parseFloat(holding.corpus_per || 0);
-
-                if (
-                  (companyName.includes("gold") ||
-                    instrumentName.includes("gold")) &&
-                  (companyName.includes("etf") ||
-                    instrumentName.includes("mutual fund"))
-                ) {
-                  goldWeight += holdingPercent;
-                } else if (
-                  (companyName.includes("silver") ||
-                    instrumentName.includes("silver")) &&
-                  (companyName.includes("etf") ||
-                    instrumentName.includes("mutual fund"))
-                ) {
-                  silverWeight += holdingPercent;
-                }
-              });
-            }
-
-            const totalCommodityWeight = goldWeight + silverWeight;
-
-            if (totalCommodityWeight > 0) {
-              // Split commodities allocation proportionally
-              const goldProportion = goldWeight / totalCommodityWeight;
-              const silverProportion = silverWeight / totalCommodityWeight;
-
-              metrics.assetAllocation.gold =
-                (metrics.assetAllocation.gold || 0) +
-                (parseFloat(v) / 100) * weight * 100 * goldProportion;
-
-              metrics.assetAllocation.silver =
-                (metrics.assetAllocation.silver || 0) +
-                (parseFloat(v) / 100) * weight * 100 * silverProportion;
-            } else {
-              // Fallback to checking subcategory and name
-              const subcategory =
-                extendedData?.sub_category?.toLowerCase?.() || "";
-              const name = fund?.scheme?.toLowerCase?.() || "";
-
-              let bucket = "debt";
-              if (subcategory.includes("gold") || name.includes("gold")) {
-                bucket = "gold";
-              } else if (
-                subcategory.includes("silver") ||
-                name.includes("silver")
-              ) {
-                bucket = "silver";
-              }
-
-              metrics.assetAllocation[bucket] =
-                (metrics.assetAllocation[bucket] || 0) +
-                (parseFloat(v) / 100) * weight * 100;
-            }
-          } else {
-            metrics.assetAllocation.debt =
-              (metrics.assetAllocation.debt || 0) +
-              (parseFloat(v) / 100) * weight * 100;
-          }
+          const allocPct = (parseFloat(v) / 100) * weight * 100;
+          const splits = splitAssetKeyByHoldings(
+            k,
+            allocPct,
+            extendedData?.holdings,
+          );
+          Object.entries(splits).forEach(([label, pct]) => {
+            metrics.assetAllocation[label] =
+              (metrics.assetAllocation[label] || 0) + pct;
+          });
         });
       } else {
         const category = (extendedData.category || "").toLowerCase();
         if (category.includes("equity")) {
-          metrics.assetAllocation.equity =
-            (metrics.assetAllocation.equity || 0) + weight * 100;
+          metrics.assetAllocation["domestic equity"] =
+            (metrics.assetAllocation["domestic equity"] || 0) + weight * 100;
         } else if (category.includes("debt") || category.includes("income")) {
-          metrics.assetAllocation.debt =
-            (metrics.assetAllocation.debt || 0) + weight * 100;
+          metrics.assetAllocation["debt"] =
+            (metrics.assetAllocation["debt"] || 0) + weight * 100;
         } else {
-          metrics.assetAllocation.other =
-            (metrics.assetAllocation.other || 0) + weight * 100;
+          metrics.assetAllocation["other"] =
+            (metrics.assetAllocation["other"] || 0) + weight * 100;
         }
       }
 
@@ -10413,7 +10548,7 @@ function calculateFamilyMetrics(allUserData) {
 
 function displayFamilySummaryCards(metrics) {
   const container = document.getElementById("familySummaryCards");
-
+  if (!container) return;
   // Calculate additional assets for all family members
   const users = storageManager.getAllUsers();
   let totalAdditionalAssets = 0;
@@ -10436,15 +10571,23 @@ function displayFamilySummaryCards(metrics) {
       ? ((metrics.totalUnrealizedGain / metrics.totalCost) * 100).toFixed(2)
       : 0;
 
+  // Build 1D change subtext
+  const od = metrics.total1DChange;
+  const odSign = od && od.rupees >= 0 ? "+" : "-";
+  const odTriangle = od && od.rupees >= 0 ? "▲" : "▼";
+  const odClass =
+    od && od.rupees >= 0 ? "one-day-subtext--pos" : "one-day-subtext--neg";
+  const odSubtextHTML = od
+    ? `<span class="one-day-subtext ${odClass}">${odTriangle} 1D: ₹${formatNumber(Math.abs(Math.round(od.rupees)))} (${odSign}${Math.abs(od.percent).toFixed(2)}%)</span>`
+    : `<span class="one-day-subtext" style="color:var(--text-tertiary)">Combined Portfolio Value</span>`;
+
   if (hasAdditionalAssets) {
     // Show Total Family Value card
     container.innerHTML = `
       <div class="card">
         <h3>Total Family Value</h3>
         <div class="value">₹${formatNumber(combinedFamilyValue)}</div>
-        <div class="subtext">MF: ₹${formatNumber(
-          metrics.totalCurrentValue,
-        )} + Additional: ₹${formatNumber(totalAdditionalAssets)}</div>
+        <div class="subtext">${odSubtextHTML}</div>
       </div>
       <div class="card">
         <h3>MF Current Value</h3>
@@ -10481,7 +10624,7 @@ function displayFamilySummaryCards(metrics) {
       <div class="card">
         <h3>Total Family Value</h3>
         <div class="value">₹${formatNumber(metrics.totalCurrentValue)}</div>
-        <div class="subtext">Combined Portfolio Value</div>
+        <div class="subtext">${odSubtextHTML}</div>
       </div>
       <div class="card">
         <h3>Total Cost</h3>
@@ -10513,29 +10656,25 @@ function displayFamilyAnalytics(metrics) {
   window.familyDashboardCache = metrics;
 
   if (familySectorChart) {
-    familySectorChart.destroy();
     familySectorChart = null;
   }
 
   if (familyAmcChart) {
-    familyAmcChart.destroy();
     familyAmcChart = null;
   }
+
+  // Clear text bar chart containers
+  const el1 = document.getElementById("familySectorChart");
+  if (el1) el1.innerHTML = "";
+  else return;
+  const el2 = document.getElementById("familyAmcChart");
+  if (el2) el2.innerHTML = "";
+  else return;
 
   setTimeout(() => {
     displayFamilyAssetAllocation(metrics);
     displayFamilyMarketCapSplit(metrics);
   }, 200);
-
-  const sectorLabels = [];
-  const sectorData = [];
-
-  Object.entries(metrics.sector).forEach(([name, value]) => {
-    if (value > 0) {
-      sectorLabels.push(name);
-      sectorData.push(value);
-    }
-  });
 
   const nonZeroEntries = Object.entries(metrics.sector).filter(
     ([_, v]) => v > 0,
@@ -10546,45 +10685,51 @@ function displayFamilyAnalytics(metrics) {
 
   const sectorCard = document.getElementById("familySectorCard");
 
-  if (onlyUnclassified || sectorData.length === 0) {
+  if (onlyUnclassified || nonZeroEntries.length === 0) {
     sectorCard.classList.add("hidden");
   } else {
     sectorCard.classList.remove("hidden");
+    const sortedEntries = nonZeroEntries.sort((a, b) => b[1] - a[1]);
+    const topSector = sortedEntries.slice(0, 7);
+    const restSector = sortedEntries.slice(7);
+    const sectorOthers = restSector.reduce((sum, [, v]) => sum + v, 0);
+    const sectorLabels = topSector.map(([n]) => n);
+    const sectorData = topSector.map(([, v]) => v);
     const [sortedLabels, sortedData] = sortData(sectorLabels, sectorData);
-    setTimeout(() => {
-      familySectorChart = buildBarChart(
-        "familySectorChart",
-        sortedLabels,
-        sortedData,
-      );
-      sectorCard.classList.remove("loading");
-    }, 200);
+    // Append Others at the end after sorting so it's always last
+    if (sectorOthers > 0) {
+      sortedLabels.push("Others");
+      sortedData.push(sectorOthers);
+    }
+    buildTextBarChart("familySectorChart", sortedLabels, sortedData);
+    sectorCard.classList.remove("loading");
   }
 
-  const amcLabels = [];
-  const amcData = [];
-
-  Object.entries(metrics.amc).forEach(([name, value]) => {
-    if (value > 0) {
+  const amcEntries = Object.entries(metrics.amc)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, value]) => {
       const shortName = name
         .replace(/mutual\s*fund/gi, "")
         .replace(/\bmf\b/gi, "")
         .trim();
-      amcLabels.push(shortName);
-      amcData.push(value);
-    }
-  });
+      return [shortName, value];
+    });
 
-  if (amcData.length > 0) {
+  if (amcEntries.length > 0) {
+    const topAmc = amcEntries.slice(0, 7);
+    const restAmc = amcEntries.slice(7);
+    const amcOthers = restAmc.reduce((sum, [, v]) => sum + v, 0);
+    const amcLabels = topAmc.map(([n]) => n);
+    const amcData = topAmc.map(([, v]) => v);
     const [sortedLabels, sortedData] = sortData(amcLabels, amcData);
-    setTimeout(() => {
-      familyAmcChart = buildBarChart(
-        "familyAmcChart",
-        sortedLabels,
-        sortedData,
-      );
-      document.getElementById("familyAmcCard")?.classList.remove("loading");
-    }, 300);
+    // Append Others at the end after sorting so it's always last
+    if (amcOthers > 0) {
+      sortedLabels.push("Others");
+      sortedData.push(amcOthers);
+    }
+    buildTextBarChart("familyAmcChart", sortedLabels, sortedData);
+    document.getElementById("familyAmcCard")?.classList.remove("loading");
   } else {
     document.getElementById("familyAmcCard").innerHTML =
       '<p style="text-align: center; color: #9ca3af; padding: 20px;">DATA NOT AVAILABLE</p>';
@@ -10620,12 +10765,13 @@ function displayFamilyAnalytics(metrics) {
 
 function displayFamilyAssetAllocation(metrics) {
   const preferred = [
-    "equity",
+    "domestic equity",
+    "foreign equity",
+    "hedged equity",
     "debt",
     "gold",
     "silver",
-    "commodities",
-    "real estate",
+    "reits",
     "cash",
     "other",
   ];
@@ -10633,11 +10779,15 @@ function displayFamilyAssetAllocation(metrics) {
   const assetLabels = [];
   const assetData = [];
 
+  // Title-case helper for multi-word keys like "domestic equity", "reits"
+  const toLabel = (k) =>
+    k === "reits" ? "REITs" : k.replace(/\b\w/g, (c) => c.toUpperCase());
+
   // Preferred order first
   preferred.forEach((k) => {
     const val = parseFloat(metrics.assetAllocation?.[k]);
     if (!isNaN(val) && val > 0) {
-      assetLabels.push(k.charAt(0).toUpperCase() + k.slice(1));
+      assetLabels.push(toLabel(k));
       assetData.push(val);
     }
   });
@@ -10647,7 +10797,7 @@ function displayFamilyAssetAllocation(metrics) {
     if (!preferred.includes(k) && k !== "_breakdown") {
       const val = parseFloat(metrics.assetAllocation[k]);
       if (!isNaN(val) && val > 0) {
-        assetLabels.push(k.charAt(0).toUpperCase() + k.slice(1));
+        assetLabels.push(toLabel(k));
         assetData.push(val);
       }
     }
@@ -10683,7 +10833,7 @@ function displayFamilyAssetAllocation(metrics) {
 
   const barHTML = sortedLabels
     .map((label, i) => {
-      const color = themeColors[i % themeColors.length];
+      const color = getTbcColor(i);
       const rupeeValue = (totalValue * sortedData[i]) / 100;
 
       return `
@@ -10691,18 +10841,18 @@ function displayFamilyAssetAllocation(metrics) {
              style="width: ${sortedData[i]}%; background-color: ${color};"
              title="${label}: ₹${formatNumber(
                Math.round(rupeeValue),
-             )} (${sortedData[i].toFixed(1)}%)">
+             )} (${sortedData[i].toFixed(2)}%)">
         </div>`;
     })
     .join("");
 
   const legendHTML = sortedLabels
     .map((label, i) => {
-      const color = themeColors[i % themeColors.length];
+      const color = getTbcColor(i);
       return `
         <span class="legend-item">
           <span class="legend-color" style="background-color: ${color};"></span>
-          ${label} ${sortedData[i].toFixed(1)}%
+          ${label} ${sortedData[i].toFixed(2)}%
         </span>`;
     })
     .join("");
@@ -10748,25 +10898,25 @@ function displayFamilyMarketCapSplit(metrics) {
 
   const barHTML = sortedLabels
     .map((label, i) => {
-      const color = themeColors[i % themeColors.length];
+      const color = getTbcColor(i);
       const rupeeValue = (totalValue * sortedData[i]) / 100;
       return `
       <div class="composition-segment"
            style="width: ${sortedData[i]}%; background-color: ${color};"
            title="${label}: ₹${formatNumber(
              Math.round(rupeeValue),
-           )} (${sortedData[i].toFixed(1)}%)">
+           )} (${sortedData[i].toFixed(2)}%)">
       </div>`;
     })
     .join("");
 
   const legendHTML = sortedLabels
     .map((label, i) => {
-      const color = themeColors[i % themeColors.length];
+      const color = getTbcColor(i);
       return `
       <span class="legend-item">
         <span class="legend-color" style="background-color: ${color};"></span>
-        ${label}: ${sortedData[i].toFixed(1)}%
+        ${label}: ${sortedData[i].toFixed(2)}%
       </span>`;
     })
     .join("");
@@ -10782,6 +10932,7 @@ function displayFamilyMarketCapSplit(metrics) {
 
 function displayFamilyUserBreakdown(userBreakdown) {
   const container = document.getElementById("familyUserBreakdown");
+  if (!container) return;
   container.innerHTML = "";
 
   const sortedUsers = Object.entries(userBreakdown).sort(
@@ -10798,6 +10949,22 @@ function displayFamilyUserBreakdown(userBreakdown) {
     card.className = "family-user-card";
 
     const pnlClass = data.unrealizedGain >= 0 ? "pnl-gain" : "pnl-loss";
+    const od = data.oneDayChange;
+    const odRowHTML = od
+      ? (() => {
+          const odSign = od.rupees >= 0 ? "+" : "-";
+          const odTriangle = od.rupees >= 0 ? "▲" : "▼";
+          const odClass = od.rupees >= 0 ? "gain" : "loss";
+          return `
+        <div class="family-stat-row oneday-${odClass}">
+          <span class="label">1D Change</span>
+          <span class="value ${odClass}" style="font-size:11px;">
+            ${odTriangle} ₹${formatNumber(Math.abs(Math.round(od.rupees)))}
+          </span>
+          <span class="sub-value ${odClass}">${odSign}${Math.abs(od.percent).toFixed(2)}%</span>
+        </div>`;
+        })()
+      : "";
     card.innerHTML = `
       <h4>
         <i class="fa-solid fa-user"></i> ${displayName}
@@ -10819,6 +10986,7 @@ function displayFamilyUserBreakdown(userBreakdown) {
           </span>
           <span class="sub-value">${data.unrealizedGain >= 0 ? "+" : "-"}${Math.abs(gainPercent)}%</span>
         </div>
+        ${odRowHTML}
       </div>
     `;
 
@@ -10878,10 +11046,9 @@ function updateCompactFamilyDashboard(metrics) {
 
       <div class="compact-stats">
         <div class="compact-stat-row">
-          <span class="stat-label">Total Unique Holdings</span>
-          <span class="stat-value">${metrics.totalHoldings}</span>
+          <span class="stat-label">Total Invested</span>
+          <span class="stat-value">₹${formatNumber(metrics.totalCost)}</span>
         </div>
-
         <div class="compact-stat-row">
           <span class="stat-label">P&L</span>
           <span class="stat-value ${
@@ -10895,10 +11062,20 @@ function updateCompactFamilyDashboard(metrics) {
             }${unrealizedGainPercent}%)
           </span>
         </div>
-
-        <div class="compact-stat-row compact-stat-row--full">
-          <span class="stat-label">Total Invested</span>
-          <span class="stat-value">₹${formatNumber(metrics.totalCost)}</span>
+          ${(() => {
+            const od = metrics.total1DChange;
+            if (!od) return "";
+            const odSign = od.rupees >= 0 ? "+" : "-";
+            return `<div class="compact-stat-row">
+            <span class="stat-label">1D Change</span>
+            <span class="stat-value ${od.rupees >= 0 ? "positive" : "negative"}">
+              ₹${formatNumber(Math.abs(Math.round(od.rupees)))} (${odSign}${Math.abs(od.percent).toFixed(2)}%)
+            </span>
+            </div>`;
+          })()}
+        <div class="compact-stat-row">
+          <span class="stat-label">Total Unique Holdings</span>
+          <span class="stat-value">${metrics.totalHoldings}</span>
         </div>
       </div>
     </div>
@@ -10920,6 +11097,12 @@ function updateCompactFamilyDashboard(metrics) {
     const gainSign = isProfit ? "+" : "-";
     const pnlText = `₹${formatNumber(Math.abs(data.unrealizedGain))} (${gainSign}${Math.abs(gainPercent)}%)`;
 
+    const oneDayChange = data.oneDayChange;
+    const oneDayPositive = oneDayChange ? oneDayChange.rupees >= 0 : false;
+    const oneDayText = oneDayChange
+      ? `₹${formatNumber(Math.abs(oneDayChange.rupees))} (${oneDayPositive ? "+" : ""}${oneDayChange.percent.toFixed(2)}%)`
+      : null;
+
     const item = document.createElement("div");
     item.className = "compact-holding-item chi-hero";
 
@@ -10934,15 +11117,20 @@ function updateCompactFamilyDashboard(metrics) {
                 <span class="chi-stat-label">Holdings</span>
                 <span class="chi-stat-value">${data.holdings}</span>
               </span>
-              <span class="chi-stat-pill ${isProfit ? "chi-stat-pill--pos" : "chi-stat-pill--neg"}">
-                <span class="chi-stat-label">P&L</span>
-                <span class="chi-stat-value">${pnlText}</span>
-              </span>
+              ${
+                oneDayText
+                  ? `<span class="chi-stat-pill ${oneDayPositive ? "chi-stat-pill--pos" : "chi-stat-pill--neg"}">
+                <span class="chi-stat-label">1D</span>
+                <span class="chi-stat-value">${oneDayText}</span>
+              </span>`
+                  : ""
+              }
             </div>
           </div>
           <div class="chi-right">
             <div class="chi-current ${isProfit ? "chi-current--gain" : "chi-current--loss"}">₹${formatNumber(data.currentValue)}</div>
             <div class="chi-invested">₹${formatNumber(data.cost)}</div>
+            <div class="chi-pnl ${isProfit ? "chi-val--pos" : "chi-val--neg"}">${pnlText}</div>
           </div>
         </div>
       </div>
@@ -13665,9 +13853,18 @@ window.addEventListener("resize", () => {
   }
 });
 
+async function callHealthCheck() {
+  try {
+    await fetch(BACKEND_SERVER + "/health");
+    console.log("Health check completed");
+  } catch (err) {
+    console.error("Health check failed:", err);
+  }
+}
+
 window.addEventListener("DOMContentLoaded", async () => {
   initializeTheme();
-
+  callHealthCheck();
   // Show debug CAS inject row only when DEBUG_MODE is on
   const debugRow = document.getElementById("debugCASInjectRow");
   if (debugRow) {
@@ -13908,3 +14105,64 @@ window.history.replaceState(
   "",
   window.location.pathname,
 );
+
+// ============================================
+// FULL PAGE SCREENSHOT
+// ============================================
+
+async function takeFullPageScreenshot() {
+  const btn = [
+    document.getElementById("screenshotBtnMobile"),
+    document.getElementById("screenshotBtnDesktop"),
+  ].find((el) => el && el.offsetParent !== null);
+
+  if (typeof html2canvas === "undefined") {
+    showToast("Screenshot library not loaded", "error");
+    return;
+  }
+
+  if (btn) {
+    btn.classList.add("capturing");
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+  }
+
+  try {
+    const isDark =
+      document.documentElement.getAttribute("data-theme") === "dark";
+
+    const canvas = await html2canvas(document.body, {
+      backgroundColor: isDark ? "#0f0f14" : "#f8f9fa",
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      scrollX: 0,
+      scrollY: -window.scrollY,
+      windowWidth: document.documentElement.scrollWidth,
+      windowHeight: document.documentElement.scrollHeight,
+      logging: false,
+    });
+
+    const timestamp = new Date()
+      .toLocaleDateString("en-IN", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      })
+      .replace(/\//g, "-");
+
+    const link = document.createElement("a");
+    link.download = `mf-dashboard-${timestamp}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+
+    showToast("Screenshot saved!", "success");
+  } catch (err) {
+    console.error("Screenshot failed:", err);
+    showToast("Screenshot failed. Please try again.", "error");
+  } finally {
+    if (btn) {
+      btn.classList.remove("capturing");
+      btn.innerHTML = '<i class="fa-solid fa-camera"></i>';
+    }
+  }
+}
