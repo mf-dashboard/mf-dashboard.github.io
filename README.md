@@ -75,11 +75,11 @@ The application automatically keeps your portfolio data fresh:
   - Incremental — only new data is fetched and merged
   - Runs silently in the background
 
-- **Monthly Fund Statistics Updates 📅**
-  - Triggered automatically after the 15th of each month
+- **Weekly Fund Statistics Updates 📅**
+  - Triggered automatically every week
   - Fetches portfolio composition, returns, ratings, holdings, and expense ratios
   - Manual trigger available from the Manage CAS tab
-  - Limited to once per month (after 15th)
+  - Limited to once per week
   - Non-blocking background process
 
 - **Smart Update Tracking**: The Manage CAS tab shows last-updated timestamps for CAS parsing, fund stats, and NAV.
@@ -461,7 +461,7 @@ Requires: IndexedDB, ES6+, Fetch API, File API.
 ### Update Restrictions
 
 - NAV: maximum once per day (prevents API abuse)
-- Fund stats: maximum once per month (after 15th, aligns with fund house reporting)
+- Fund stats: maximum once per week
 
 ### API Dependencies
 
@@ -564,7 +564,7 @@ MIT License — see [LICENSE](LICENSE). Free to use, modify, and distribute with
 ### Version 1.0.0
 
 - ✅ Core portfolio tracking with FIFO calculations
-- ✅ Auto-update system (daily NAV, monthly stats)
+- ✅ Auto-update system (daily NAV, weekly stats)
 - ✅ Capital gains with FY-wise breakdown
 - ✅ Transaction management with Excel export
 - ✅ Portfolio analytics and visualizations

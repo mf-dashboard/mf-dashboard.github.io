@@ -2376,20 +2376,20 @@ function getAssetClass(holding) {
     instrument.includes("real estate investment trust") ||
     instrument.includes("invit")
   ) {
-    return "REITs";
+    return "Real Estate";
   }
   // Hedged Equity (Futures)
   if (instrument === "futures") {
     return "Hedged Equity";
   }
-  // Foreign Equity
+  // Global Equity (Foreign Equity)
   if (
     instrument.includes("foreign") ||
     instrument.includes("forgn") ||
     instrument === "ads/adr" ||
     instrument === "foreign mf"
   ) {
-    return "Foreign Equity";
+    return "Global Equity";
   }
   // Debt
   if (
@@ -2422,21 +2422,14 @@ function getAssetClass(holding) {
 
 /**
  * Map an API-level asset_allocation key to per-holding breakdown buckets using getAssetClass.
- * Returns an object: { "Domestic Equity": %, "Foreign Equity": %, "Gold": %, ... }
+ * Returns an object: { "Domestic Equity": %, "Global Equity": %, "Gold": %, ... }
  * All percentages are proportional slices of the given `allocPct` (the fund-level %).
  */
 function splitAssetKeyByHoldings(key, allocPct, holdings) {
   const keyLower = key.trim().toLowerCase();
 
   // Keys we split further via holdings
-  const splitKeys = [
-    "equity",
-    "commodities",
-    "real estate",
-    "reits",
-    "debt",
-    "cash",
-  ];
+  const splitKeys = ["equity", "commodities", "real estate", "debt", "cash"];
   const needsSplit = splitKeys.some((s) => keyLower.includes(s));
 
   if (
@@ -2483,7 +2476,7 @@ function mapApiKeyToLabel(keyLower) {
   if (keyLower.includes("equity")) return "domestic equity";
   if (keyLower.includes("commodit")) return "gold"; // fallback
   if (keyLower.includes("real estate") || keyLower.includes("reit"))
-    return "reits";
+    return "real estate";
   if (keyLower.includes("debt")) return "debt";
   if (keyLower.includes("cash")) return "cash";
   return "other";
@@ -2495,7 +2488,7 @@ function makeHoldingFilter(keyLower) {
       const cls = getAssetClass(h);
       return (
         cls === "Domestic Equity" ||
-        cls === "Foreign Equity" ||
+        cls === "Global Equity" ||
         cls === "Hedged Equity"
       );
     };
@@ -2507,7 +2500,7 @@ function makeHoldingFilter(keyLower) {
     };
   }
   if (keyLower.includes("real estate") || keyLower.includes("reit")) {
-    return (h) => getAssetClass(h) === "REITs";
+    return (h) => getAssetClass(h) === "Real Estate";
   }
   if (keyLower.includes("debt")) {
     return (h) => getAssetClass(h) === "Debt";
@@ -2523,7 +2516,7 @@ function calculatePortfolioAnalytics() {
   const result = {
     totalValue: 0,
     assetAllocation: {},
-    marketCap: { large: 0, mid: 0, small: 0 },
+    marketCap: { global: 0, large: 0, mid: 0, small: 0 },
     sector: {},
     amc: {},
     holdings: {},
@@ -2570,6 +2563,10 @@ function calculatePortfolioAnalytics() {
     const extended = fund.isin ? mfStats[fund.isin] : null;
 
     const fundAsset = extended?.portfolio_stats?.asset_allocation;
+    let fundDomesticEquity = 0;
+    let fundGlobalEquity = 0;
+    let fundHedgedEquity = 0;
+
     if (fundAsset) {
       Object.entries(fundAsset).forEach(([k, v]) => {
         if (v == null || isNaN(parseFloat(v)) || parseFloat(v) <= 0) return;
@@ -2578,6 +2575,9 @@ function calculatePortfolioAnalytics() {
         Object.entries(splits).forEach(([label, pct]) => {
           result.assetAllocation[label] =
             (result.assetAllocation[label] || 0) + pct;
+          if (label === "domestic equity") fundDomesticEquity += pct;
+          else if (label === "global equity") fundGlobalEquity += pct;
+          else if (label === "hedged equity") fundHedgedEquity += pct;
         });
       });
     } else {
@@ -2586,6 +2586,7 @@ function calculatePortfolioAnalytics() {
       if (category.includes("equity")) {
         result.assetAllocation["domestic equity"] =
           (result.assetAllocation["domestic equity"] || 0) + weight * 100;
+        fundDomesticEquity += weight * 100;
       } else if (category.includes("debt") || category.includes("income")) {
         result.assetAllocation["debt"] =
           (result.assetAllocation["debt"] || 0) + weight * 100;
@@ -2596,39 +2597,49 @@ function calculatePortfolioAnalytics() {
     }
 
     const ps = extended?.portfolio_stats;
+    let l = 0,
+      m = 0,
+      s = 0,
+      capTotal = 0;
+
     if (
       ps?.large_cap !== undefined ||
       ps?.mid_cap !== undefined ||
       ps?.small_cap !== undefined
     ) {
-      const l = parseFloat(ps.large_cap || 0);
-      const m = parseFloat(ps.mid_cap || 0);
-      const s = parseFloat(ps.small_cap || 0);
-      const total = l + m + s || 100;
-
-      result.marketCap.large += (l / total) * weight * 100;
-      result.marketCap.mid += (m / total) * weight * 100;
-      result.marketCap.small += (s / total) * weight * 100;
+      l = parseFloat(ps.large_cap || 0);
+      m = parseFloat(ps.mid_cap || 0);
+      s = parseFloat(ps.small_cap || 0);
+      capTotal = l + m + s;
     } else if (ps?.market_cap_per) {
       const mp = ps.market_cap_per;
-      const l = parseFloat(mp.large || 0);
-      const m = parseFloat(mp.mid || 0);
-      const s = parseFloat(mp.small || 0);
-      const total = l + m + s || 100;
+      l = parseFloat(mp.large || 0);
+      m = parseFloat(mp.mid || 0);
+      s = parseFloat(mp.small || 0);
+      capTotal = l + m + s;
+    }
 
-      result.marketCap.large += (l / total) * weight * 100;
-      result.marketCap.mid += (m / total) * weight * 100;
-      result.marketCap.small += (s / total) * weight * 100;
-    } else {
+    if (capTotal > 0 && fundDomesticEquity > 0) {
+      // l/m/s are % of this fund's domestic equity — scale to portfolio-wide %
+      result.marketCap.large += (l / capTotal) * fundDomesticEquity;
+      result.marketCap.mid += (m / capTotal) * fundDomesticEquity;
+      result.marketCap.small += (s / capTotal) * fundDomesticEquity;
+    } else if (fundDomesticEquity > 0) {
+      // No cap-size breakdown available — classify by fund name
       const name = (fund.scheme || "").toLowerCase();
       if (name.includes("small") || name.includes("smallcap")) {
-        result.marketCap.small += weight * 100;
+        result.marketCap.small += fundDomesticEquity;
       } else if (name.includes("mid") || name.includes("midcap")) {
-        result.marketCap.mid += weight * 100;
+        result.marketCap.mid += fundDomesticEquity;
       } else {
-        result.marketCap.large += weight * 100;
+        result.marketCap.large += fundDomesticEquity;
       }
     }
+
+    // Hedged equity (index futures) treated as large-cap exposure
+    result.marketCap.large += fundHedgedEquity;
+    // Global Equity component
+    result.marketCap.global += fundGlobalEquity;
 
     if (ps?.equity_sector_per && Object.keys(ps.equity_sector_per).length > 0) {
       Object.entries(ps.equity_sector_per).forEach(([sectorName, pct]) => {
@@ -2786,24 +2797,29 @@ function calculatePortfolioAnalytics() {
   // Ensure all standard keys are initialised (new granular schema)
   result.assetAllocation["domestic equity"] =
     result.assetAllocation["domestic equity"] || 0;
-  result.assetAllocation["foreign equity"] =
-    result.assetAllocation["foreign equity"] || 0;
+  result.assetAllocation["global equity"] =
+    result.assetAllocation["global equity"] || 0;
   result.assetAllocation["hedged equity"] =
     result.assetAllocation["hedged equity"] || 0;
   result.assetAllocation["debt"] = result.assetAllocation["debt"] || 0;
   result.assetAllocation["gold"] = result.assetAllocation["gold"] || 0;
   result.assetAllocation["silver"] = result.assetAllocation["silver"] || 0;
   result.assetAllocation["cash"] = result.assetAllocation["cash"] || 0;
-  result.assetAllocation["reits"] = result.assetAllocation["reits"] || 0;
+  result.assetAllocation["real estate"] =
+    result.assetAllocation["real estate"] || 0;
   result.assetAllocation["other"] = result.assetAllocation["other"] || 0;
 
   // Rest of the function remains the same...
   const mcSum =
-    result.marketCap.large + result.marketCap.mid + result.marketCap.small;
+    result.marketCap.large +
+    result.marketCap.mid +
+    result.marketCap.small +
+    result.marketCap.global;
   if (mcSum > 0) {
     result.marketCap.large = (result.marketCap.large / mcSum) * 100;
     result.marketCap.mid = (result.marketCap.mid / mcSum) * 100;
     result.marketCap.small = (result.marketCap.small / mcSum) * 100;
+    result.marketCap.global = (result.marketCap.global / mcSum) * 100;
   }
 
   const sectorEntries = Object.entries(result.sector).sort(
@@ -2940,12 +2956,12 @@ function aggregateDailyValuations(allDailyValuations) {
 function displayAssetAllocation(assetAllocation) {
   const preferred = [
     "domestic equity",
-    "foreign equity",
+    "global equity",
     "hedged equity",
     "debt",
     "gold",
     "silver",
-    "reits",
+    "real estate",
     "cash",
     "other",
   ];
@@ -2954,8 +2970,7 @@ function displayAssetAllocation(assetAllocation) {
   const data = [];
 
   // Title-case helper for multi-word keys like "domestic equity", "reits"
-  const toLabel = (k) =>
-    k === "reits" ? "REITs" : k.replace(/\b\w/g, (c) => c.toUpperCase());
+  const toLabel = (k) => k.replace(/\b\w/g, (c) => c.toUpperCase());
 
   // Preferred order first
   preferred.forEach((k) => {
@@ -3048,11 +3063,21 @@ function displayAssetAllocation(assetAllocation) {
 }
 
 function displayMarketCapSplit(marketCap) {
-  const labels = ["Large", "Mid", "Small", "Other"].filter((k) => {
-    const val = marketCap[k.toLowerCase()];
-    return val !== undefined && parseFloat(val) > 0;
+  const order = [
+    { label: "Global Equity", key: "global" },
+    { label: "Large", key: "large" },
+    { label: "Mid", key: "mid" },
+    { label: "Small", key: "small" },
+  ];
+  const labels = [];
+  const data = [];
+  order.forEach(({ label, key }) => {
+    const val = marketCap[key];
+    if (val !== undefined && parseFloat(val) > 0) {
+      labels.push(label);
+      data.push(val);
+    }
   });
-  const data = labels.map((l) => marketCap[l.toLowerCase()]);
 
   const [sortedLabels, sortedData] = sortData(labels, data);
 
@@ -3097,7 +3122,7 @@ function displayMarketCapSplit(marketCap) {
           <span class="legend-item">
             <span class="legend-color" style="background-color: ${color};"></span>${label}: ${sortedData[
               i
-            ].toFixed(1)}%
+            ].toFixed(2)}%
           </span>`;
       })
       .join("");
@@ -7002,17 +7027,16 @@ function renderModalCompositionCharts(fundKey, extendedData) {
 
     const preferredOrder = [
       "domestic equity",
-      "foreign equity",
+      "global equity",
       "hedged equity",
       "debt",
       "gold",
       "silver",
-      "reits",
+      "real estate",
       "cash",
       "other",
     ];
-    const toLabel = (k) =>
-      k === "reits" ? "REITs" : k.replace(/\b\w/g, (c) => c.toUpperCase());
+    const toLabel = (k) => k.replace(/\b\w/g, (c) => c.toUpperCase());
 
     const segments = [];
     preferredOrder.forEach((k) => {
@@ -7092,12 +7116,44 @@ function renderModalCompositionCharts(fundKey, extendedData) {
       small = parseFloat(ps.market_cap_per.small || 0);
     }
 
-    const total = large + mid + small;
+    // Domestic / Foreign / Hedged equity portions of this fund's allocation
+    let domesticEquity = 0;
+    let globalEquity = 0;
+    let hedgedEquity = 0;
+    const rawAssetMC = ps.asset_allocation || {};
+    Object.entries(rawAssetMC).forEach(([key, value]) => {
+      const val = parseFloat(value);
+      if (isNaN(val) || val <= 0) return;
+      const splits = splitAssetKeyByHoldings(key, val, extendedData?.holdings);
+      domesticEquity += splits["domestic equity"] || 0;
+      globalEquity += splits["global equity"] || 0;
+      hedgedEquity += splits["hedged equity"] || 0;
+    });
+
+    // l/mid/small are % of this fund's domestic equity — scale to % of fund
+    const capTotal = large + mid + small;
+    let largeFund = 0,
+      midFund = 0,
+      smallFund = 0;
+    if (capTotal > 0 && domesticEquity > 0) {
+      largeFund = (large / capTotal) * domesticEquity;
+      midFund = (mid / capTotal) * domesticEquity;
+      smallFund = (small / capTotal) * domesticEquity;
+    } else if (domesticEquity > 0) {
+      largeFund = domesticEquity;
+    }
+
+    // Hedged equity (index futures) treated as large-cap exposure
+    largeFund += hedgedEquity;
+    const globalFund = globalEquity;
+
+    const total = largeFund + midFund + smallFund + globalFund;
     if (total > 0) {
       const segments = [
-        { label: "Large", value: (large / total) * 100 },
-        { label: "Mid", value: (mid / total) * 100 },
-        { label: "Small", value: (small / total) * 100 },
+        { label: "Global Equity", value: (globalFund / total) * 100 },
+        { label: "Large", value: (largeFund / total) * 100 },
+        { label: "Mid", value: (midFund / total) * 100 },
+        { label: "Small", value: (smallFund / total) * 100 },
       ].filter((s) => s.value > 0);
 
       // Sort largest first
@@ -7315,7 +7371,18 @@ function createHoldingsTable(holdings, othersPercentage = 0) {
         <td>${company}</td>
         <td>${data.percentage.toFixed(2)}%</td>
         <td>${data.nature}</td>
-        <td>${data.instrument}</td>
+        <td>
+        ${(() => {
+          const isCashOrMf = ["CASH", "MF"].includes(data.nature);
+
+          return (
+            (isCashOrMf ? "" : data.sector) +
+              (data.instrument === "Equity"
+                ? ""
+                : (isCashOrMf ? "" : " - ") + data.instrument) || "Unknown"
+          );
+        })()}
+      </td>
       `;
       body.appendChild(row);
     });
@@ -7346,7 +7413,7 @@ function createFundHoldingsTable(holdings) {
       <th>Company Name</th>
       <th>% of Fund</th>
       <th>Nature</th>
-      <th>Sector</th>
+      <th>Instrument</th>
     </tr>
   `;
   table.appendChild(header);
@@ -7359,7 +7426,19 @@ function createFundHoldingsTable(holdings) {
       <td>${holding.company_name || "Unknown"}</td>
       <td>${parseFloat(holding.corpus_per || 0).toFixed(2)}%</td>
       <td>${holding.nature_name || "Unknown"}</td>
-      <td>${holding.sector_name || "Unknown"}</td>
+      <td>
+        ${(() => {
+          const isCashOrMf = ["CASH", "MF"].includes(holding.nature_name);
+
+          return (
+            (isCashOrMf ? "" : holding.sector_name) +
+              (holding.instrument_name === "Equity"
+                ? ""
+                : (isCashOrMf ? "" : " - ") + holding.instrument_name) ||
+            "Unknown"
+          );
+        })()}
+      </td>
     `;
     body.appendChild(row);
   });
@@ -9998,7 +10077,7 @@ function calculateFamilyMetrics(allUserData) {
     userBreakdown: {},
     combinedFundData: {},
     assetAllocation: {},
-    marketCap: { large: 0, mid: 0, small: 0 },
+    marketCap: { global: 0, large: 0, mid: 0, small: 0 },
     sector: {},
     amc: {},
     weightedReturns: { return1y: null, return3y: null, return5y: null },
@@ -10292,6 +10371,10 @@ function calculateFamilyMetrics(allUserData) {
 
     if (extendedData) {
       const fundAsset = extendedData.portfolio_stats?.asset_allocation;
+      let fundDomesticEquity = 0;
+      let fundGlobalEquity = 0;
+      let fundHedgedEquity = 0;
+
       if (fundAsset) {
         Object.entries(fundAsset).forEach(([k, v]) => {
           if (v == null || isNaN(parseFloat(v)) || parseFloat(v) <= 0) return;
@@ -10304,6 +10387,9 @@ function calculateFamilyMetrics(allUserData) {
           Object.entries(splits).forEach(([label, pct]) => {
             metrics.assetAllocation[label] =
               (metrics.assetAllocation[label] || 0) + pct;
+            if (label === "domestic equity") fundDomesticEquity += pct;
+            else if (label === "global equity") fundGlobalEquity += pct;
+            else if (label === "hedged equity") fundHedgedEquity += pct;
           });
         });
       } else {
@@ -10311,6 +10397,7 @@ function calculateFamilyMetrics(allUserData) {
         if (category.includes("equity")) {
           metrics.assetAllocation["domestic equity"] =
             (metrics.assetAllocation["domestic equity"] || 0) + weight * 100;
+          fundDomesticEquity += weight * 100;
         } else if (category.includes("debt") || category.includes("income")) {
           metrics.assetAllocation["debt"] =
             (metrics.assetAllocation["debt"] || 0) + weight * 100;
@@ -10321,39 +10408,49 @@ function calculateFamilyMetrics(allUserData) {
       }
 
       const ps = extendedData.portfolio_stats;
+      let l = 0,
+        m = 0,
+        s = 0,
+        capTotal = 0;
+
       if (
         ps?.large_cap !== undefined ||
         ps?.mid_cap !== undefined ||
         ps?.small_cap !== undefined
       ) {
-        const l = parseFloat(ps.large_cap || 0);
-        const m = parseFloat(ps.mid_cap || 0);
-        const s = parseFloat(ps.small_cap || 0);
-        const total = l + m + s || 100;
-
-        metrics.marketCap.large += (l / total) * weight * 100;
-        metrics.marketCap.mid += (m / total) * weight * 100;
-        metrics.marketCap.small += (s / total) * weight * 100;
+        l = parseFloat(ps.large_cap || 0);
+        m = parseFloat(ps.mid_cap || 0);
+        s = parseFloat(ps.small_cap || 0);
+        capTotal = l + m + s;
       } else if (ps?.market_cap_per) {
         const mp = ps.market_cap_per;
-        const l = parseFloat(mp.large || 0);
-        const m = parseFloat(mp.mid || 0);
-        const s = parseFloat(mp.small || 0);
-        const total = l + m + s || 100;
+        l = parseFloat(mp.large || 0);
+        m = parseFloat(mp.mid || 0);
+        s = parseFloat(mp.small || 0);
+        capTotal = l + m + s;
+      }
 
-        metrics.marketCap.large += (l / total) * weight * 100;
-        metrics.marketCap.mid += (m / total) * weight * 100;
-        metrics.marketCap.small += (s / total) * weight * 100;
-      } else {
+      if (capTotal > 0 && fundDomesticEquity > 0) {
+        // l/m/s are % of this fund's domestic equity — scale to family-wide %
+        metrics.marketCap.large += (l / capTotal) * fundDomesticEquity;
+        metrics.marketCap.mid += (m / capTotal) * fundDomesticEquity;
+        metrics.marketCap.small += (s / capTotal) * fundDomesticEquity;
+      } else if (fundDomesticEquity > 0) {
+        // No cap-size breakdown available — classify by fund name
         const name = (fund.scheme || "").toLowerCase();
         if (name.includes("small") || name.includes("smallcap")) {
-          metrics.marketCap.small += weight * 100;
+          metrics.marketCap.small += fundDomesticEquity;
         } else if (name.includes("mid") || name.includes("midcap")) {
-          metrics.marketCap.mid += weight * 100;
+          metrics.marketCap.mid += fundDomesticEquity;
         } else {
-          metrics.marketCap.large += weight * 100;
+          metrics.marketCap.large += fundDomesticEquity;
         }
       }
+
+      // Hedged equity (index futures) treated as large-cap exposure
+      metrics.marketCap.large += fundHedgedEquity;
+      // Global Equity component
+      metrics.marketCap.global += fundGlobalEquity;
 
       if (
         ps?.equity_sector_per &&
@@ -10502,11 +10599,15 @@ function calculateFamilyMetrics(allUserData) {
   }
 
   const mcSum =
-    metrics.marketCap.large + metrics.marketCap.mid + metrics.marketCap.small;
+    metrics.marketCap.large +
+    metrics.marketCap.mid +
+    metrics.marketCap.small +
+    metrics.marketCap.global;
   if (mcSum > 0) {
     metrics.marketCap.large = (metrics.marketCap.large / mcSum) * 100;
     metrics.marketCap.mid = (metrics.marketCap.mid / mcSum) * 100;
     metrics.marketCap.small = (metrics.marketCap.small / mcSum) * 100;
+    metrics.marketCap.global = (metrics.marketCap.global / mcSum) * 100;
   }
 
   const sectorEntries = Object.entries(metrics.sector).sort(
@@ -10766,12 +10867,12 @@ function displayFamilyAnalytics(metrics) {
 function displayFamilyAssetAllocation(metrics) {
   const preferred = [
     "domestic equity",
-    "foreign equity",
+    "global equity",
     "hedged equity",
     "debt",
     "gold",
     "silver",
-    "reits",
+    "real estate",
     "cash",
     "other",
   ];
@@ -10780,8 +10881,7 @@ function displayFamilyAssetAllocation(metrics) {
   const assetData = [];
 
   // Title-case helper for multi-word keys like "domestic equity", "reits"
-  const toLabel = (k) =>
-    k === "reits" ? "REITs" : k.replace(/\b\w/g, (c) => c.toUpperCase());
+  const toLabel = (k) => k.replace(/\b\w/g, (c) => c.toUpperCase());
 
   // Preferred order first
   preferred.forEach((k) => {
@@ -10867,14 +10967,19 @@ function displayFamilyAssetAllocation(metrics) {
 }
 
 function displayFamilyMarketCapSplit(metrics) {
-  const preferred = ["large", "mid", "small"];
+  const order = [
+    { label: "Global Equity", key: "global" },
+    { label: "Large", key: "large" },
+    { label: "Mid", key: "mid" },
+    { label: "Small", key: "small" },
+  ];
   const mcLabels = [];
   const mcData = [];
 
-  preferred.forEach((k) => {
-    const val = parseFloat(metrics.marketCap?.[k]);
+  order.forEach(({ label, key }) => {
+    const val = parseFloat(metrics.marketCap?.[key]);
     if (!isNaN(val) && val > 0) {
-      mcLabels.push(k.charAt(0).toUpperCase() + k.slice(1));
+      mcLabels.push(label);
       mcData.push(val);
     }
   });
@@ -11245,8 +11350,6 @@ function switchToUser(userName) {
   console.log("Switching to user:", userName);
 
   loadAdditionalAssetsForm();
-
-  showToast(`Switching to ${investorName}...`, "success");
   toggleFamilyDashboard();
 
   setTimeout(() => {
@@ -11386,7 +11489,7 @@ async function deleteAllUsers() {
     );
 
     hideSimpleSplash();
-    showToast("All users deleted, reloading...", "success");
+    showToast("All users deleted...", "success");
 
     invalidateFamilyDashboardCache();
 
@@ -11656,7 +11759,7 @@ function saveFolioChanges(userName) {
 
   saveHiddenFolios(userName, pendingFolioChanges[userName]);
 
-  showToast("Folio visibility settings saved!", "success");
+  showToast("Folio changes saved!", "success");
 
   closeFolioManagementModal();
 
@@ -12949,13 +13052,13 @@ async function updateMFStats() {
     return;
   }
 
-  // Check if already updated this month (manual only, auto doesn't count here)
+  // Check if already updated this week (manual only, auto doesn't count here)
   if (
     !storageManager.needsFullUpdate() &&
-    storageManager.hasManualStatsUpdateThisMonth()
+    storageManager.hasManualStatsUpdateThisWeek()
   ) {
     showToast(
-      "Manual fund statistics update already used this month. You can manually update once per month (in addition to the automatic monthly update after the 15th).",
+      "Manual fund statistics update already used this week. You can manually update once per week (in addition to the automatic weekly update).",
       "info",
     );
     return;
@@ -13140,7 +13243,7 @@ async function updateAllUsersStats(updateType = "auto") {
     }
 
     hideSimpleSplash();
-    showToast("Fund statistics updated successfully!", "success");
+    console.log("Fund statistics updated successfully!");
     invalidateFamilyDashboardCache();
     updateFooterInfo();
 
@@ -13393,12 +13496,12 @@ async function checkAndPerformAutoUpdates() {
     return;
   }
 
-  // Check if full update is needed (after 15th of month)
+  // Check if full update is needed (every 7 days)
   if (storageManager.needsFullUpdate()) {
-    console.log("📅 Monthly update required (after 15th)");
+    console.log("📅 Weekly update required (7+ days since last update)");
     const updated = await updateFullMFStats();
     if (updated) {
-      showToast("Portfolio statistics updated for the month!", "success");
+      console.log("Portfolio statistics updated for the week!");
       return; // Full update includes NAV, so skip NAV-only update
     }
   }
@@ -13419,10 +13522,10 @@ async function checkAndPerformAutoUpdates() {
         enableSummaryIncompatibleTabs();
       }
 
-      showToast("Latest NAV updated!", "success");
+      console.log("Latest NAV updated!");
       updateFooterInfo();
     } else {
-      showToast("Failed to update NAV", "error");
+      console.log("Failed to update NAV", "error");
     }
   }
 }
@@ -13936,7 +14039,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
         toggleFamilyDashboard();
         hideSimpleSplash();
-        showToast(`Portfolio loaded for ${currentUser}!`, "success");
+        console.log(`Portfolio loaded for ${currentUser}!`);
 
         updateFooterInfo();
         enableAllTabs();
@@ -14117,7 +14220,7 @@ async function takeFullPageScreenshot() {
   ].find((el) => el && el.offsetParent !== null);
 
   if (typeof html2canvas === "undefined") {
-    showToast("Screenshot library not loaded", "error");
+    console.log("Screenshot library not loaded");
     return;
   }
 

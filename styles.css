@@ -10124,6 +10124,15 @@ button.theme-toggle i {
   border: 1px solid rgba(102, 126, 234, 0.13) !important;
   border-radius: 12px !important;
   position: relative;
+  margin-bottom: 15px;
+}
+
+.alltime-summary-grid .gains-summary-card:first-child {
+  margin-left: 15px;
+}
+
+.alltime-summary-grid .gains-summary-card:last-child {
+  margin-right: 15px;
 }
 
 .alltime-summary-grid .gains-summary-card::after {
@@ -10235,6 +10244,14 @@ button.theme-toggle i {
   #expenseContent .gains-table th:not(:first-child) {
     white-space: nowrap;
   }
+
+  .alltime-summary-grid .gains-summary-card {
+    margin: 0px 15px;
+  }
+
+  .alltime-summary-grid .gains-summary-card:last-child {
+    margin-bottom: 15px;
+  }
 }
 
 /* ── 5. Expense Impact table: force min-width so it scrolls rather than squishes ── */
@@ -10331,6 +10348,14 @@ button.theme-toggle i {
     border: none;
   }
 
+  .cas-panel--instructions {
+    background: var(--scrollbar-thumb);
+  }
+
+  :root[data-theme="dark"] .cas-panel--instructions {
+    background: var(--bg-card);
+  }
+
   .cas-panels-row {
     padding: 0;
   }
@@ -10421,7 +10446,6 @@ button.theme-toggle i {
   overflow: hidden;
   box-shadow: var(--shadow-sm);
   margin: 15px;
-  margin-bottom: 0px;
 }
 
 .alltime-summary-grid {

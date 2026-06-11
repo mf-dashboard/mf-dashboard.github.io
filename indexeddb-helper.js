@@ -396,18 +396,15 @@ class StorageManager {
   markManualStatsUpdate(userName = null) {
     const user = userName || currentUser;
     const today = new Date().toISOString().split("T")[0];
-    const currentMonth = new Date().toISOString().slice(0, 7);
 
     if (user) {
       const manifest = this.getManifest(user) || {};
       manifest.lastManualStatsUpdate = today;
-      manifest.lastManualStatsMonth = currentMonth;
       this.saveManifest(manifest, user);
     }
 
     const globalManifest = this.getGlobalManifest() || {};
     globalManifest.lastManualStatsUpdate = today;
-    globalManifest.lastManualStatsMonth = currentMonth;
     this.saveGlobalManifest(globalManifest);
   }
 
@@ -432,15 +429,9 @@ class StorageManager {
 
     const lastUpdate = new Date(manifest.lastFullUpdate);
     const now = new Date();
+    const daysSinceUpdate = (now - lastUpdate) / (1000 * 60 * 60 * 24);
 
-    if (
-      now.getMonth() !== lastUpdate.getMonth() ||
-      now.getFullYear() !== lastUpdate.getFullYear()
-    ) {
-      return now.getDate() >= 15;
-    }
-
-    return false;
+    return daysSinceUpdate >= 7;
   }
 
   needsNavUpdate() {
@@ -453,12 +444,15 @@ class StorageManager {
     return lastUpdate.toDateString() !== today.toDateString();
   }
 
-  hasManualStatsUpdateThisMonth() {
+  hasManualStatsUpdateThisWeek() {
     const manifest = this.getGlobalManifest();
-    if (!manifest || !manifest.lastManualStatsMonth) return false;
+    if (!manifest || !manifest.lastManualStatsUpdate) return false;
 
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    return manifest.lastManualStatsMonth === currentMonth;
+    const lastUpdate = new Date(manifest.lastManualStatsUpdate);
+    const now = new Date();
+    const daysSinceUpdate = (now - lastUpdate) / (1000 * 60 * 60 * 24);
+
+    return daysSinceUpdate < 7;
   }
 
   hasManualNavUpdateToday() {
