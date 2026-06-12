@@ -23,7 +23,7 @@ let allUsers = [];
 let familyDashboardCache = null;
 let familyDashboardCacheTimestamp = null;
 let familyDashboardInitialized = false;
-const showViewDetailsForPast = false;
+const showViewDetailsForPast = true;
 let mfStats = {};
 let capitalGainsData = {
   byYear: {},
@@ -6651,6 +6651,7 @@ function showFundDetailsModal(
 
   const extendedData = mfStats[fund.isin];
   const displayName = fund.schemeDisplay || fund.scheme;
+  const summaryCls = isPastHolding ? "past-summary" : "current-summary";
 
   // Determine which folios to display and calculate metrics for
   let targetFolios = specificFolios || fund.folios;
@@ -6957,7 +6958,7 @@ function showFundDetailsModal(
           "</div>" +
           '<div class="folio-compact-cell">' +
           '<span class="folio-compact-cell-label">' +
-          (folioIsPast ? "Realized P&L" : "P&L") +
+          "P&L" +
           "</span>" +
           '<span class="folio-compact-cell-value ' +
           pnlClass +
@@ -7018,7 +7019,7 @@ function showFundDetailsModal(
       <div class="modal-content fund-details-content">
         
         <!-- Summary Stats Section (Compact Redesign) -->
-        <div class="fund-summary-compact">
+        <div class="fund-summary-compact ${summaryCls}">
 
           <!-- Meta bar: Portfolio % (left) + Riskometer (right) -->
           <div class="fund-summary-meta-bar">
@@ -10675,7 +10676,7 @@ function populateCompactHoldings(funds) {
 
     const item = document.createElement("div");
     item.className = "compact-holding-item chi-hero";
-    const fundKey = fund.scheme.trim().toLowerCase();
+    const fundKey = getFundKey(fund);
     item.onclick = () => {
       showFundDetailsModal(fundKey, false);
     };
@@ -10761,6 +10762,9 @@ function populateCompactPastHoldings(fundsWithMetrics, listElement = null) {
 
     const item = document.createElement("div");
     item.className = "compact-holding-item chi-hero chi-hero--past";
+    item.onclick = () => {
+      showFundDetailsModal(fundKey, true);
+    };
 
     item.innerHTML = `
       <div class="chi-accent ${isProfit ? "chi-accent--gain" : "chi-accent--loss"}"></div>

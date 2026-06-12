@@ -3773,6 +3773,10 @@ button.theme-toggle i {
   margin-top: 0px;
 }
 
+.past-summary {
+  display: none;
+}
+
 /* Fund Details Modal Styles */
 .fund-details-modal {
   margin: 0 auto;
