@@ -6010,6 +6010,7 @@ button.theme-toggle i {
 .holdings-split-title {
   display: flex;
   align-items: center;
+  width: 100%;
   gap: 12px;
 }
 
@@ -6081,7 +6082,7 @@ button.theme-toggle i {
 
 .tax-holding-item:hover {
   background: var(--bg-card-hover);
-  border-color: var(--primary-gradient-start);
+  border-color: var(--border-light);
 }
 
 .tax-holding-name {
@@ -6679,6 +6680,15 @@ button.theme-toggle i {
 
   .tax-summary-value {
     font-size: 24px;
+  }
+
+  .holdings-split-title {
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(102, 126, 234, 0.12);
+  }
+
+  .holdings-split-stat {
+    text-align: left;
   }
 }
 
@@ -9052,10 +9062,13 @@ button.theme-toggle i {
 .overlap-pct-val.loss {
   color: var(--danger);
 }
+.overlap-pct-val.accent {
+  color: #667eea;
+}
 
 .overlap-pct-label {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-tertiary);
@@ -9077,6 +9090,22 @@ button.theme-toggle i {
   font-size: 17px;
   font-weight: 800;
   color: var(--text-primary);
+}
+
+.overlap-row-clickable {
+  cursor: pointer;
+}
+
+.overlap-row-clickable:hover {
+  background: rgba(102, 126, 234, 0.08);
+}
+
+.overlap-row-clickable:active {
+  transform: scale(0.997);
+}
+
+.overlap-row-clickable .overlap-stocks-num {
+  color: #667eea;
 }
 
 .overlap-stocks-label {
@@ -9203,7 +9232,796 @@ button.theme-toggle i {
   }
 }
 
-/* ── Tax optimization note ── */
+/* ── Overlap detail modal ── */
+.overlap-detail-content {
+  padding: 20px 16px 32px;
+}
+
+.overlap-detail-fund-cards {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.overlap-detail-fund-card {
+  flex: 1;
+  min-width: 0;
+  background: rgba(102, 126, 234, 0.08);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.overlap-detail-fund-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #667eea;
+  margin-bottom: 6px;
+}
+
+.overlap-detail-fund-label.fund-b {
+  color: #764ba2;
+}
+
+.overlap-detail-fund-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.overlap-detail-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 2px 14px;
+}
+
+.overlap-detail-summary-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.overlap-detail-summary-pct {
+  font-size: 13px;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.overlap-detail-summary-pct.gain {
+  color: var(--success);
+  background: var(--success-light);
+}
+
+.overlap-detail-summary-pct.warning {
+  color: var(--warning-dark);
+  background: var(--warning-light);
+}
+
+.overlap-detail-summary-pct.loss {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.overlap-detail-table {
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.overlap-detail-table-header,
+.overlap-detail-stock-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.overlap-detail-table-header {
+  background: rgba(102, 126, 234, 0.06);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+}
+
+.overlap-detail-stock-row {
+  border-top: 1px solid rgba(102, 126, 234, 0.07);
+  font-size: 13px;
+}
+
+.overlap-detail-stock-row:hover {
+  background: rgba(102, 126, 234, 0.03);
+}
+
+.overlap-detail-stock-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overlap-detail-table-header .overlap-detail-stock-name {
+  font-weight: 700;
+}
+
+.overlap-detail-stock-pct {
+  flex: 0 0 70px;
+  width: 70px;
+  text-align: right;
+  font-weight: 700;
+  color: #667eea;
+}
+
+.overlap-detail-stock-pct.fund-b {
+  color: #764ba2;
+}
+
+.overlap-detail-stock-row .overlap-detail-stock-pct {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+@media (min-width: 768px) {
+  .overlap-detail-table-header,
+  .overlap-detail-stock-row {
+    gap: 0;
+  }
+
+  .overlap-detail-table-header .overlap-detail-stock-name,
+  .overlap-detail-stock-row .overlap-detail-stock-name {
+    flex: 0 0 50%;
+    width: 50%;
+    padding-right: 14px;
+    border-right: 1px solid rgba(102, 126, 234, 0.07);
+  }
+
+  .overlap-detail-table-header .overlap-detail-stock-pct,
+  .overlap-detail-stock-row .overlap-detail-stock-pct {
+    flex: 0 0 25%;
+    width: 25%;
+    text-align: center;
+    border-right: 1px solid rgba(102, 126, 234, 0.07);
+  }
+
+  .overlap-detail-table-header .overlap-detail-stock-pct:last-child,
+  .overlap-detail-stock-row .overlap-detail-stock-pct:last-child {
+    border-right: none;
+  }
+
+  .overlap-detail-stock-row .overlap-detail-stock-pct {
+    font-size: 16px;
+    font-weight: 800;
+  }
+}
+
+@media (max-width: 500px) {
+  .overlap-detail-content {
+    padding: 16px 12px 28px;
+  }
+
+  .overlap-detail-fund-cards {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .overlap-detail-stock-pct {
+    flex: 0 0 56px;
+    width: 56px;
+    font-size: 12px;
+  }
+
+  .overlap-detail-stock-name {
+    font-size: 12px;
+  }
+}
+
+/* ── Two-column variant (single fund/value table, e.g. stock overlap modal) ── */
+.overlap-detail-table.two-col .overlap-detail-stock-name {
+  flex: 1 1 auto;
+  width: auto;
+  border-right: none;
+}
+
+.overlap-detail-table.two-col .overlap-detail-stock-pct {
+  flex: 0 0 90px;
+  width: 90px;
+  text-align: right;
+  border-right: none;
+}
+
+.overlap-detail-avg-row {
+  background: rgba(102, 126, 234, 0.06);
+  border-top: 1px solid rgba(102, 126, 234, 0.15) !important;
+}
+
+.overlap-detail-avg-row .overlap-detail-stock-name,
+.overlap-detail-avg-row .overlap-detail-stock-pct {
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+/* ── Overlap Calculator ── */
+.overlap-calc-body {
+  padding: 16px;
+}
+
+#overlapCalcResult {
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s ease;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.overlap-calc-result-fade {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.overlap-calc-selectors {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.overlap-calc-select-card {
+  flex: 1;
+  min-width: 0;
+  background: rgba(102, 126, 234, 0.08);
+  border-radius: 14px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.overlap-calc-select-card:hover {
+  background: rgba(102, 126, 234, 0.12);
+}
+
+.overlap-calc-select-wrap {
+  position: relative;
+  margin-top: 4px;
+}
+
+/* ── Custom dropdown trigger ── */
+.ocd-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.ocd-trigger-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.ocd-chevron {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+/* Trigger avatar (small, inline) */
+.ocd-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: contain;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  padding: 2px;
+}
+
+.ocd-avatar--text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.ocd-avatar--a.ocd-avatar--text {
+  background: #3b82f6;
+}
+.ocd-avatar--b.ocd-avatar--text {
+  background: #93c5fd;
+  color: #1e40af;
+}
+
+/* ── Bottom sheet overlay ── */
+.ocd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  animation: ocdOverlayIn 0.22s ease forwards;
+}
+
+@keyframes ocdOverlayIn {
+  from {
+    background: rgba(0, 0, 0, 0);
+  }
+  to {
+    background: rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* ── Bottom sheet panel ── */
+.ocd-sheet {
+  width: 100%;
+  max-height: 82vh;
+  background: var(--bg-white);
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  overflow: hidden;
+}
+
+.ocd-sheet--open {
+  transform: translateY(0);
+}
+
+.ocd-drag-pill {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-medium);
+  margin: 10px auto 0;
+  flex-shrink: 0;
+}
+
+.ocd-sheet-header {
+  padding: 14px 18px 10px;
+  flex-shrink: 0;
+}
+
+.ocd-sheet-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ocd-slot-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.ocd-slot-badge--a {
+  background: #3b82f6;
+}
+.ocd-slot-badge--b {
+  background: #93c5fd;
+  color: #1e40af;
+}
+
+/* ── Search bar ── */
+.ocd-search-wrap {
+  position: relative;
+  margin: 0 14px 10px;
+  flex-shrink: 0;
+}
+
+.ocd-search-icon {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.ocd-search-input {
+  width: 100%;
+  background: var(--bg-light);
+  border: 1.5px solid var(--border-light);
+  border-radius: 12px;
+  padding: 10px 14px 10px 36px;
+  font-size: 14px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.ocd-search-input:focus {
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+.ocd-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* ── Fund list ── */
+.ocd-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 0 0 16px;
+}
+
+.ocd-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 18px;
+  cursor: pointer;
+  transition: background 0.12s;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.ocd-item:last-child {
+  border-bottom: none;
+}
+
+.ocd-item:active,
+.ocd-item:hover {
+  background: rgba(102, 126, 234, 0.06);
+}
+
+.ocd-item--disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.ocd-item--disabled:active,
+.ocd-item--disabled:hover {
+  background: transparent;
+}
+
+.ocd-item--selected {
+  background: rgba(102, 126, 234, 0.06);
+}
+
+/* Item avatar (larger, in list) */
+.ocd-item-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: contain;
+  flex-shrink: 0;
+  background: var(--bg-light);
+  border: 1px solid var(--border-light);
+}
+
+.ocd-item-avatar--text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+.ocd-item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ocd-item-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.ocd-item-sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.2px;
+}
+
+/* Radio button */
+.ocd-radio {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border-medium);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.ocd-radio--checked {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-color: transparent;
+  color: #fff;
+  font-size: 11px;
+}
+
+.ocd-radio--disabled {
+  opacity: 0.4;
+  background: var(--bg-light);
+}
+
+/* ── Dark mode ── */
+:root[data-theme="dark"] .ocd-sheet {
+  background: var(--bg-white);
+}
+
+:root[data-theme="dark"] .ocd-search-input {
+  background: var(--bg-light);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .ocd-search-input:focus {
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+:root[data-theme="dark"] .ocd-item {
+  border-bottom-color: var(--border-light);
+}
+
+:root[data-theme="dark"] .ocd-item:hover {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+:root[data-theme="dark"] .ocd-item--selected {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+:root[data-theme="dark"] .ocd-item-avatar {
+  background: var(--bg-card);
+  border-color: var(--border-light);
+}
+
+:root[data-theme="dark"] .ocd-avatar {
+  background: var(--bg-card);
+}
+
+.overlap-calc-venn {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.overlap-venn-svg {
+  width: 220px;
+  max-width: 100%;
+  height: auto;
+}
+
+.overlap-venn-svg {
+  overflow: visible;
+}
+
+@keyframes venn-circle-a-settle {
+  0% {
+    transform: translateX(-80px);
+  }
+  28% {
+    transform: translateX(28px);
+  }
+  48% {
+    transform: translateX(-14px);
+  }
+  65% {
+    transform: translateX(8px);
+  }
+  78% {
+    transform: translateX(-4px);
+  }
+  90% {
+    transform: translateX(2px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes venn-circle-b-settle {
+  0% {
+    transform: translateX(80px);
+  }
+  28% {
+    transform: translateX(-28px);
+  }
+  48% {
+    transform: translateX(14px);
+  }
+  65% {
+    transform: translateX(-8px);
+  }
+  78% {
+    transform: translateX(4px);
+  }
+  90% {
+    transform: translateX(-2px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.overlap-venn-circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: translateX(0);
+}
+
+.overlap-venn-circle.circle-a.overlap-venn-start {
+  transform: translateX(-80px);
+}
+
+.overlap-venn-circle.circle-b.overlap-venn-start {
+  transform: translateX(80px);
+}
+
+.overlap-venn-circle.circle-a:not(.overlap-venn-start) {
+  animation: venn-circle-a-settle 1.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)
+    forwards;
+}
+
+.overlap-venn-circle.circle-b:not(.overlap-venn-start) {
+  animation: venn-circle-b-settle 1.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)
+    forwards;
+}
+
+.overlap-calc-details {
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 0.6s ease,
+    transform 0.6s ease;
+}
+
+.overlap-calc-details.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.overlap-calc-pct {
+  text-align: center;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.overlap-calc-pct span {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.overlap-calc-pct.gain {
+  color: var(--success);
+}
+
+.overlap-calc-pct.warning {
+  color: var(--warning);
+}
+
+.overlap-calc-pct.loss {
+  color: var(--danger);
+}
+
+.overlap-calc-badges {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.overlap-calc-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(102, 126, 234, 0.08);
+  color: var(--text-secondary);
+}
+
+.overlap-calc-badge.gain {
+  background: var(--success-light);
+  color: var(--success-dark);
+}
+
+.overlap-calc-badge.warning {
+  background: var(--warning-light);
+  color: var(--warning-dark);
+}
+
+.overlap-calc-badge.loss {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger);
+}
+
+.overlap-calc-description {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 auto 18px;
+}
+
+.overlap-calc-table {
+  margin-bottom: 16px;
+}
+
+.overlap-calc-viewall-btn {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(102, 126, 234, 0.08);
+  color: #667eea;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.overlap-calc-viewall-btn:hover {
+  background: rgba(102, 126, 234, 0.14);
+}
+
+@media (max-width: 500px) {
+  .overlap-calc-body {
+    padding: 14px 10px;
+  }
+
+  .overlap-calc-selectors {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .overlap-calc-pct {
+    font-size: 26px;
+  }
+
+  .overlap-calc-pct span {
+    font-size: 18px;
+  }
+
+  .overlap-venn-svg {
+    width: 180px;
+  }
+}
+
 .cg-note {
   display: flex;
   gap: 10px;
@@ -9643,9 +10461,15 @@ button.theme-toggle i {
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  padding: 9px 16px;
-  border-bottom: 1px solid rgba(102, 126, 234, 0.05);
-  transition: background 0.12s;
+  padding: 9px 13px;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 0;
+  background: none;
+  margin-bottom: 0;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 #taxPlanningContent .tax-holding-item:last-child {
@@ -9653,7 +10477,8 @@ button.theme-toggle i {
 }
 
 #taxPlanningContent .tax-holding-item:hover {
-  background: rgba(102, 126, 234, 0.03);
+  background: rgba(102, 126, 234, 0.045);
+  border-left-color: rgba(102, 126, 234, 0.5);
 }
 
 #taxPlanningContent .tax-holding-name {
@@ -9694,7 +10519,8 @@ button.theme-toggle i {
 
 /* Tax holding item - expandable wrapper */
 #taxPlanningContent .tax-holding-wrap {
-  border-bottom: 1px solid rgba(102, 126, 234, 0.05);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.07);
+  transition: background 0.15s;
 }
 #taxPlanningContent .tax-holding-wrap:last-child {
   border-bottom: none;
@@ -9702,10 +10528,16 @@ button.theme-toggle i {
 #taxPlanningContent .tax-holding-item {
   cursor: pointer;
   border-bottom: none;
+  border-left: 3px solid transparent;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
   user-select: none;
+  padding-left: 13px;
 }
 #taxPlanningContent .tax-holding-item:hover {
-  background: rgba(102, 126, 234, 0.04);
+  background: rgba(102, 126, 234, 0.045);
+  border-left-color: rgba(102, 126, 234, 0.5);
 }
 #taxPlanningContent .tax-holding-item .tax-holding-chevron {
   font-size: 10px;
@@ -9974,6 +10806,46 @@ button.theme-toggle i {
 :root[data-theme="dark"] .overlap-pair-row,
 :root[data-theme="dark"] .common-holding-row {
   border-color: rgba(255, 255, 255, 0.05);
+}
+
+:root[data-theme="dark"] .overlap-detail-fund-card {
+  background: rgba(102, 126, 234, 0.14);
+}
+
+:root[data-theme="dark"] .overlap-detail-table {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme="dark"] .overlap-detail-table-header {
+  background: rgba(102, 126, 234, 0.12);
+}
+
+:root[data-theme="dark"] .overlap-detail-stock-row {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme="dark"] .overlap-calc-select-card {
+  background: rgba(102, 126, 234, 0.14);
+}
+
+:root[data-theme="dark"] .overlap-calc-select-card:hover {
+  background: rgba(102, 126, 234, 0.2);
+}
+
+:root[data-theme="dark"] .ocd-drag-pill {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+:root[data-theme="dark"] .overlap-calc-badge {
+  background: rgba(102, 126, 234, 0.14);
+}
+
+:root[data-theme="dark"] .overlap-calc-viewall-btn {
+  background: rgba(102, 126, 234, 0.14);
+}
+
+:root[data-theme="dark"] .overlap-calc-viewall-btn:hover {
+  background: rgba(102, 126, 234, 0.22);
 }
 
 :root[data-theme="dark"] .tp-holding-row {
@@ -10358,6 +11230,16 @@ button.theme-toggle i {
 
   .cas-panels-row {
     padding: 0;
+  }
+
+  /* Keep the Overlap Analysis cards looking like the desktop version */
+  #overlapContent.cg-section,
+  #overlapContent .cg-section {
+    margin: 10px 10px 16px;
+    background: var(--bg-card);
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid rgba(102, 126, 234, 0.13);
   }
 }
 
@@ -10841,4 +11723,190 @@ button.theme-toggle i {
   .perf-th--desktop {
     display: none;
   }
+}
+
+/* ── OCD Desktop Dropdown ── */
+.ocd-dd {
+  position: fixed;
+  z-index: 10001;
+  background: var(--bg-white);
+  border: 1px solid var(--border-medium);
+  border-radius: 14px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.13),
+    0 2px 8px rgba(102, 126, 234, 0.1);
+  width: 320px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  /* transform-origin is set dynamically in _ocdDDPosition() to match the trigger */
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+  pointer-events: none;
+}
+
+.ocd-dd--open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.ocd-dd--above {
+  transform: translateY(6px) scale(0.98);
+}
+
+.ocd-dd--above.ocd-dd--open {
+  transform: translateY(0) scale(1);
+}
+
+.ocd-dd-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.ocd-dd-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.ocd-dd-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition:
+    background 0.12s,
+    color 0.12s;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.ocd-dd-close:hover {
+  background: var(--bg-light);
+  color: var(--text-primary);
+}
+
+.ocd-dd-search-wrap {
+  position: relative;
+  padding: 10px 10px 8px;
+  flex-shrink: 0;
+}
+
+.ocd-dd-search-icon {
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.ocd-dd-search {
+  width: 100%;
+  background: var(--bg-light);
+  border: 1.5px solid var(--border-light);
+  border-radius: 10px;
+  padding: 8px 12px 8px 32px;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+  box-sizing: border-box;
+}
+
+.ocd-dd-search:focus {
+  border-color: rgba(102, 126, 234, 0.5);
+  background: var(--bg-white);
+}
+
+.ocd-dd-search::placeholder {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.ocd-dd-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 0 8px;
+}
+
+.ocd-dd-list .ocd-item {
+  padding: 9px 14px;
+  border-radius: 0;
+}
+
+.ocd-dd-list .ocd-item-avatar {
+  width: 30px;
+  height: 30px;
+}
+
+.ocd-dd-list .ocd-item-avatar--text {
+  font-size: 12px;
+}
+
+.ocd-dd-list .ocd-item-name {
+  font-size: 12.5px;
+}
+
+.ocd-dd-list .ocd-item--focused {
+  background: rgba(102, 126, 234, 0.08);
+}
+
+.ocd-dd-empty {
+  padding: 24px 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Trigger card highlight when dropdown is open */
+.overlap-calc-select-card--active {
+  background: rgba(102, 126, 234, 0.14) !important;
+}
+
+/* Dark mode */
+:root[data-theme="dark"] .ocd-dd {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 2px 8px rgba(102, 126, 234, 0.15);
+  border-color: var(--border-medium);
+}
+
+:root[data-theme="dark"] .ocd-dd-search {
+  background: var(--bg-light);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .ocd-dd-search:focus {
+  border-color: rgba(102, 126, 234, 0.5);
+  background: var(--bg-card);
+}
+
+:root[data-theme="dark"] .ocd-dd-list .ocd-item--focused {
+  background: rgba(102, 126, 234, 0.12);
 }

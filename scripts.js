@@ -1890,9 +1890,9 @@ function calculateOverlapAnalysis() {
     commonHoldings: {},
   };
 
-  const activeFunds = Object.values(fundWiseData).filter(
-    (fund) => fund.advancedMetrics?.currentValue > 0,
-  );
+  const activeFunds = Object.entries(fundWiseData)
+    .filter(([, fund]) => fund.advancedMetrics?.currentValue > 0)
+    .map(([key, fund]) => ({ key, ...fund }));
 
   if (activeFunds.length < 2) {
     return { error: "Need at least 2 active funds to analyze overlap" };
@@ -1939,6 +1939,8 @@ function calculateOverlapAnalysis() {
         overlapData.fundPairs.push({
           fund1: fund1.schemeDisplay || fund1.scheme,
           fund2: fund2.schemeDisplay || fund2.scheme,
+          fund1Key: fund1.key,
+          fund2Key: fund2.key,
           overlapPercent: overlapPercentage.toFixed(2),
           commonStocks: commonStocks.sort(
             (a, b) =>
@@ -1968,12 +1970,19 @@ function calculateOverlapAnalysis() {
       processedCompanies.add(company);
 
       if (!holdingCounts.has(company)) {
-        holdingCounts.set(company, { count: 0, funds: [], totalWeight: 0 });
+        holdingCounts.set(company, {
+          count: 0,
+          funds: [],
+          fundWeights: [],
+          totalWeight: 0,
+        });
       }
       const data = holdingCounts.get(company);
       data.count++;
       data.funds.push(fundName);
-      data.totalWeight += parseFloat(holding.corpus_per || 0);
+      const weight = parseFloat(holding.corpus_per || 0);
+      data.fundWeights.push({ fund: fundName, weight });
+      data.totalWeight += weight;
     });
   });
 
@@ -1987,12 +1996,85 @@ function calculateOverlapAnalysis() {
       company,
       fundCount: data.count,
       funds: data.funds,
+      fundWeights: data.fundWeights.sort((a, b) => b.weight - a.weight),
       avgWeight: (data.totalWeight / data.count).toFixed(2),
     }))
     .sort((a, b) => b.fundCount - a.fundCount)
     .slice(0, 20);
 
   return overlapData;
+}
+function calculatePairOverlap(fundKey1, fundKey2) {
+  const fund1 = fundWiseData[fundKey1];
+  const fund2 = fundWiseData[fundKey2];
+
+  if (!fund1 || !fund2 || fundKey1 === fundKey2) return null;
+  if (!fund1.holdings || !fund2.holdings) return null;
+
+  const holdings1 = new Map(
+    fund1.holdings.map((h) => [h.company_name, parseFloat(h.corpus_per || 0)]),
+  );
+  const holdings2 = new Map(
+    fund2.holdings.map((h) => [h.company_name, parseFloat(h.corpus_per || 0)]),
+  );
+
+  let overlapPercentage = 0;
+  const commonStocks = [];
+
+  holdings1.forEach((percent1, company) => {
+    if (holdings2.has(company)) {
+      const percent2 = holdings2.get(company);
+      overlapPercentage += Math.min(percent1, percent2);
+      commonStocks.push({
+        company,
+        fund1Percent: percent1,
+        fund2Percent: percent2,
+      });
+    }
+  });
+
+  commonStocks.sort(
+    (a, b) =>
+      Math.min(b.fund1Percent, b.fund2Percent) -
+      Math.min(a.fund1Percent, a.fund2Percent),
+  );
+
+  return {
+    fund1Key: fundKey1,
+    fund2Key: fundKey2,
+    fund1: fund1.schemeDisplay || fund1.scheme,
+    fund2: fund2.schemeDisplay || fund2.scheme,
+    overlapPercent: Math.max(0, overlapPercentage).toFixed(2),
+    commonStocks,
+  };
+}
+function getOverlapLevelInfo(overlapPercent) {
+  const pct = parseFloat(overlapPercent);
+  if (pct > 50) {
+    return {
+      levelLabel: "High Overlap",
+      diversificationLabel: "Poor Diversification",
+      description:
+        "Funds show high overlap, indicating poor diversification between both funds.",
+      cls: "loss",
+    };
+  }
+  if (pct > 25) {
+    return {
+      levelLabel: "Medium Overlap",
+      diversificationLabel: "Limited Diversification",
+      description:
+        "Funds show medium overlap, indicating limited diversification between both funds.",
+      cls: "warning",
+    };
+  }
+  return {
+    levelLabel: "Low Overlap",
+    diversificationLabel: "Good Diversification",
+    description:
+      "Funds show low overlap, indicating good diversification between both funds.",
+    cls: "gain",
+  };
 }
 function calculateExpenseImpact() {
   const result = {
@@ -4012,6 +4094,599 @@ function downloadFYCapitalGainsReport(fy) {
 }
 
 // DISPLAY FUNCTIONS - ANALYSIS TABS
+function getOverlapCalculatorFundOptions() {
+  return Object.entries(fundWiseData)
+    .filter(
+      ([, fund]) =>
+        fund.holdings &&
+        fund.holdings.length > 0 &&
+        fund.advancedMetrics?.currentValue > 0,
+    )
+    .map(([key, fund]) => ({
+      key,
+      name: fund.schemeDisplay || fund.scheme,
+      isin: fund.isin,
+      amc: fund.amc,
+      logo_url: mfStats?.[fund.isin]?.logo_url || null,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+function renderOverlapVennSVG(overlapPercent) {
+  const pct = Math.max(0, Math.min(100, parseFloat(overlapPercent) || 0));
+  const r = 50;
+  const centerX = 128;
+  const cy = 70;
+  // Ensure circles always visibly overlap, even at very low percentages,
+  // by using sqrt scaling and capping the max separation below 2r.
+  const maxDist = 92; // slight overlap at 0%
+  const minDist = 18; // heavy overlap at 100%
+  const factor = Math.sqrt(pct / 100);
+  const distance = maxDist - factor * (maxDist - minDist);
+  const cx1 = centerX - distance / 2;
+  const cx2 = centerX + distance / 2;
+  return `
+    <svg viewBox="0 0 256 140" class="overlap-venn-svg" xmlns="http://www.w3.org/2000/svg">
+      <circle class="overlap-venn-circle circle-a overlap-venn-start" cx="${cx1}" cy="${cy}" r="${r}" fill="#3b82f6" opacity="0.55"></circle>
+      <circle class="overlap-venn-circle circle-b overlap-venn-start" cx="${cx2}" cy="${cy}" r="${r}" fill="#93c5fd" opacity="0.55"></circle>
+    </svg>`;
+}
+function renderOverlapCalculatorResult(pairData) {
+  window._overlapCalcPairData = pairData;
+
+  if (!pairData) {
+    return `<div class="cg-empty"><i class="fa-solid fa-circle-info"></i><span>Please select two different funds to compare.</span></div>`;
+  }
+
+  if (pairData.commonStocks.length === 0) {
+    return `<div class="cg-empty"><i class="fa-solid fa-circle-check" style="color:var(--success);opacity:0.8;"></i><span>No common holdings between these two funds.</span></div>`;
+  }
+
+  const levelInfo = getOverlapLevelInfo(pairData.overlapPercent);
+  const venn = renderOverlapVennSVG(pairData.overlapPercent);
+  const top5 = pairData.commonStocks.slice(0, 5);
+
+  const rows = top5
+    .map(
+      (stock) => `
+        <div class="overlap-detail-stock-row">
+          <span class="overlap-detail-stock-name">${stock.company}</span>
+          <span class="overlap-detail-stock-pct">${stock.fund1Percent.toFixed(2)}%</span>
+          <span class="overlap-detail-stock-pct fund-b">${stock.fund2Percent.toFixed(2)}%</span>
+        </div>`,
+    )
+    .join("");
+
+  return `
+    <div class="overlap-calc-venn">${venn}</div>
+    <div class="overlap-calc-details">
+      <div class="overlap-calc-pct ${levelInfo.cls}">${pairData.overlapPercent}% <span>Overlap</span></div>
+      <div class="overlap-calc-badges">
+        <span class="overlap-calc-badge ${levelInfo.cls}">${levelInfo.levelLabel}</span>
+        <span class="overlap-calc-badge">${levelInfo.diversificationLabel}</span>
+      </div>
+      <p class="overlap-calc-description">${levelInfo.description}</p>
+      <div class="overlap-detail-table overlap-calc-table">
+        <div class="overlap-detail-table-header">
+          <span class="overlap-detail-stock-name">Common Stocks</span>
+          <span class="overlap-detail-stock-pct">Fund A</span>
+          <span class="overlap-detail-stock-pct fund-b">Fund B</span>
+        </div>
+        ${rows}
+      </div>
+      ${
+        pairData.commonStocks.length > 5
+          ? `<button class="overlap-calc-viewall-btn" onclick="showCalculatorOverlapModal()">View All ${pairData.commonStocks.length} Stocks</button>`
+          : ""
+      }
+    </div>`;
+}
+function playOverlapVennAnimation(resultEl) {
+  if (!resultEl) return;
+  const circles = resultEl.querySelectorAll(".overlap-venn-circle");
+  const details = resultEl.querySelector(".overlap-calc-details");
+
+  // Double rAF so the "start" (separated) position is painted first,
+  // then transitions to its resting position.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      circles.forEach((c) => c.classList.remove("overlap-venn-start"));
+    });
+  });
+
+  if (details) {
+    setTimeout(() => {
+      details.classList.add("visible");
+    }, 2000);
+  }
+}
+function updateOverlapCalculator() {
+  const resultEl = document.getElementById("overlapCalcResult");
+  if (!resultEl || !_overlapFundA || !_overlapFundB) return;
+
+  const pairData = calculatePairOverlap(_overlapFundA, _overlapFundB);
+
+  resultEl.classList.add("overlap-calc-result-fade");
+  setTimeout(() => {
+    resultEl.innerHTML = renderOverlapCalculatorResult(pairData);
+    requestAnimationFrame(() => {
+      resultEl.classList.remove("overlap-calc-result-fade");
+    });
+    playOverlapVennAnimation(resultEl);
+  }, 300);
+}
+// ── Overlap Calculator: selected fund keys (replaces hidden <select>) ──
+let _overlapFundA = null;
+let _overlapFundB = null;
+
+function _getOverlapFundName(key) {
+  const opts = getOverlapCalculatorFundOptions();
+  return opts.find((f) => f.key === key)?.name || key;
+}
+
+function _getOverlapFundLogo(key) {
+  const opts = getOverlapCalculatorFundOptions();
+  return opts.find((f) => f.key === key)?.logo_url || null;
+}
+
+function _overlapFundAvatarHTML(logo, name, cls) {
+  if (logo) {
+    return `<img class="ocd-avatar ${cls}" src="${logo}" alt="" onerror="this.outerHTML='<span class=\'ocd-avatar ocd-avatar--text ${cls}\'>${(name||'?')[0].toUpperCase()}</span>'">`;
+  }
+  return `<span class="ocd-avatar ocd-avatar--text ${cls}">${(name||'?')[0].toUpperCase()}</span>`;
+}
+
+function renderOverlapCalculatorSection(data) {
+  const fundOptions = getOverlapCalculatorFundOptions();
+  if (fundOptions.length < 2) return "";
+
+  let defaultKey1 = fundOptions[0].key;
+  let defaultKey2 = fundOptions[1].key;
+  const topPair = data.topOverlaps && data.topOverlaps[0];
+  if (topPair && topPair.fund1Key && topPair.fund2Key) {
+    defaultKey1 = topPair.fund1Key;
+    defaultKey2 = topPair.fund2Key;
+  }
+
+  _overlapFundA = defaultKey1;
+  _overlapFundB = defaultKey2;
+
+  const pairData = calculatePairOverlap(defaultKey1, defaultKey2);
+
+  const nameA = _getOverlapFundName(defaultKey1);
+  const nameB = _getOverlapFundName(defaultKey2);
+  const logoA = _getOverlapFundLogo(defaultKey1);
+  const logoB = _getOverlapFundLogo(defaultKey2);
+
+  return `
+    <div class="cg-section">
+      <div class="cg-section-head">
+        <div class="cg-section-title"><i class="fa-solid fa-circle-half-stroke"></i><h3>Overlap Calculator</h3></div>
+        <span class="cg-section-subtitle">Common holdings in two funds</span>
+      </div>
+      <div class="overlap-calc-body">
+        <div class="overlap-calc-selectors">
+          <div class="overlap-calc-select-card" onclick="openOverlapFundSheet('A')">
+            <label class="overlap-detail-fund-label">Fund A</label>
+            <div class="overlap-calc-select-wrap">
+              <div class="ocd-trigger" id="overlapTriggerA">
+                ${_overlapFundAvatarHTML(logoA, nameA, 'ocd-avatar--a')}
+                <span class="ocd-trigger-name">${nameA}</span>
+                <i class="fa-solid fa-chevron-down ocd-chevron"></i>
+              </div>
+            </div>
+          </div>
+          <div class="overlap-calc-select-card" onclick="openOverlapFundSheet('B')">
+            <label class="overlap-detail-fund-label fund-b">Fund B</label>
+            <div class="overlap-calc-select-wrap">
+              <div class="ocd-trigger" id="overlapTriggerB">
+                ${_overlapFundAvatarHTML(logoB, nameB, 'ocd-avatar--b')}
+                <span class="ocd-trigger-name">${nameB}</span>
+                <i class="fa-solid fa-chevron-down ocd-chevron"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="overlapCalcResult">${renderOverlapCalculatorResult(pairData)}</div>
+      </div>
+    </div>`;
+}
+
+// ── Dispatcher: bottom sheet on mobile, compact dropdown on desktop ──
+function openOverlapFundSheet(slot) {
+  if (window.innerWidth <= 768) {
+    _openOverlapFundSheetMobile(slot);
+  } else {
+    if (_ocdDDJustClosed) return;
+    const triggerEl = document.getElementById(slot === 'A' ? 'overlapTriggerA' : 'overlapTriggerB');
+    const cardEl    = triggerEl ? triggerEl.closest('.overlap-calc-select-card') : null;
+    openOverlapFundDropdown(slot, cardEl);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  OCD Desktop Dropdown
+// ─────────────────────────────────────────────
+
+let _ocdDDSlot     = null;
+let _ocdDDEl       = null;
+let _ocdDDFocusIdx = -1;
+let _ocdDDAnchorEl = null;
+let _ocdDDJustClosed = false;
+
+function openOverlapFundDropdown(slot, anchorEl) {
+  closeOverlapFundDropdown();
+
+  _ocdDDSlot     = slot;
+  _ocdDDFocusIdx = -1;
+
+  const fundOptions = getOverlapCalculatorFundOptions();
+  const currentKey  = slot === 'A' ? _overlapFundA : _overlapFundB;
+  const otherKey    = slot === 'A' ? _overlapFundB : _overlapFundA;
+
+  if (anchorEl) anchorEl.classList.add('overlap-calc-select-card--active');
+
+  const dd = document.createElement('div');
+  dd.className = 'ocd-dd';
+  dd.id = 'ocdDesktopDropdown';
+
+  dd.innerHTML = `
+    <div class="ocd-dd-header">
+      <span class="ocd-dd-title">
+        ${slot === 'A'
+          ? '<span class="ocd-slot-badge ocd-slot-badge--a">A</span> Fund A'
+          : '<span class="ocd-slot-badge ocd-slot-badge--b">B</span> Fund B'}
+      </span>
+      <button class="ocd-dd-close" onclick="closeOverlapFundDropdown()" aria-label="Close">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="ocd-dd-search-wrap">
+      <i class="fa-solid fa-magnifying-glass ocd-dd-search-icon"></i>
+      <input class="ocd-dd-search" id="ocdDDSearch" placeholder="Search funds\u2026"
+        autocomplete="off" spellcheck="false"
+        oninput="_ocdDDFilter()" onkeydown="_ocdDDKeyNav(event)">
+    </div>
+    <div class="ocd-dd-list" id="ocdDDList">
+      ${_ocdDDBuildList(fundOptions, currentKey, otherKey)}
+    </div>`;
+
+  document.body.appendChild(dd);
+  _ocdDDEl = dd;
+
+  _ocdDDPosition(anchorEl);
+
+  requestAnimationFrame(() => dd.classList.add('ocd-dd--open'));
+
+  setTimeout(() => {
+    const inp = document.getElementById('ocdDDSearch');
+    if (inp) inp.focus();
+  }, 60);
+
+  _ocdDDAnchorEl = anchorEl || null;
+
+  setTimeout(() => {
+    document.addEventListener('mousedown', _ocdDDOutsideClick, { capture: true });
+    document.addEventListener('keydown',   _ocdDDEscKey,       { capture: true });
+    window.addEventListener('scroll',      _ocdDDOnScroll,     { capture: true, passive: true });
+    window.addEventListener('resize',      _ocdDDOnScroll,     { passive: true });
+  }, 80);
+}
+
+function _ocdDDBuildList(fundOptions, currentKey, otherKey) {
+  return fundOptions.map((f, idx) => {
+    const isOther  = f.key === otherKey;
+    const isChosen = f.key === currentKey;
+    const logo     = f.logo_url;
+    const avatarHTML = logo
+      ? `<img class="ocd-item-avatar" src="${logo}" alt="" onerror="this.outerHTML='<span class=\\'ocd-item-avatar ocd-item-avatar--text\\'>${f.name[0].toUpperCase()}</span>'">`
+      : `<span class="ocd-item-avatar ocd-item-avatar--text">${f.name[0].toUpperCase()}</span>`;
+
+    if (isOther) {
+      return `
+        <div class="ocd-item ocd-item--disabled" data-idx="${idx}">
+          ${avatarHTML}
+          <div class="ocd-item-text">
+            <span class="ocd-item-name">${f.name}</span>
+            <span class="ocd-item-sub">Already selected</span>
+          </div>
+          <span class="ocd-radio ocd-radio--disabled"></span>
+        </div>`;
+    }
+    return `
+      <div class="ocd-item${isChosen ? ' ocd-item--selected' : ''}"
+           data-key="${f.key}" data-idx="${idx}"
+           onclick="_ocdDDSelect('${f.key}')"
+           onmouseenter="_ocdDDSetFocus(${idx})">
+        ${avatarHTML}
+        <div class="ocd-item-text">
+          <span class="ocd-item-name">${f.name}</span>
+        </div>
+        ${isChosen
+          ? '<span class="ocd-radio ocd-radio--checked"><i class="fa-solid fa-check"></i></span>'
+          : '<span class="ocd-radio"></span>'}
+      </div>`;
+  }).join('');
+}
+
+function _ocdDDPosition(anchorEl) {
+  const dd = _ocdDDEl;
+  if (!dd) return;
+  const MARGIN = 6;
+  const DDW    = 320;
+  dd.style.position   = 'fixed';
+  dd.style.visibility = 'hidden';
+  dd.style.width      = `${DDW}px`;
+
+  const rect = anchorEl
+    ? anchorEl.getBoundingClientRect()
+    : { bottom: 120, top: 80, left: window.innerWidth / 2 - DDW / 2, width: DDW };
+
+  const vp         = { w: window.innerWidth, h: window.innerHeight };
+  const ddH        = Math.min(dd.scrollHeight, 420);
+  const spaceBelow = vp.h - rect.bottom - MARGIN;
+  const spaceAbove = rect.top - MARGIN;
+  const placeAbove = spaceBelow < ddH && spaceAbove > spaceBelow;
+
+  let left = rect.left;
+  if (left + DDW > vp.w - 8) left = vp.w - DDW - 8;
+  if (left < 8) left = 8;
+
+  dd.style.left       = `${left}px`;
+  dd.style.top        = placeAbove ? `${rect.top - ddH - MARGIN}px` : `${rect.bottom + MARGIN}px`;
+  dd.style.visibility = '';
+
+  // Anchor the scale animation to the trigger's horizontal midpoint
+  // so the dropdown appears to open from the trigger rather than floating.
+  const anchorMidX    = rect.left + rect.width / 2;
+  const originX       = Math.round(anchorMidX - left);
+  const originY       = placeAbove ? '100%' : '0%';
+  dd.style.transformOrigin = `${originX}px ${originY}`;
+
+  dd.classList.toggle('ocd-dd--above', placeAbove);
+  dd.classList.toggle('ocd-dd--below', !placeAbove);
+}
+
+function _ocdDDFilter() {
+  const q     = (document.getElementById('ocdDDSearch')?.value || '').toLowerCase().trim();
+  const items = document.querySelectorAll('#ocdDDList .ocd-item');
+  let visible = [];
+  items.forEach((item) => {
+    const name    = item.querySelector('.ocd-item-name')?.textContent?.toLowerCase() || '';
+    const matches = !q || name.includes(q);
+    item.style.display = matches ? '' : 'none';
+    if (matches && !item.classList.contains('ocd-item--disabled')) visible.push(item);
+  });
+  const listEl  = document.getElementById('ocdDDList');
+  const emptyEl = listEl?.querySelector('.ocd-dd-empty');
+  if (q && visible.length === 0) {
+    if (!emptyEl) listEl.insertAdjacentHTML('beforeend', `<div class="ocd-dd-empty">No funds found</div>`);
+  } else {
+    if (emptyEl) emptyEl.remove();
+  }
+  _ocdDDFocusIdx = -1;
+}
+
+function _ocdDDKeyNav(e) {
+  const items = Array.from(document.querySelectorAll('#ocdDDList .ocd-item:not(.ocd-item--disabled)')).filter(el => el.style.display !== 'none');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _ocdDDFocusIdx = (_ocdDDFocusIdx + 1) % items.length;
+    _ocdDDApplyFocus(items);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _ocdDDFocusIdx = (_ocdDDFocusIdx - 1 + items.length) % items.length;
+    _ocdDDApplyFocus(items);
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (_ocdDDFocusIdx >= 0 && items[_ocdDDFocusIdx]) {
+      const key = items[_ocdDDFocusIdx].dataset.key;
+      if (key) _ocdDDSelect(key);
+    }
+  }
+}
+
+function _ocdDDSetFocus(idx) {
+  _ocdDDFocusIdx = idx;
+  const items = Array.from(document.querySelectorAll('#ocdDDList .ocd-item:not(.ocd-item--disabled)'));
+  _ocdDDApplyFocus(items);
+}
+
+function _ocdDDApplyFocus(items) {
+  document.querySelectorAll('#ocdDDList .ocd-item').forEach(el => el.classList.remove('ocd-item--focused'));
+  if (_ocdDDFocusIdx >= 0 && items[_ocdDDFocusIdx]) {
+    items[_ocdDDFocusIdx].classList.add('ocd-item--focused');
+    items[_ocdDDFocusIdx].scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function _ocdDDSelect(key) {
+  selectOverlapFund(_ocdDDSlot, key);
+  closeOverlapFundDropdown();
+}
+
+function closeOverlapFundDropdown() {
+  document.removeEventListener('mousedown', _ocdDDOutsideClick, { capture: true });
+  document.removeEventListener('keydown',   _ocdDDEscKey,       { capture: true });
+  window.removeEventListener('scroll',      _ocdDDOnScroll,     { capture: true });
+  window.removeEventListener('resize',      _ocdDDOnScroll);
+  _ocdDDAnchorEl = null;
+  document.querySelectorAll('.overlap-calc-select-card--active')
+    .forEach(el => el.classList.remove('overlap-calc-select-card--active'));
+  const dd = document.getElementById('ocdDesktopDropdown');
+  if (!dd) return;
+  dd.classList.remove('ocd-dd--open');
+  setTimeout(() => { dd.remove(); }, 180);
+  _ocdDDEl   = null;
+  _ocdDDSlot = null;
+}
+
+function _ocdDDOnScroll() {
+  if (!_ocdDDEl || !_ocdDDAnchorEl) return;
+  const rect = _ocdDDAnchorEl.getBoundingClientRect();
+  // If the anchor has scrolled completely out of the viewport, close
+  if (rect.bottom < 0 || rect.top > window.innerHeight ||
+      rect.right  < 0 || rect.left > window.innerWidth) {
+    closeOverlapFundDropdown();
+    return;
+  }
+  _ocdDDPosition(_ocdDDAnchorEl);
+}
+
+function _ocdDDOutsideClick(e) {
+  const dd = document.getElementById('ocdDesktopDropdown');
+  if (!dd) return;
+  if (dd.contains(e.target)) return;
+  if (e.target.closest('.overlap-calc-select-card')) {
+    _ocdDDJustClosed = true;
+    setTimeout(() => { _ocdDDJustClosed = false; }, 300);
+  }
+  closeOverlapFundDropdown();
+}
+
+function _ocdDDEscKey(e) {
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    closeOverlapFundDropdown();
+  }
+}
+
+// ── Mobile bottom sheet (original logic, self-contained) ──
+function _openOverlapFundSheetMobile(slot) {
+  const fundOptions = getOverlapCalculatorFundOptions();
+  const currentKey = slot === 'A' ? _overlapFundA : _overlapFundB;
+  const otherKey   = slot === 'A' ? _overlapFundB : _overlapFundA;
+
+  closeOverlapFundSheet();
+  lockBodyScroll();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'ocd-overlay';
+  overlay.id = 'overlapFundSheetOverlay';
+  overlay.onclick = (e) => { if (e.target === overlay) closeOverlapFundSheet(); };
+
+  const sheet = document.createElement('div');
+  sheet.className = 'ocd-sheet';
+
+  const listHTML = fundOptions.map((f) => {
+    const isAlreadySelected = f.key === otherKey;
+    const isCurrentlyChosen = f.key === currentKey;
+    const logo = f.logo_url;
+    const avatarHTML = logo
+      ? `<img class="ocd-item-avatar" src="${logo}" alt="" onerror="this.outerHTML='<span class=\\'ocd-item-avatar ocd-item-avatar--text\\'>${f.name[0].toUpperCase()}</span>'">`
+      : `<span class="ocd-item-avatar ocd-item-avatar--text">${f.name[0].toUpperCase()}</span>`;
+
+    if (isAlreadySelected) {
+      return `
+        <div class="ocd-item ocd-item--disabled">
+          ${avatarHTML}
+          <div class="ocd-item-text">
+            <span class="ocd-item-name">${f.name}</span>
+            <span class="ocd-item-sub">Already Selected</span>
+          </div>
+          <span class="ocd-radio ocd-radio--disabled"></span>
+        </div>`;
+    }
+    return `
+      <div class="ocd-item${isCurrentlyChosen ? ' ocd-item--selected' : ''}" onclick="selectOverlapFund('${slot}','${f.key}')">
+        ${avatarHTML}
+        <div class="ocd-item-text">
+          <span class="ocd-item-name">${f.name}</span>
+        </div>
+        ${isCurrentlyChosen
+          ? '<span class="ocd-radio ocd-radio--checked"><i class="fa-solid fa-check"></i></span>'
+          : '<span class="ocd-radio"></span>'}
+      </div>`;
+  }).join('');
+
+  sheet.innerHTML = `
+    <div class="ocd-drag-pill"></div>
+    <div class="ocd-sheet-header">
+      <span class="ocd-sheet-title">Select Fund ${slot === 'A' ? '<span class="ocd-slot-badge ocd-slot-badge--a">A</span>' : '<span class="ocd-slot-badge ocd-slot-badge--b">B</span>'}</span>
+    </div>
+    <div class="ocd-search-wrap">
+      <i class="fa-solid fa-magnifying-glass ocd-search-icon"></i>
+      <input class="ocd-search-input" id="overlapFundSearch" placeholder="Search for any mutual fund" oninput="filterOverlapFundSheet()" autocomplete="off">
+    </div>
+    <div class="ocd-list" id="overlapFundList">${listHTML}</div>`;
+
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+
+  let startY = 0;
+  sheet.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; }, { passive: true });
+  sheet.addEventListener('touchmove', (e) => {
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 0) sheet.style.transform = `translateY(${dy}px)`;
+  }, { passive: true });
+  sheet.addEventListener('touchend', (e) => {
+    const dy = e.changedTouches[0].clientY - startY;
+    if (dy > 80) { closeOverlapFundSheet(); } else { sheet.style.transform = ''; }
+  });
+
+  setTimeout(() => {
+    const inp = document.getElementById('overlapFundSearch');
+    if (inp) inp.focus();
+  }, 320);
+
+  overlay.dataset.slot = slot;
+  requestAnimationFrame(() => sheet.classList.add('ocd-sheet--open'));
+}
+
+
+function filterOverlapFundSheet() {
+  const query = (document.getElementById('overlapFundSearch')?.value || '').toLowerCase();
+  const items = document.querySelectorAll('#overlapFundList .ocd-item');
+  items.forEach((item) => {
+    const name = item.querySelector('.ocd-item-name')?.textContent?.toLowerCase() || '';
+    item.style.display = name.includes(query) ? '' : 'none';
+  });
+}
+
+function selectOverlapFund(slot, key) {
+  if (slot === 'A') {
+    _overlapFundA = key;
+  } else {
+    _overlapFundB = key;
+  }
+  closeOverlapFundSheet();
+  _refreshOverlapTriggers();
+  updateOverlapCalculator();
+}
+
+function _refreshOverlapTriggers() {
+  const nameA = _getOverlapFundName(_overlapFundA);
+  const nameB = _getOverlapFundName(_overlapFundB);
+  const logoA = _getOverlapFundLogo(_overlapFundA);
+  const logoB = _getOverlapFundLogo(_overlapFundB);
+
+  const trigA = document.getElementById('overlapTriggerA');
+  const trigB = document.getElementById('overlapTriggerB');
+
+  if (trigA) trigA.innerHTML = `
+    ${_overlapFundAvatarHTML(logoA, nameA, 'ocd-avatar--a')}
+    <span class="ocd-trigger-name">${nameA}</span>
+    <i class="fa-solid fa-chevron-down ocd-chevron"></i>`;
+
+  if (trigB) trigB.innerHTML = `
+    ${_overlapFundAvatarHTML(logoB, nameB, 'ocd-avatar--b')}
+    <span class="ocd-trigger-name">${nameB}</span>
+    <i class="fa-solid fa-chevron-down ocd-chevron"></i>`;
+}
+
+function closeOverlapFundSheet() {
+  const overlay = document.getElementById('overlapFundSheetOverlay');
+  if (!overlay) return;
+  const sheet = overlay.querySelector('.ocd-sheet');
+  if (sheet) {
+    sheet.classList.remove('ocd-sheet--open');
+    sheet.style.transform = '';
+  }
+  setTimeout(() => {
+    overlay.remove();
+    unlockBodyScroll();
+  }, 280);
+}
 function displayOverlapAnalysis() {
   const container = document.getElementById("overlapContent");
   const data = calculateOverlapAnalysis();
@@ -4082,7 +4757,10 @@ function displayOverlapAnalysis() {
     // Fund pair rows
     html += `<div class="cg-sub-title">Highest Overlapping Fund Pairs</div>`;
 
-    data.topOverlaps.forEach((pair) => {
+    // Cache for the detail modal lookups
+    window._overlapPairsData = data.topOverlaps;
+
+    data.topOverlaps.forEach((pair, pairIndex) => {
       const pctClass =
         pair.overlapPercent > 50
           ? "loss"
@@ -4090,7 +4768,7 @@ function displayOverlapAnalysis() {
             ? "warning"
             : "gain";
       html += `
-        <div class="overlap-pair-row">
+        <div class="overlap-pair-row overlap-row-clickable" onclick="showOverlapDetailModal(${pairIndex})">
           <div class="overlap-fund-names">
             <div class="overlap-fund-name">${pair.fund1}</div>
             <div class="overlap-fund-name secondary">${pair.fund2}</div>
@@ -4107,32 +4785,47 @@ function displayOverlapAnalysis() {
     });
   }
 
-  // Common holdings
-  if (hasCommonHoldings) {
-    html += `<div class="cg-sub-title" style="margin-top:${hasOverlapData ? "0" : "0"};">Stocks Common Across Multiple Funds</div>`;
+  html += `</div>`;
 
-    // mini header
-    html += `
-      <div class="common-holding-row" style="background:rgba(102,126,234,0.04);border-bottom:1px solid rgba(102,126,234,0.1);">
-        <span class="common-holding-name" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-tertiary);">Company</span>
-        <span class="common-holding-count" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-tertiary);"># Funds</span>
-        <span class="common-holding-weight" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-tertiary);">Avg Wt.</span>
-        <span class="common-holding-funds" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-tertiary);">Funds</span>
+  // Common holdings — separate section
+  if (hasCommonHoldings) {
+    // Cache for the detail modal lookups
+    window._commonHoldingsData = data.commonHoldings;
+
+    const commonHoldingsSectionHead = `
+      <div class="cg-section-head">
+        <div class="cg-section-title"><i class="fa-solid fa-building-columns"></i><h3>Stocks Common Across Multiple Funds</h3></div>
+        <span class="cg-section-subtitle">Held by 3 or more of your funds</span>
       </div>`;
 
-    data.commonHoldings.forEach((holding) => {
+    html += `<div class="cg-section">${commonHoldingsSectionHead}`;
+
+    data.commonHoldings.forEach((holding, holdingIndex) => {
       html += `
-        <div class="common-holding-row">
-          <span class="common-holding-name">${holding.company}</span>
-          <span class="common-holding-count">${holding.fundCount}</span>
-          <span class="common-holding-weight">${holding.avgWeight}%</span>
-          <span class="common-holding-funds">${holding.funds.join(", ")}</span>
+        <div class="overlap-pair-row overlap-row-clickable" onclick="showCommonHoldingDetailModal(${holdingIndex})">
+          <div class="overlap-fund-names">
+            <div class="overlap-fund-name">${holding.company}</div>
+          </div>
+          <div class="overlap-pct-cell">
+            <span class="overlap-pct-val accent">${holding.avgWeight}%</span>
+            <span class="overlap-pct-label">avg weight</span>
+          </div>
+          <div class="overlap-stocks-cell">
+            <span class="overlap-stocks-num">${holding.fundCount}</span>
+            <span class="overlap-stocks-label">funds</span>
+          </div>
         </div>`;
     });
+
+    html += `</div>`;
   }
 
-  html += `</div>`;
+  // Overlap Calculator — pick any two funds to compare
+  html += renderOverlapCalculatorSection(data);
+
   container.innerHTML = html;
+
+  playOverlapVennAnimation(document.getElementById("overlapCalcResult"));
 }
 function displayExpenseImpact() {
   const container = document.getElementById("expenseContent");
@@ -6698,6 +7391,172 @@ function closeFundDetailsModal() {
         chartInstance.destroy();
       }
     });
+    modal.remove();
+  }
+  unlockBodyScroll();
+}
+function showOverlapDetailModal(pairIndex) {
+  const pair = (window._overlapPairsData || [])[pairIndex];
+  if (!pair) return;
+  renderOverlapDetailModal(pair);
+}
+function showCalculatorOverlapModal() {
+  const pair = window._overlapCalcPairData;
+  if (!pair) return;
+  renderOverlapDetailModal(pair);
+}
+function renderOverlapDetailModal(pair) {
+  lockBodyScroll();
+
+  const modal = document.createElement("div");
+  modal.className = "transaction-modal-overlay";
+  modal.id = "overlapDetailModal";
+
+  const pctClass =
+    pair.overlapPercent > 50
+      ? "loss"
+      : pair.overlapPercent > 25
+        ? "warning"
+        : "gain";
+
+  const stockRows = pair.commonStocks
+    .map(
+      (stock) => `
+        <div class="overlap-detail-stock-row">
+          <span class="overlap-detail-stock-name">${stock.company}</span>
+          <span class="overlap-detail-stock-pct">${stock.fund1Percent.toFixed(2)}%</span>
+          <span class="overlap-detail-stock-pct">${stock.fund2Percent.toFixed(2)}%</span>
+        </div>`,
+    )
+    .join("");
+
+  modal.innerHTML = `
+    <div class="transaction-modal overlap-detail-modal">
+      <div class="modal-header">
+        <h2>Fund Overlap</h2>
+        <button class="modal-close" onclick="closeOverlapDetailModal()">✕</button>
+      </div>
+      <div class="modal-content overlap-detail-content">
+        <div class="overlap-detail-fund-cards">
+          <div class="overlap-detail-fund-card">
+            <div class="overlap-detail-fund-label">Fund A</div>
+            <div class="overlap-detail-fund-name">${pair.fund1}</div>
+          </div>
+          <div class="overlap-detail-fund-card">
+            <div class="overlap-detail-fund-label fund-b">Fund B</div>
+            <div class="overlap-detail-fund-name">${pair.fund2}</div>
+          </div>
+        </div>
+
+        <div class="overlap-detail-summary">
+          <span class="overlap-detail-summary-count">${pair.commonStocks.length} common stocks</span>
+          <span class="overlap-detail-summary-pct ${pctClass}">${pair.overlapPercent}% overlap</span>
+        </div>
+
+        <div class="overlap-detail-table">
+          <div class="overlap-detail-table-header">
+            <span class="overlap-detail-stock-name">Common Stocks</span>
+            <span class="overlap-detail-stock-pct">Fund A</span>
+            <span class="overlap-detail-stock-pct fund-b">Fund B</span>
+          </div>
+          ${stockRows}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  if (window.innerWidth <= 1024) {
+    initializeModalSwipe(modal);
+  }
+  window.history.pushState(
+    { modal: "overlapDetail" },
+    "",
+    window.location.pathname,
+  );
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeOverlapDetailModal();
+  });
+}
+function closeOverlapDetailModal() {
+  const modal = document.getElementById("overlapDetailModal");
+  if (modal) {
+    modal.remove();
+  }
+  unlockBodyScroll();
+}
+function showCommonHoldingDetailModal(holdingIndex) {
+  const holding = (window._commonHoldingsData || [])[holdingIndex];
+  if (!holding) return;
+
+  lockBodyScroll();
+
+  const modal = document.createElement("div");
+  modal.className = "transaction-modal-overlay";
+  modal.id = "commonHoldingDetailModal";
+
+  const fundRows = holding.fundWeights
+    .map(
+      (fw) => `
+        <div class="overlap-detail-stock-row">
+          <span class="overlap-detail-stock-name">${fw.fund}</span>
+          <span class="overlap-detail-stock-pct">${fw.weight.toFixed(2)}%</span>
+        </div>`,
+    )
+    .join("");
+
+  modal.innerHTML = `
+    <div class="transaction-modal overlap-detail-modal">
+      <div class="modal-header">
+        <h2>Stock Overlap</h2>
+        <button class="modal-close" onclick="closeCommonHoldingDetailModal()">✕</button>
+      </div>
+      <div class="modal-content overlap-detail-content">
+        <div class="overlap-detail-fund-cards">
+          <div class="overlap-detail-fund-card overlap-detail-fund-card-full">
+            <div class="overlap-detail-fund-label">Stock</div>
+            <div class="overlap-detail-fund-name">${holding.company}</div>
+          </div>
+        </div>
+
+        <div class="overlap-detail-summary">
+          <span class="overlap-detail-summary-count">Held by ${holding.fundCount} funds</span>
+          <span class="overlap-detail-summary-pct gain">${holding.avgWeight}% avg weight</span>
+        </div>
+
+        <div class="overlap-detail-table two-col">
+          <div class="overlap-detail-table-header">
+            <span class="overlap-detail-stock-name">Fund</span>
+            <span class="overlap-detail-stock-pct">Weight</span>
+          </div>
+          ${fundRows}
+          <div class="overlap-detail-stock-row overlap-detail-avg-row">
+            <span class="overlap-detail-stock-name">Average Weight</span>
+            <span class="overlap-detail-stock-pct">${holding.avgWeight}%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  if (window.innerWidth <= 1024) {
+    initializeModalSwipe(modal);
+  }
+  window.history.pushState(
+    { modal: "commonHoldingDetail" },
+    "",
+    window.location.pathname,
+  );
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeCommonHoldingDetailModal();
+  });
+}
+function closeCommonHoldingDetailModal() {
+  const modal = document.getElementById("commonHoldingDetailModal");
+  if (modal) {
     modal.remove();
   }
   unlockBodyScroll();
@@ -14114,6 +14973,20 @@ window.addEventListener("popstate", function (event) {
     "portfolioHoldingsModal",
   );
   const fundDetailsModal = document.getElementById("fundDetailsModal");
+  const overlapDetailModal = document.getElementById("overlapDetailModal");
+  const commonHoldingDetailModal = document.getElementById(
+    "commonHoldingDetailModal",
+  );
+
+  if (commonHoldingDetailModal) {
+    closeCommonHoldingDetailModal();
+    return;
+  }
+
+  if (overlapDetailModal) {
+    closeOverlapDetailModal();
+    return;
+  }
 
   if (allTimeModal) {
     closeAllTimeTransactions();
