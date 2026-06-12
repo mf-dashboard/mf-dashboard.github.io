@@ -689,8 +689,7 @@ function aggregateFundWiseData() {
         return;
       }
 
-      const key = scheme.scheme.trim().toLowerCase();
-      // Get additional data from mfStats if available
+      const key = getFundKey(scheme);
       const extendedData = scheme.isin ? mfStats[scheme.isin] : null;
       const amcName =
         extendedData?.amc?.trim() ||
@@ -913,7 +912,7 @@ function processSummaryCAS() {
       return;
     }
 
-    const key = folio.scheme.trim().toLowerCase();
+    const key = getFundKey(folio);
     const extendedData = folio.isin ? mfStats[folio.isin] : null;
 
     const amcName =
@@ -4230,9 +4229,9 @@ function _getOverlapFundLogo(key) {
 
 function _overlapFundAvatarHTML(logo, name, cls) {
   if (logo) {
-    return `<img class="ocd-avatar ${cls}" src="${logo}" alt="" onerror="this.outerHTML='<span class=\'ocd-avatar ocd-avatar--text ${cls}\'>${(name||'?')[0].toUpperCase()}</span>'">`;
+    return `<img class="ocd-avatar ${cls}" src="${logo}" alt="" onerror="this.outerHTML='<span class=\'ocd-avatar ocd-avatar--text ${cls}\'>${(name || "?")[0].toUpperCase()}</span>'">`;
   }
-  return `<span class="ocd-avatar ocd-avatar--text ${cls}">${(name||'?')[0].toUpperCase()}</span>`;
+  return `<span class="ocd-avatar ocd-avatar--text ${cls}">${(name || "?")[0].toUpperCase()}</span>`;
 }
 
 function renderOverlapCalculatorSection(data) {
@@ -4269,7 +4268,7 @@ function renderOverlapCalculatorSection(data) {
             <label class="overlap-detail-fund-label">Fund A</label>
             <div class="overlap-calc-select-wrap">
               <div class="ocd-trigger" id="overlapTriggerA">
-                ${_overlapFundAvatarHTML(logoA, nameA, 'ocd-avatar--a')}
+                ${_overlapFundAvatarHTML(logoA, nameA, "ocd-avatar--a")}
                 <span class="ocd-trigger-name">${nameA}</span>
                 <i class="fa-solid fa-chevron-down ocd-chevron"></i>
               </div>
@@ -4279,7 +4278,7 @@ function renderOverlapCalculatorSection(data) {
             <label class="overlap-detail-fund-label fund-b">Fund B</label>
             <div class="overlap-calc-select-wrap">
               <div class="ocd-trigger" id="overlapTriggerB">
-                ${_overlapFundAvatarHTML(logoB, nameB, 'ocd-avatar--b')}
+                ${_overlapFundAvatarHTML(logoB, nameB, "ocd-avatar--b")}
                 <span class="ocd-trigger-name">${nameB}</span>
                 <i class="fa-solid fa-chevron-down ocd-chevron"></i>
               </div>
@@ -4297,8 +4296,12 @@ function openOverlapFundSheet(slot) {
     _openOverlapFundSheetMobile(slot);
   } else {
     if (_ocdDDJustClosed) return;
-    const triggerEl = document.getElementById(slot === 'A' ? 'overlapTriggerA' : 'overlapTriggerB');
-    const cardEl    = triggerEl ? triggerEl.closest('.overlap-calc-select-card') : null;
+    const triggerEl = document.getElementById(
+      slot === "A" ? "overlapTriggerA" : "overlapTriggerB",
+    );
+    const cardEl = triggerEl
+      ? triggerEl.closest(".overlap-calc-select-card")
+      : null;
     openOverlapFundDropdown(slot, cardEl);
   }
 }
@@ -4307,8 +4310,8 @@ function openOverlapFundSheet(slot) {
 //  OCD Desktop Dropdown
 // ─────────────────────────────────────────────
 
-let _ocdDDSlot     = null;
-let _ocdDDEl       = null;
+let _ocdDDSlot = null;
+let _ocdDDEl = null;
 let _ocdDDFocusIdx = -1;
 let _ocdDDAnchorEl = null;
 let _ocdDDJustClosed = false;
@@ -4316,25 +4319,27 @@ let _ocdDDJustClosed = false;
 function openOverlapFundDropdown(slot, anchorEl) {
   closeOverlapFundDropdown();
 
-  _ocdDDSlot     = slot;
+  _ocdDDSlot = slot;
   _ocdDDFocusIdx = -1;
 
   const fundOptions = getOverlapCalculatorFundOptions();
-  const currentKey  = slot === 'A' ? _overlapFundA : _overlapFundB;
-  const otherKey    = slot === 'A' ? _overlapFundB : _overlapFundA;
+  const currentKey = slot === "A" ? _overlapFundA : _overlapFundB;
+  const otherKey = slot === "A" ? _overlapFundB : _overlapFundA;
 
-  if (anchorEl) anchorEl.classList.add('overlap-calc-select-card--active');
+  if (anchorEl) anchorEl.classList.add("overlap-calc-select-card--active");
 
-  const dd = document.createElement('div');
-  dd.className = 'ocd-dd';
-  dd.id = 'ocdDesktopDropdown';
+  const dd = document.createElement("div");
+  dd.className = "ocd-dd";
+  dd.id = "ocdDesktopDropdown";
 
   dd.innerHTML = `
     <div class="ocd-dd-header">
       <span class="ocd-dd-title">
-        ${slot === 'A'
-          ? '<span class="ocd-slot-badge ocd-slot-badge--a">A</span> Fund A'
-          : '<span class="ocd-slot-badge ocd-slot-badge--b">B</span> Fund B'}
+        ${
+          slot === "A"
+            ? '<span class="ocd-slot-badge ocd-slot-badge--a">A</span> Fund A'
+            : '<span class="ocd-slot-badge ocd-slot-badge--b">B</span> Fund B'
+        }
       </span>
       <button class="ocd-dd-close" onclick="closeOverlapFundDropdown()" aria-label="Close">
         <i class="fa-solid fa-xmark"></i>
@@ -4355,34 +4360,40 @@ function openOverlapFundDropdown(slot, anchorEl) {
 
   _ocdDDPosition(anchorEl);
 
-  requestAnimationFrame(() => dd.classList.add('ocd-dd--open'));
+  requestAnimationFrame(() => dd.classList.add("ocd-dd--open"));
 
   setTimeout(() => {
-    const inp = document.getElementById('ocdDDSearch');
+    const inp = document.getElementById("ocdDDSearch");
     if (inp) inp.focus();
   }, 60);
 
   _ocdDDAnchorEl = anchorEl || null;
 
   setTimeout(() => {
-    document.addEventListener('mousedown', _ocdDDOutsideClick, { capture: true });
-    document.addEventListener('keydown',   _ocdDDEscKey,       { capture: true });
-    window.addEventListener('scroll',      _ocdDDOnScroll,     { capture: true, passive: true });
-    window.addEventListener('resize',      _ocdDDOnScroll,     { passive: true });
+    document.addEventListener("mousedown", _ocdDDOutsideClick, {
+      capture: true,
+    });
+    document.addEventListener("keydown", _ocdDDEscKey, { capture: true });
+    window.addEventListener("scroll", _ocdDDOnScroll, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("resize", _ocdDDOnScroll, { passive: true });
   }, 80);
 }
 
 function _ocdDDBuildList(fundOptions, currentKey, otherKey) {
-  return fundOptions.map((f, idx) => {
-    const isOther  = f.key === otherKey;
-    const isChosen = f.key === currentKey;
-    const logo     = f.logo_url;
-    const avatarHTML = logo
-      ? `<img class="ocd-item-avatar" src="${logo}" alt="" onerror="this.outerHTML='<span class=\\'ocd-item-avatar ocd-item-avatar--text\\'>${f.name[0].toUpperCase()}</span>'">`
-      : `<span class="ocd-item-avatar ocd-item-avatar--text">${f.name[0].toUpperCase()}</span>`;
+  return fundOptions
+    .map((f, idx) => {
+      const isOther = f.key === otherKey;
+      const isChosen = f.key === currentKey;
+      const logo = f.logo_url;
+      const avatarHTML = logo
+        ? `<img class="ocd-item-avatar" src="${logo}" alt="" onerror="this.outerHTML='<span class=\\'ocd-item-avatar ocd-item-avatar--text\\'>${f.name[0].toUpperCase()}</span>'">`
+        : `<span class="ocd-item-avatar ocd-item-avatar--text">${f.name[0].toUpperCase()}</span>`;
 
-    if (isOther) {
-      return `
+      if (isOther) {
+        return `
         <div class="ocd-item ocd-item--disabled" data-idx="${idx}">
           ${avatarHTML}
           <div class="ocd-item-text">
@@ -4391,9 +4402,9 @@ function _ocdDDBuildList(fundOptions, currentKey, otherKey) {
           </div>
           <span class="ocd-radio ocd-radio--disabled"></span>
         </div>`;
-    }
-    return `
-      <div class="ocd-item${isChosen ? ' ocd-item--selected' : ''}"
+      }
+      return `
+      <div class="ocd-item${isChosen ? " ocd-item--selected" : ""}"
            data-key="${f.key}" data-idx="${idx}"
            onclick="_ocdDDSelect('${f.key}')"
            onmouseenter="_ocdDDSetFocus(${idx})">
@@ -4401,28 +4412,36 @@ function _ocdDDBuildList(fundOptions, currentKey, otherKey) {
         <div class="ocd-item-text">
           <span class="ocd-item-name">${f.name}</span>
         </div>
-        ${isChosen
-          ? '<span class="ocd-radio ocd-radio--checked"><i class="fa-solid fa-check"></i></span>'
-          : '<span class="ocd-radio"></span>'}
+        ${
+          isChosen
+            ? '<span class="ocd-radio ocd-radio--checked"><i class="fa-solid fa-check"></i></span>'
+            : '<span class="ocd-radio"></span>'
+        }
       </div>`;
-  }).join('');
+    })
+    .join("");
 }
 
 function _ocdDDPosition(anchorEl) {
   const dd = _ocdDDEl;
   if (!dd) return;
   const MARGIN = 6;
-  const DDW    = 320;
-  dd.style.position   = 'fixed';
-  dd.style.visibility = 'hidden';
-  dd.style.width      = `${DDW}px`;
+  const DDW = 320;
+  dd.style.position = "fixed";
+  dd.style.visibility = "hidden";
+  dd.style.width = `${DDW}px`;
 
   const rect = anchorEl
     ? anchorEl.getBoundingClientRect()
-    : { bottom: 120, top: 80, left: window.innerWidth / 2 - DDW / 2, width: DDW };
+    : {
+        bottom: 120,
+        top: 80,
+        left: window.innerWidth / 2 - DDW / 2,
+        width: DDW,
+      };
 
-  const vp         = { w: window.innerWidth, h: window.innerHeight };
-  const ddH        = Math.min(dd.scrollHeight, 420);
+  const vp = { w: window.innerWidth, h: window.innerHeight };
+  const ddH = Math.min(dd.scrollHeight, 420);
   const spaceBelow = vp.h - rect.bottom - MARGIN;
   const spaceAbove = rect.top - MARGIN;
   const placeAbove = spaceBelow < ddH && spaceAbove > spaceBelow;
@@ -4431,35 +4450,45 @@ function _ocdDDPosition(anchorEl) {
   if (left + DDW > vp.w - 8) left = vp.w - DDW - 8;
   if (left < 8) left = 8;
 
-  dd.style.left       = `${left}px`;
-  dd.style.top        = placeAbove ? `${rect.top - ddH - MARGIN}px` : `${rect.bottom + MARGIN}px`;
-  dd.style.visibility = '';
+  dd.style.left = `${left}px`;
+  dd.style.top = placeAbove
+    ? `${rect.top - ddH - MARGIN}px`
+    : `${rect.bottom + MARGIN}px`;
+  dd.style.visibility = "";
 
   // Anchor the scale animation to the trigger's horizontal midpoint
   // so the dropdown appears to open from the trigger rather than floating.
-  const anchorMidX    = rect.left + rect.width / 2;
-  const originX       = Math.round(anchorMidX - left);
-  const originY       = placeAbove ? '100%' : '0%';
+  const anchorMidX = rect.left + rect.width / 2;
+  const originX = Math.round(anchorMidX - left);
+  const originY = placeAbove ? "100%" : "0%";
   dd.style.transformOrigin = `${originX}px ${originY}`;
 
-  dd.classList.toggle('ocd-dd--above', placeAbove);
-  dd.classList.toggle('ocd-dd--below', !placeAbove);
+  dd.classList.toggle("ocd-dd--above", placeAbove);
+  dd.classList.toggle("ocd-dd--below", !placeAbove);
 }
 
 function _ocdDDFilter() {
-  const q     = (document.getElementById('ocdDDSearch')?.value || '').toLowerCase().trim();
-  const items = document.querySelectorAll('#ocdDDList .ocd-item');
+  const q = (document.getElementById("ocdDDSearch")?.value || "")
+    .toLowerCase()
+    .trim();
+  const items = document.querySelectorAll("#ocdDDList .ocd-item");
   let visible = [];
   items.forEach((item) => {
-    const name    = item.querySelector('.ocd-item-name')?.textContent?.toLowerCase() || '';
+    const name =
+      item.querySelector(".ocd-item-name")?.textContent?.toLowerCase() || "";
     const matches = !q || name.includes(q);
-    item.style.display = matches ? '' : 'none';
-    if (matches && !item.classList.contains('ocd-item--disabled')) visible.push(item);
+    item.style.display = matches ? "" : "none";
+    if (matches && !item.classList.contains("ocd-item--disabled"))
+      visible.push(item);
   });
-  const listEl  = document.getElementById('ocdDDList');
-  const emptyEl = listEl?.querySelector('.ocd-dd-empty');
+  const listEl = document.getElementById("ocdDDList");
+  const emptyEl = listEl?.querySelector(".ocd-dd-empty");
   if (q && visible.length === 0) {
-    if (!emptyEl) listEl.insertAdjacentHTML('beforeend', `<div class="ocd-dd-empty">No funds found</div>`);
+    if (!emptyEl)
+      listEl.insertAdjacentHTML(
+        "beforeend",
+        `<div class="ocd-dd-empty">No funds found</div>`,
+      );
   } else {
     if (emptyEl) emptyEl.remove();
   }
@@ -4467,17 +4496,19 @@ function _ocdDDFilter() {
 }
 
 function _ocdDDKeyNav(e) {
-  const items = Array.from(document.querySelectorAll('#ocdDDList .ocd-item:not(.ocd-item--disabled)')).filter(el => el.style.display !== 'none');
+  const items = Array.from(
+    document.querySelectorAll("#ocdDDList .ocd-item:not(.ocd-item--disabled)"),
+  ).filter((el) => el.style.display !== "none");
   if (!items.length) return;
-  if (e.key === 'ArrowDown') {
+  if (e.key === "ArrowDown") {
     e.preventDefault();
     _ocdDDFocusIdx = (_ocdDDFocusIdx + 1) % items.length;
     _ocdDDApplyFocus(items);
-  } else if (e.key === 'ArrowUp') {
+  } else if (e.key === "ArrowUp") {
     e.preventDefault();
     _ocdDDFocusIdx = (_ocdDDFocusIdx - 1 + items.length) % items.length;
     _ocdDDApplyFocus(items);
-  } else if (e.key === 'Enter') {
+  } else if (e.key === "Enter") {
     e.preventDefault();
     if (_ocdDDFocusIdx >= 0 && items[_ocdDDFocusIdx]) {
       const key = items[_ocdDDFocusIdx].dataset.key;
@@ -4488,15 +4519,19 @@ function _ocdDDKeyNav(e) {
 
 function _ocdDDSetFocus(idx) {
   _ocdDDFocusIdx = idx;
-  const items = Array.from(document.querySelectorAll('#ocdDDList .ocd-item:not(.ocd-item--disabled)'));
+  const items = Array.from(
+    document.querySelectorAll("#ocdDDList .ocd-item:not(.ocd-item--disabled)"),
+  );
   _ocdDDApplyFocus(items);
 }
 
 function _ocdDDApplyFocus(items) {
-  document.querySelectorAll('#ocdDDList .ocd-item').forEach(el => el.classList.remove('ocd-item--focused'));
+  document
+    .querySelectorAll("#ocdDDList .ocd-item")
+    .forEach((el) => el.classList.remove("ocd-item--focused"));
   if (_ocdDDFocusIdx >= 0 && items[_ocdDDFocusIdx]) {
-    items[_ocdDDFocusIdx].classList.add('ocd-item--focused');
-    items[_ocdDDFocusIdx].scrollIntoView({ block: 'nearest' });
+    items[_ocdDDFocusIdx].classList.add("ocd-item--focused");
+    items[_ocdDDFocusIdx].scrollIntoView({ block: "nearest" });
   }
 }
 
@@ -4506,18 +4541,23 @@ function _ocdDDSelect(key) {
 }
 
 function closeOverlapFundDropdown() {
-  document.removeEventListener('mousedown', _ocdDDOutsideClick, { capture: true });
-  document.removeEventListener('keydown',   _ocdDDEscKey,       { capture: true });
-  window.removeEventListener('scroll',      _ocdDDOnScroll,     { capture: true });
-  window.removeEventListener('resize',      _ocdDDOnScroll);
+  document.removeEventListener("mousedown", _ocdDDOutsideClick, {
+    capture: true,
+  });
+  document.removeEventListener("keydown", _ocdDDEscKey, { capture: true });
+  window.removeEventListener("scroll", _ocdDDOnScroll, { capture: true });
+  window.removeEventListener("resize", _ocdDDOnScroll);
   _ocdDDAnchorEl = null;
-  document.querySelectorAll('.overlap-calc-select-card--active')
-    .forEach(el => el.classList.remove('overlap-calc-select-card--active'));
-  const dd = document.getElementById('ocdDesktopDropdown');
+  document
+    .querySelectorAll(".overlap-calc-select-card--active")
+    .forEach((el) => el.classList.remove("overlap-calc-select-card--active"));
+  const dd = document.getElementById("ocdDesktopDropdown");
   if (!dd) return;
-  dd.classList.remove('ocd-dd--open');
-  setTimeout(() => { dd.remove(); }, 180);
-  _ocdDDEl   = null;
+  dd.classList.remove("ocd-dd--open");
+  setTimeout(() => {
+    dd.remove();
+  }, 180);
+  _ocdDDEl = null;
   _ocdDDSlot = null;
 }
 
@@ -4525,8 +4565,12 @@ function _ocdDDOnScroll() {
   if (!_ocdDDEl || !_ocdDDAnchorEl) return;
   const rect = _ocdDDAnchorEl.getBoundingClientRect();
   // If the anchor has scrolled completely out of the viewport, close
-  if (rect.bottom < 0 || rect.top > window.innerHeight ||
-      rect.right  < 0 || rect.left > window.innerWidth) {
+  if (
+    rect.bottom < 0 ||
+    rect.top > window.innerHeight ||
+    rect.right < 0 ||
+    rect.left > window.innerWidth
+  ) {
     closeOverlapFundDropdown();
     return;
   }
@@ -4534,18 +4578,20 @@ function _ocdDDOnScroll() {
 }
 
 function _ocdDDOutsideClick(e) {
-  const dd = document.getElementById('ocdDesktopDropdown');
+  const dd = document.getElementById("ocdDesktopDropdown");
   if (!dd) return;
   if (dd.contains(e.target)) return;
-  if (e.target.closest('.overlap-calc-select-card')) {
+  if (e.target.closest(".overlap-calc-select-card")) {
     _ocdDDJustClosed = true;
-    setTimeout(() => { _ocdDDJustClosed = false; }, 300);
+    setTimeout(() => {
+      _ocdDDJustClosed = false;
+    }, 300);
   }
   closeOverlapFundDropdown();
 }
 
 function _ocdDDEscKey(e) {
-  if (e.key === 'Escape') {
+  if (e.key === "Escape") {
     e.stopPropagation();
     closeOverlapFundDropdown();
   }
@@ -4554,30 +4600,33 @@ function _ocdDDEscKey(e) {
 // ── Mobile bottom sheet (original logic, self-contained) ──
 function _openOverlapFundSheetMobile(slot) {
   const fundOptions = getOverlapCalculatorFundOptions();
-  const currentKey = slot === 'A' ? _overlapFundA : _overlapFundB;
-  const otherKey   = slot === 'A' ? _overlapFundB : _overlapFundA;
+  const currentKey = slot === "A" ? _overlapFundA : _overlapFundB;
+  const otherKey = slot === "A" ? _overlapFundB : _overlapFundA;
 
   closeOverlapFundSheet();
   lockBodyScroll();
 
-  const overlay = document.createElement('div');
-  overlay.className = 'ocd-overlay';
-  overlay.id = 'overlapFundSheetOverlay';
-  overlay.onclick = (e) => { if (e.target === overlay) closeOverlapFundSheet(); };
+  const overlay = document.createElement("div");
+  overlay.className = "ocd-overlay";
+  overlay.id = "overlapFundSheetOverlay";
+  overlay.onclick = (e) => {
+    if (e.target === overlay) closeOverlapFundSheet();
+  };
 
-  const sheet = document.createElement('div');
-  sheet.className = 'ocd-sheet';
+  const sheet = document.createElement("div");
+  sheet.className = "ocd-sheet";
 
-  const listHTML = fundOptions.map((f) => {
-    const isAlreadySelected = f.key === otherKey;
-    const isCurrentlyChosen = f.key === currentKey;
-    const logo = f.logo_url;
-    const avatarHTML = logo
-      ? `<img class="ocd-item-avatar" src="${logo}" alt="" onerror="this.outerHTML='<span class=\\'ocd-item-avatar ocd-item-avatar--text\\'>${f.name[0].toUpperCase()}</span>'">`
-      : `<span class="ocd-item-avatar ocd-item-avatar--text">${f.name[0].toUpperCase()}</span>`;
+  const listHTML = fundOptions
+    .map((f) => {
+      const isAlreadySelected = f.key === otherKey;
+      const isCurrentlyChosen = f.key === currentKey;
+      const logo = f.logo_url;
+      const avatarHTML = logo
+        ? `<img class="ocd-item-avatar" src="${logo}" alt="" onerror="this.outerHTML='<span class=\\'ocd-item-avatar ocd-item-avatar--text\\'>${f.name[0].toUpperCase()}</span>'">`
+        : `<span class="ocd-item-avatar ocd-item-avatar--text">${f.name[0].toUpperCase()}</span>`;
 
-    if (isAlreadySelected) {
-      return `
+      if (isAlreadySelected) {
+        return `
         <div class="ocd-item ocd-item--disabled">
           ${avatarHTML}
           <div class="ocd-item-text">
@@ -4586,23 +4635,26 @@ function _openOverlapFundSheetMobile(slot) {
           </div>
           <span class="ocd-radio ocd-radio--disabled"></span>
         </div>`;
-    }
-    return `
-      <div class="ocd-item${isCurrentlyChosen ? ' ocd-item--selected' : ''}" onclick="selectOverlapFund('${slot}','${f.key}')">
+      }
+      return `
+      <div class="ocd-item${isCurrentlyChosen ? " ocd-item--selected" : ""}" onclick="selectOverlapFund('${slot}','${f.key}')">
         ${avatarHTML}
         <div class="ocd-item-text">
           <span class="ocd-item-name">${f.name}</span>
         </div>
-        ${isCurrentlyChosen
-          ? '<span class="ocd-radio ocd-radio--checked"><i class="fa-solid fa-check"></i></span>'
-          : '<span class="ocd-radio"></span>'}
+        ${
+          isCurrentlyChosen
+            ? '<span class="ocd-radio ocd-radio--checked"><i class="fa-solid fa-check"></i></span>'
+            : '<span class="ocd-radio"></span>'
+        }
       </div>`;
-  }).join('');
+    })
+    .join("");
 
   sheet.innerHTML = `
     <div class="ocd-drag-pill"></div>
     <div class="ocd-sheet-header">
-      <span class="ocd-sheet-title">Select Fund ${slot === 'A' ? '<span class="ocd-slot-badge ocd-slot-badge--a">A</span>' : '<span class="ocd-slot-badge ocd-slot-badge--b">B</span>'}</span>
+      <span class="ocd-sheet-title">Select Fund ${slot === "A" ? '<span class="ocd-slot-badge ocd-slot-badge--a">A</span>' : '<span class="ocd-slot-badge ocd-slot-badge--b">B</span>'}</span>
     </div>
     <div class="ocd-search-wrap">
       <i class="fa-solid fa-magnifying-glass ocd-search-icon"></i>
@@ -4614,37 +4666,48 @@ function _openOverlapFundSheetMobile(slot) {
   document.body.appendChild(overlay);
 
   let startY = 0;
-  sheet.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; }, { passive: true });
-  sheet.addEventListener('touchmove', (e) => {
-    const dy = e.touches[0].clientY - startY;
-    if (dy > 0) sheet.style.transform = `translateY(${dy}px)`;
-  }, { passive: true });
-  sheet.addEventListener('touchend', (e) => {
+  sheet.addEventListener(
+    "touchstart",
+    (e) => {
+      startY = e.touches[0].clientY;
+    },
+    { passive: true },
+  );
+  sheet.addEventListener(
+    "touchmove",
+    (e) => {
+      const dy = e.touches[0].clientY - startY;
+      if (dy > 0) sheet.style.transform = `translateY(${dy}px)`;
+    },
+    { passive: true },
+  );
+  sheet.addEventListener("touchend", (e) => {
     const dy = e.changedTouches[0].clientY - startY;
-    if (dy > 80) { closeOverlapFundSheet(); } else { sheet.style.transform = ''; }
+    if (dy > 80) {
+      closeOverlapFundSheet();
+    } else {
+      sheet.style.transform = "";
+    }
   });
 
-  setTimeout(() => {
-    const inp = document.getElementById('overlapFundSearch');
-    if (inp) inp.focus();
-  }, 320);
-
   overlay.dataset.slot = slot;
-  requestAnimationFrame(() => sheet.classList.add('ocd-sheet--open'));
+  requestAnimationFrame(() => sheet.classList.add("ocd-sheet--open"));
 }
 
-
 function filterOverlapFundSheet() {
-  const query = (document.getElementById('overlapFundSearch')?.value || '').toLowerCase();
-  const items = document.querySelectorAll('#overlapFundList .ocd-item');
+  const query = (
+    document.getElementById("overlapFundSearch")?.value || ""
+  ).toLowerCase();
+  const items = document.querySelectorAll("#overlapFundList .ocd-item");
   items.forEach((item) => {
-    const name = item.querySelector('.ocd-item-name')?.textContent?.toLowerCase() || '';
-    item.style.display = name.includes(query) ? '' : 'none';
+    const name =
+      item.querySelector(".ocd-item-name")?.textContent?.toLowerCase() || "";
+    item.style.display = name.includes(query) ? "" : "none";
   });
 }
 
 function selectOverlapFund(slot, key) {
-  if (slot === 'A') {
+  if (slot === "A") {
     _overlapFundA = key;
   } else {
     _overlapFundB = key;
@@ -4660,27 +4723,29 @@ function _refreshOverlapTriggers() {
   const logoA = _getOverlapFundLogo(_overlapFundA);
   const logoB = _getOverlapFundLogo(_overlapFundB);
 
-  const trigA = document.getElementById('overlapTriggerA');
-  const trigB = document.getElementById('overlapTriggerB');
+  const trigA = document.getElementById("overlapTriggerA");
+  const trigB = document.getElementById("overlapTriggerB");
 
-  if (trigA) trigA.innerHTML = `
-    ${_overlapFundAvatarHTML(logoA, nameA, 'ocd-avatar--a')}
+  if (trigA)
+    trigA.innerHTML = `
+    ${_overlapFundAvatarHTML(logoA, nameA, "ocd-avatar--a")}
     <span class="ocd-trigger-name">${nameA}</span>
     <i class="fa-solid fa-chevron-down ocd-chevron"></i>`;
 
-  if (trigB) trigB.innerHTML = `
-    ${_overlapFundAvatarHTML(logoB, nameB, 'ocd-avatar--b')}
+  if (trigB)
+    trigB.innerHTML = `
+    ${_overlapFundAvatarHTML(logoB, nameB, "ocd-avatar--b")}
     <span class="ocd-trigger-name">${nameB}</span>
     <i class="fa-solid fa-chevron-down ocd-chevron"></i>`;
 }
 
 function closeOverlapFundSheet() {
-  const overlay = document.getElementById('overlapFundSheetOverlay');
+  const overlay = document.getElementById("overlapFundSheetOverlay");
   if (!overlay) return;
-  const sheet = overlay.querySelector('.ocd-sheet');
+  const sheet = overlay.querySelector(".ocd-sheet");
   if (sheet) {
-    sheet.classList.remove('ocd-sheet--open');
-    sheet.style.transform = '';
+    sheet.classList.remove("ocd-sheet--open");
+    sheet.style.transform = "";
   }
   setTimeout(() => {
     overlay.remove();
@@ -5974,6 +6039,15 @@ function updateFundBreakdown() {
 
   const pastFunds = [];
 
+  let curInvested = 0,
+    curValue = 0,
+    curGain = 0,
+    curCount = 0;
+  let pastInvested = 0,
+    pastWithdrawn = 0,
+    pastGain = 0,
+    pastCount = 0;
+
   fundsArray.forEach(([fundKey, fund]) => {
     const totalInvested = fund.transactions
       .filter((t) => t.type === "PURCHASE")
@@ -5992,7 +6066,7 @@ function updateFundBreakdown() {
       if (!folioData) return;
 
       const schemeInFolio = folioData.schemes.find(
-        (s) => s.scheme.trim().toLowerCase() === fund.scheme.toLowerCase(),
+        (s) => getFundKey(s) === getFundKey(fund),
       );
 
       if (!schemeInFolio) return;
@@ -6013,6 +6087,11 @@ function updateFundBreakdown() {
         "active",
       );
       currentGrid.appendChild(currentCard);
+
+      curInvested += fund.advancedMetrics?.remainingCost || 0;
+      curValue += fund.advancedMetrics?.currentValue || 0;
+      curGain += fund.advancedMetrics?.unrealizedGain || 0;
+      curCount++;
     } else {
       // All folios fully exited — goes to past
       if (allFolios.length > 0) {
@@ -6032,6 +6111,13 @@ function updateFundBreakdown() {
       </div>
     `;
   }
+
+  renderHoldingsToolbar(currentGrid, "current", {
+    count: curCount,
+    invested: curInvested,
+    value: curValue,
+    gain: curGain,
+  });
 
   // Build past holdings section
   if (hasPast) {
@@ -6054,6 +6140,25 @@ function updateFundBreakdown() {
         "full",
       );
       pastRedeemedGrid.appendChild(card);
+
+      const folioNumbers = folios.map((f) => f.folioNum);
+      Object.values(fund.advancedMetrics?.folioSummaries || {}).forEach(
+        (fs) => {
+          if (!folioNumbers.includes(fs.folio)) return;
+          const redeemedCost = (fs.invested || 0) - (fs.remainingCost || 0);
+          pastInvested += redeemedCost;
+          pastWithdrawn += fs.withdrawn || 0;
+          pastGain += fs.realizedGain || 0;
+        },
+      );
+      pastCount++;
+    });
+
+    renderHoldingsToolbar(pastGrid, "past", {
+      count: pastCount,
+      invested: pastInvested,
+      value: pastWithdrawn,
+      gain: pastGain,
     });
   } else {
     pastSection?.classList.remove("hidden");
@@ -6067,6 +6172,76 @@ function updateFundBreakdown() {
       </div>
     `;
   }
+}
+
+// Build (or refresh) the minimal summary + search toolbar above a holdings grid.
+// Desktop/Tablet only — hidden via CSS on mobile (compact dashboard handles mobile).
+function renderHoldingsToolbar(gridEl, type, totals) {
+  if (!gridEl) return;
+  const wrapId = `holdingsToolbar-${type}`;
+  let toolbar = document.getElementById(wrapId);
+
+  const gainClass = totals.gain >= 0 ? "gain" : "loss";
+  const gainSign = totals.gain >= 0 ? "+" : "-";
+  const valueLabel = type === "current" ? "Current Value" : "Withdrawn";
+  const gainLabel = type === "current" ? "Unrealized P&L" : "Realized P&L";
+
+  const summaryHTML = `
+    <div class="holdings-summary">
+      <div class="holdings-summary-item">
+        <span class="holdings-summary-label">Funds</span>
+        <span class="holdings-summary-value">${totals.count}</span>
+      </div>
+      <div class="holdings-summary-item">
+        <span class="holdings-summary-label">Invested</span>
+        <span class="holdings-summary-value">₹${formatNumber(Math.round(totals.invested))}</span>
+      </div>
+      <div class="holdings-summary-item">
+        <span class="holdings-summary-label">${valueLabel}</span>
+        <span class="holdings-summary-value">₹${formatNumber(Math.round(totals.value))}</span>
+      </div>
+      <div class="holdings-summary-item">
+        <span class="holdings-summary-label">${gainLabel}</span>
+        <span class="holdings-summary-value ${gainClass}">${gainSign}₹${formatNumber(Math.abs(Math.round(totals.gain)))}</span>
+      </div>
+    </div>`;
+
+  const searchHTML = `
+    <div class="holdings-search-wrap">
+      <i class="fa-solid fa-magnifying-glass holdings-search-icon"></i>
+      <input type="text" class="holdings-search-input" id="holdingsSearch-${type}"
+        placeholder="Search ${type === "current" ? "current" : "past"} holdings…"
+        oninput="filterHoldingsGrid('${type}')" autocomplete="off">
+    </div>`;
+
+  if (!toolbar) {
+    toolbar = document.createElement("div");
+    toolbar.id = wrapId;
+    toolbar.className = "holdings-toolbar";
+    gridEl.parentNode.insertBefore(toolbar, gridEl);
+  }
+
+  toolbar.innerHTML = summaryHTML + searchHTML;
+
+  // Re-apply any active search filter after the grid is rebuilt
+  filterHoldingsGrid(type);
+}
+
+// Filter fund cards in a holdings grid by name based on the toolbar search input.
+function filterHoldingsGrid(type) {
+  const input = document.getElementById(`holdingsSearch-${type}`);
+  const gridEl = document.getElementById(
+    type === "current" ? "currentFolioGrid" : "pastFolioGrid",
+  );
+  if (!input || !gridEl) return;
+
+  const query = input.value.trim().toLowerCase();
+  const cards = gridEl.querySelectorAll(".folio-card");
+
+  cards.forEach((card) => {
+    const name = card.dataset.fundName || "";
+    card.style.display = !query || name.includes(query) ? "" : "none";
+  });
 }
 function updateSummaryFundBreakdown() {
   const currentGrid = document.getElementById("currentFolioGrid");
@@ -6087,9 +6262,26 @@ function updateSummaryFundBreakdown() {
     return bVal - aVal;
   });
 
+  let curInvested = 0,
+    curValue = 0,
+    curGain = 0,
+    curCount = 0;
+
   fundsArray.forEach(([fundKey, fund]) => {
     const card = createSummaryFundCard(fund, fundKey);
     currentGrid.appendChild(card);
+
+    curInvested += fund.advancedMetrics?.remainingCost || 0;
+    curValue += fund.advancedMetrics?.currentValue || 0;
+    curGain += fund.advancedMetrics?.unrealizedGain || 0;
+    curCount++;
+  });
+
+  renderHoldingsToolbar(currentGrid, "current", {
+    count: curCount,
+    invested: curInvested,
+    value: curValue,
+    gain: curGain,
   });
 }
 function createFundCardForFolios(
@@ -6281,6 +6473,11 @@ function createFundCardWithTransactions(
 ) {
   const card = document.createElement("div");
   card.className = "folio-card";
+  card.dataset.fundName = (
+    fund.schemeDisplay ||
+    fund.scheme ||
+    ""
+  ).toLowerCase();
 
   const extendedData = mfStats[fund.isin];
   // Sort folios by current value desc (active first, redeemed last) for chip display
@@ -6472,7 +6669,7 @@ function showFundDetailsModal(
       const folioData = portfolioData.folios.find((f) => f.folio === folioNum);
       if (!folioData) return false;
       const schemeInFolio = folioData.schemes.find(
-        (s) => s.scheme.trim().toLowerCase() === fund.scheme.toLowerCase(),
+        (s) => getFundKey(s) === getFundKey(fund),
       );
       return (
         schemeInFolio && parseFloat(schemeInFolio.valuation?.value || 0) === 0
@@ -10219,7 +10416,7 @@ function updateCompactPastDashboard() {
       if (!folioData) return;
 
       const schemeInFolio = folioData.schemes.find(
-        (s) => s.scheme.trim().toLowerCase() === fund.scheme.toLowerCase(),
+        (s) => getFundKey(s) === getFundKey(fund),
       );
       if (!schemeInFolio) return;
 
@@ -10734,7 +10931,7 @@ function toggleCompactPastSort() {
       if (!folioData) return;
 
       const schemeInFolio = folioData.schemes.find(
-        (s) => s.scheme.trim().toLowerCase() === fund.scheme.toLowerCase(),
+        (s) => getFundKey(s) === getFundKey(fund),
       );
 
       if (!schemeInFolio) return;
@@ -10965,7 +11162,7 @@ function calculateFamilyMetrics(allUserData) {
           if (hiddenFolios.includes(folio.folio)) {
             return;
           }
-          const key = folio.scheme.trim().toLowerCase();
+          const key = getFundKey(folio);
           const extendedData = folio.isin ? userMfStats[folio.isin] : null;
 
           const units = parseFloat(folio.units || 0);
@@ -11024,7 +11221,7 @@ function calculateFamilyMetrics(allUserData) {
               return;
             }
 
-            const key = scheme.scheme.trim().toLowerCase();
+            const key = getFundKey(scheme);
             const extendedData = scheme.isin ? userMfStats[scheme.isin] : null;
 
             if (!userFundWiseData[key]) {
@@ -12781,8 +12978,7 @@ async function loadFolioManagementData(userName) {
             const fundHasActiveUnits = casData.folios.some((f) =>
               f.schemes.some(
                 (s) =>
-                  s.scheme.trim().toLowerCase() ===
-                    scheme.scheme.trim().toLowerCase() &&
+                  getFundKey(s) === getFundKey(scheme) &&
                   parseFloat(s.valuation?.value || 0) > 0,
               ),
             );
@@ -14417,6 +14613,12 @@ function switchDashboardTab(tabId) {
       btn.classList.remove("active");
     });
 
+  document.querySelectorAll(".holdings-search-input").forEach((search) => {
+    search.value = "";
+    filterHoldingsGrid("current");
+    filterHoldingsGrid("past");
+  });
+
   // Show selected section
   const selectedSection = document.getElementById(tabId);
   if (selectedSection) {
@@ -14773,7 +14975,7 @@ function updatePortfolioDataWithActiveStatus() {
     // Summary CAS:  each folio IS the scheme entry (no nested schemes)
     if (Array.isArray(folio.schemes)) {
       folio.schemes.forEach((scheme) => {
-        const key = scheme.scheme.trim().toLowerCase();
+        const key = getFundKey(scheme);
         const fund = fundWiseData[key];
 
         if (fund && fund.advancedMetrics) {
@@ -14785,7 +14987,7 @@ function updatePortfolioDataWithActiveStatus() {
         }
       });
     } else if (folio.scheme) {
-      const key = folio.scheme.trim().toLowerCase();
+      const key = getFundKey(folio);
       const fund = fundWiseData[key];
 
       if (fund && fund.advancedMetrics) {

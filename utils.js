@@ -95,6 +95,22 @@ function sanitizeSchemeName(schemeName) {
   return fixCapitalization(result);
 }
 
+// Returns a stable grouping key for a scheme/folio so that the same fund
+// (identified by ISIN) is always grouped together in fundWiseData, even if
+// the raw scheme name string differs across folios (e.g. one folio's CAS
+// entry says "... Direct Plan Growth ( Non Demat )" while another says
+// "... Direct Plan Growth"). Falls back to a sanitized scheme name when ISIN
+// is unavailable.
+function getFundKey(schemeOrFolio) {
+  if (!schemeOrFolio) return "";
+  const isin = schemeOrFolio.isin;
+  if (isin && typeof isin === "string" && isin.trim()) {
+    return isin.trim().toUpperCase();
+  }
+  const name = schemeOrFolio.scheme || "";
+  return sanitizeSchemeName(name).toLowerCase();
+}
+
 function fixCapitalization(text) {
   if (!text) return "";
 
