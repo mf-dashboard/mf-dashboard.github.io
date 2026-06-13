@@ -189,12 +189,8 @@
 }
 
 :root[data-theme="dark"] .compact-summary-card {
-  background: linear-gradient(
-    135deg,
-    rgba(102, 126, 234, 0.18) 0%,
-    rgba(118, 75, 162, 0.14) 100%
-  );
-  border-color: rgba(102, 126, 234, 0.28);
+  background: rgba(102, 126, 234, 0.08);
+  border-color: 1px solid rgba(102, 126, 234, 0.12);
 }
 
 :root[data-theme="dark"] .compact-stat-row {
@@ -3166,14 +3162,10 @@ button.theme-toggle i {
 
 /* Hero summary card */
 .compact-summary-card {
-  background: linear-gradient(
-    135deg,
-    rgba(102, 126, 234, 0.08) 0%,
-    rgba(118, 75, 162, 0.06) 100%
-  );
+  background: rgba(102, 126, 234, 0.08);
   padding: 16px 16px 14px;
   margin: 10px 10px 0;
-  border: 1px solid rgba(102, 126, 234, 0.18);
+  border: 1px solid rgba(102, 126, 234, 0.12);
   border-radius: 14px;
   position: relative;
   overflow: hidden;
@@ -3186,11 +3178,6 @@ button.theme-toggle i {
   right: -30px;
   width: 100px;
   height: 100px;
-  background: radial-gradient(
-    circle,
-    rgba(102, 126, 234, 0.12) 0%,
-    transparent 70%
-  );
   pointer-events: none;
 }
 
@@ -5324,6 +5311,10 @@ button.theme-toggle i {
   border-radius: 16px;
   box-shadow: var(--shadow-lg);
   border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.monthly-summary-container .gains-summary-card {
+  margin: 0px !important;
 }
 
 /* 2-column card grid for 6M / 12M summary cards */
@@ -10000,6 +9991,11 @@ button.theme-toggle i {
 
 .overlap-calc-viewall-btn:hover {
   background: rgba(102, 126, 234, 0.14);
+}
+
+.no-top-radius {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 @media (max-width: 500px) {

@@ -70,7 +70,7 @@ function sanitizeSchemeName(schemeName) {
   //   "( formerly Parag Parikh Long Term Value Fund )"
   //   "( Non - Demat )"  "( Non Demat )"
   let name = schemeName
-    .replace(/\(\s*formerly[^)]*\)/gi, "") // ( formerly ... )
+    .replace(/\(\s*formerly\b[^)]*\)/gi, "") // ( formerly ... )
     .replace(/\(\s*non\s*-?\s*demat\s*\)/gi, "") // ( Non - Demat )
     .trim();
 
@@ -89,7 +89,7 @@ function sanitizeSchemeName(schemeName) {
   const fundName = fundNameParts.join(" - ").trim() || segments[0].trim();
 
   // Step 3: extract up to and including the first occurrence of "Fund"
-  const fundMatch = fundName.match(/^.*?Fund/i);
+  const fundMatch = fundName.match(/^.*?\bFund\b/i);
   const result = fundMatch ? fundMatch[0].trim() : fundName;
 
   return fixCapitalization(result);

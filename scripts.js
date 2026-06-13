@@ -1953,7 +1953,11 @@ function calculateOverlapAnalysis() {
 
   // Sort by overlap percentage
   overlapData.fundPairs.sort((a, b) => b.overlapPercent - a.overlapPercent);
-  overlapData.topOverlaps = overlapData.fundPairs.slice(0, 10);
+
+  // Return pairs with overlapping > 5%
+  overlapData.topOverlaps = overlapData.fundPairs.filter(
+    (pair) => pair.overlapPercent > 5,
+  );
 
   // Find most common holdings across all funds
   const holdingCounts = new Map();
@@ -3437,20 +3441,20 @@ function displayCapitalGains() {
     html += `
       <div class="cg-alltime-hero">
         <div class="folio-card-hero">
-          <div class="folio-card-hero-cell ${atTotalGains >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">Total Gains</span>
-            <span class="folio-card-hero-value ${atTotalGains >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(atTotalGains))}</span>
-            <span class="folio-card-hero-sub">All time</span>
+          <div class="folio-card-hero-cell ${atTotalLTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">Long Term</span>
+            <span class="folio-card-hero-value ${atTotalLTCG >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(atTotalLTCG))}</span>
+            <span class="folio-card-hero-sub">LTCG</span>
           </div>
           <div class="folio-card-hero-cell ${atTotalSTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
             <span class="folio-card-hero-label">Short Term</span>
             <span class="folio-card-hero-value ${atTotalSTCG >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(atTotalSTCG))}</span>
             <span class="folio-card-hero-sub">STCG</span>
           </div>
-          <div class="folio-card-hero-cell ${atTotalLTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">Long Term</span>
-            <span class="folio-card-hero-value ${atTotalLTCG >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(atTotalLTCG))}</span>
-            <span class="folio-card-hero-sub">LTCG</span>
+          <div class="folio-card-hero-cell ${atTotalGains >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">Total Gains</span>
+            <span class="folio-card-hero-value ${atTotalGains >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(atTotalGains))}</span>
+            <span class="folio-card-hero-sub">All time</span>
           </div>
           <div class="folio-card-hero-cell folio-card-hero-cell--xirr">
             <span class="folio-card-hero-label">Total Redeemed</span>
@@ -3473,17 +3477,17 @@ function displayCapitalGains() {
             <span class="folio-card-name-header">${catIcons[cat]} ${cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
           </div>
           <div class="folio-card-hero">
-            <div class="folio-card-hero-cell ${totalGains >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-              <span class="folio-card-hero-label">Total Gains</span>
-              <span class="folio-card-hero-value ${totalGains >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(totalGains))}</span>
+            <div class="folio-card-hero-cell ${data.ltcg >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+              <span class="folio-card-hero-label">LTCG</span>
+              <span class="folio-card-hero-value ${data.ltcg >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(data.ltcg))}</span>
             </div>
             <div class="folio-card-hero-cell ${data.stcg >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
               <span class="folio-card-hero-label">STCG</span>
               <span class="folio-card-hero-value ${data.stcg >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(data.stcg))}</span>
             </div>
-            <div class="folio-card-hero-cell ${data.ltcg >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-              <span class="folio-card-hero-label">LTCG</span>
-              <span class="folio-card-hero-value ${data.ltcg >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(data.ltcg))}</span>
+            <div class="folio-card-hero-cell ${totalGains >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+              <span class="folio-card-hero-label">Total Gains</span>
+              <span class="folio-card-hero-value ${totalGains >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(totalGains))}</span>
             </div>
           </div>
           <div class="folio-card-chips-row">
@@ -3733,20 +3737,20 @@ function showYearGainsWithTransactions(fy) {
           <span class="folio-card-name-header">${m.icon} ${cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
         </div>
         <div class="folio-card-hero">
-          <div class="folio-card-hero-cell ${catTotal >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">Total Gains</span>
-            <span class="folio-card-hero-value ${catTotalClass}">₹${formatNumber(Math.abs(catTotal))}</span>
-            <span class="folio-card-hero-sub">Redeemed ₹${formatNumber(catRedeemed)}</span>
+          <div class="folio-card-hero-cell ${catLTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">LTCG ${m.ltcgPeriod}</span>
+            <span class="folio-card-hero-value ${ltcgHasData ? (catLTCG >= 0 ? "gain" : "loss") : ""}">₹${formatNumber(Math.abs(ltcgHasData ? catLTCG : 0))}</span>
+            <span class="folio-card-hero-sub">Tax: ${m.ltcgTax}</span>
           </div>
           <div class="folio-card-hero-cell ${catSTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
             <span class="folio-card-hero-label">STCG ${m.stcgPeriod}</span>
             <span class="folio-card-hero-value ${stcgHasData ? (catSTCG >= 0 ? "gain" : "loss") : ""}">₹${formatNumber(Math.abs(stcgHasData ? catSTCG : 0))}</span>
             <span class="folio-card-hero-sub">Tax: ${m.stcgTax}</span>
           </div>
-          <div class="folio-card-hero-cell ${catLTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">LTCG ${m.ltcgPeriod}</span>
-            <span class="folio-card-hero-value ${ltcgHasData ? (catLTCG >= 0 ? "gain" : "loss") : ""}">₹${formatNumber(Math.abs(ltcgHasData ? catLTCG : 0))}</span>
-            <span class="folio-card-hero-sub">Tax: ${m.ltcgTax}</span>
+          <div class="folio-card-hero-cell ${catTotal >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">Total Gains</span>
+            <span class="folio-card-hero-value ${catTotalClass}">₹${formatNumber(Math.abs(catTotal))}</span>
+            <span class="folio-card-hero-sub">Redeemed ₹${formatNumber(catRedeemed)}</span>
           </div>
         </div>
       </div>
@@ -3757,20 +3761,20 @@ function showYearGainsWithTransactions(fy) {
     <div class="cg-year-display">
       <div class="cg-year-hero">
         <div class="folio-card-hero">
-          <div class="folio-card-hero-cell ${totalGains >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">Total Gains</span>
-            <span class="folio-card-hero-value ${gainsClass}">₹${formatNumber(Math.abs(totalGains))}</span>
-            <span class="folio-card-hero-sub">STCG + LTCG</span>
+          <div class="folio-card-hero-cell ${totalLTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">Long Term</span>
+            <span class="folio-card-hero-value ${ltcgClass}">₹${formatNumber(Math.abs(totalLTCG))}</span>
+            <span class="folio-card-hero-sub">LTCG</span>
           </div>
           <div class="folio-card-hero-cell ${totalSTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
             <span class="folio-card-hero-label">Short Term</span>
             <span class="folio-card-hero-value ${stcgClass}">₹${formatNumber(Math.abs(totalSTCG))}</span>
             <span class="folio-card-hero-sub">STCG</span>
           </div>
-          <div class="folio-card-hero-cell ${totalLTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">Long Term</span>
-            <span class="folio-card-hero-value ${ltcgClass}">₹${formatNumber(Math.abs(totalLTCG))}</span>
-            <span class="folio-card-hero-sub">LTCG</span>
+          <div class="folio-card-hero-cell ${totalGains >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
+            <span class="folio-card-hero-label">Total Gains</span>
+            <span class="folio-card-hero-value ${gainsClass}">₹${formatNumber(Math.abs(totalGains))}</span>
+            <span class="folio-card-hero-sub">STCG + LTCG</span>
           </div>
           <div class="folio-card-hero-cell folio-card-hero-cell--xirr">
             <span class="folio-card-hero-label">Total Redeemed</span>
@@ -4759,7 +4763,7 @@ function displayOverlapAnalysis() {
   const sectionHead = `
     <div class="cg-section-head">
       <div class="cg-section-title"><i class="fa-solid fa-layer-group"></i><h3>Fund Overlap Analysis</h3></div>
-      <span class="cg-section-subtitle">Identify duplicate holdings</span>
+      <span class="cg-section-subtitle">Identify duplicate holdings (> 5%)</span>
     </div>`;
 
   if (data.error) {
@@ -4825,7 +4829,9 @@ function displayOverlapAnalysis() {
     // Cache for the detail modal lookups
     window._overlapPairsData = data.topOverlaps;
 
-    data.topOverlaps.forEach((pair, pairIndex) => {
+    const visiblePairs = data.topOverlaps.slice(0, 5);
+
+    visiblePairs.forEach((pair, pairIndex) => {
       const pctClass =
         pair.overlapPercent > 50
           ? "loss"
@@ -4848,6 +4854,10 @@ function displayOverlapAnalysis() {
           </div>
         </div>`;
     });
+
+    if (data.topOverlaps.length > 5) {
+      html += `<button class="overlap-calc-viewall-btn no-top-radius" onclick="showAllOverlapPairsModal()">View All ${data.topOverlaps.length} Fund Pairs</button>`;
+    }
   }
 
   html += `</div>`;
@@ -4865,7 +4875,7 @@ function displayOverlapAnalysis() {
 
     html += `<div class="cg-section">${commonHoldingsSectionHead}`;
 
-    data.commonHoldings.forEach((holding, holdingIndex) => {
+    data.commonHoldings.slice(0, 5).forEach((holding, holdingIndex) => {
       html += `
         <div class="overlap-pair-row overlap-row-clickable" onclick="showCommonHoldingDetailModal(${holdingIndex})">
           <div class="overlap-fund-names">
@@ -4881,6 +4891,10 @@ function displayOverlapAnalysis() {
           </div>
         </div>`;
     });
+
+    if (data.commonHoldings.length > 5) {
+      html += `<button class="overlap-calc-viewall-btn no-top-radius" onclick="showAllCommonHoldingsModal()">View All ${data.commonHoldings.length} Stocks</button>`;
+    }
 
     html += `</div>`;
   }
@@ -6233,16 +6247,23 @@ function filterHoldingsGrid(type) {
   const gridEl = document.getElementById(
     type === "current" ? "currentFolioGrid" : "pastFolioGrid",
   );
+
   if (!input || !gridEl) return;
 
-  const query = input.value.trim().toLowerCase();
+  const terms = normalizeSearchText(input.value).split(" ").filter(Boolean);
+
   const cards = gridEl.querySelectorAll(".folio-card");
 
   cards.forEach((card) => {
-    const name = card.dataset.fundName || "";
-    card.style.display = !query || name.includes(query) ? "" : "none";
+    const name = normalizeSearchText(card.dataset.fundName || "");
+
+    const matches =
+      terms.length === 0 || terms.every((term) => name.includes(term));
+
+    card.style.display = matches ? "" : "none";
   });
 }
+
 function updateSummaryFundBreakdown() {
   const currentGrid = document.getElementById("currentFolioGrid");
   const pastGrid = document.getElementById("pastFolioGrid");
@@ -7759,6 +7780,137 @@ function closeCommonHoldingDetailModal() {
   }
   unlockBodyScroll();
 }
+function showAllOverlapPairsModal() {
+  const pairs = window._overlapPairsData || [];
+  if (!pairs.length) return;
+
+  lockBodyScroll();
+
+  const modal = document.createElement("div");
+  modal.className = "transaction-modal-overlay";
+  modal.id = "allOverlapPairsModal";
+
+  const rows = pairs
+    .map((pair, pairIndex) => {
+      const pctClass =
+        pair.overlapPercent > 50
+          ? "loss"
+          : pair.overlapPercent > 25
+            ? "warning"
+            : "gain";
+      return `
+        <div class="overlap-pair-row overlap-row-clickable" onclick="closeAllOverlapPairsModal(); showOverlapDetailModal(${pairIndex})">
+          <div class="overlap-fund-names">
+            <div class="overlap-fund-name">${pair.fund1}</div>
+            <div class="overlap-fund-name secondary">${pair.fund2}</div>
+          </div>
+          <div class="overlap-pct-cell">
+            <span class="overlap-pct-val ${pctClass}">${pair.overlapPercent}%</span>
+            <span class="overlap-pct-label">overlap</span>
+          </div>
+          <div class="overlap-stocks-cell">
+            <span class="overlap-stocks-num">${pair.commonStocks.length}</span>
+            <span class="overlap-stocks-label">stocks</span>
+          </div>
+        </div>`;
+    })
+    .join("");
+
+  modal.innerHTML = `
+    <div class="transaction-modal overlap-detail-modal">
+      <div class="modal-header">
+        <h2>Overlapping Fund Pairs</h2>
+        <button class="modal-close" onclick="closeAllOverlapPairsModal()">✕</button>
+      </div>
+      <div class="modal-content overlap-detail-content">
+        ${rows}
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  if (window.innerWidth <= 1024) {
+    initializeModalSwipe(modal);
+  }
+  window.history.pushState(
+    { modal: "allOverlapPairs" },
+    "",
+    window.location.pathname,
+  );
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeAllOverlapPairsModal();
+  });
+}
+function closeAllOverlapPairsModal() {
+  const modal = document.getElementById("allOverlapPairsModal");
+  if (modal) {
+    modal.remove();
+  }
+  unlockBodyScroll();
+}
+function showAllCommonHoldingsModal() {
+  const holdings = window._commonHoldingsData || [];
+  if (!holdings.length) return;
+
+  lockBodyScroll();
+
+  const modal = document.createElement("div");
+  modal.className = "transaction-modal-overlay";
+  modal.id = "allCommonHoldingsModal";
+
+  const rows = holdings
+    .map(
+      (holding, holdingIndex) => `
+        <div class="overlap-pair-row overlap-row-clickable" onclick="closeAllCommonHoldingsModal(); showCommonHoldingDetailModal(${holdingIndex})">
+          <div class="overlap-fund-names">
+            <div class="overlap-fund-name">${holding.company}</div>
+          </div>
+          <div class="overlap-pct-cell">
+            <span class="overlap-pct-val accent">${holding.avgWeight}%</span>
+            <span class="overlap-pct-label">avg weight</span>
+          </div>
+          <div class="overlap-stocks-cell">
+            <span class="overlap-stocks-num">${holding.fundCount}</span>
+            <span class="overlap-stocks-label">funds</span>
+          </div>
+        </div>`,
+    )
+    .join("");
+
+  modal.innerHTML = `
+    <div class="transaction-modal overlap-detail-modal">
+      <div class="modal-header">
+        <h2>Common Stock Holdings</h2>
+        <button class="modal-close" onclick="closeAllCommonHoldingsModal()">✕</button>
+      </div>
+      <div class="modal-content overlap-detail-content">
+        ${rows}
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  if (window.innerWidth <= 1024) {
+    initializeModalSwipe(modal);
+  }
+  window.history.pushState(
+    { modal: "allCommonHoldings" },
+    "",
+    window.location.pathname,
+  );
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeAllCommonHoldingsModal();
+  });
+}
+function closeAllCommonHoldingsModal() {
+  const modal = document.getElementById("allCommonHoldingsModal");
+  if (modal) {
+    modal.remove();
+  }
+  unlockBodyScroll();
+}
 function renderModalFundValuationChart(fundKey, initialPeriod = "ALL") {
   const fund = fundWiseData[fundKey];
   const dailyValuation = fund.advancedMetrics?.dailyValuation;
@@ -9043,15 +9195,33 @@ function initializeTransactionSections() {
   allWrap.appendChild(createTransactionTable(allTimeFlows, "allTxTable"));
 }
 
+function normalizeSearchText(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\bmid\s+cap\b/g, "midcap")
+    .replace(/\bsmall\s+cap\b/g, "smallcap")
+    .replace(/\blarge\s+cap\b/g, "largecap")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function filterTxTable(tableId, query) {
   const table = document.getElementById(tableId);
   if (!table) return;
-  const q = query.trim().toLowerCase();
+
+  const terms = normalizeSearchText(query).split(" ").filter(Boolean);
+
   table.querySelectorAll("tbody tr").forEach((row) => {
-    const scheme = (row.cells[0]?.textContent || "").trim().toLowerCase();
-    row.style.display = !q || scheme.includes(q) ? "" : "none";
+    const scheme = normalizeSearchText(row.cells[0]?.textContent || "");
+
+    const matches =
+      terms.length === 0 || terms.every((term) => scheme.includes(term));
+
+    row.style.display = matches ? "" : "none";
   });
 }
+
 function createTransactionTable(cashFlows, tableId) {
   const filteredFlows = cashFlows.filter((cf) => cf.type !== "VALUATION");
 
@@ -12953,6 +13123,15 @@ async function loadFolioManagementData(userName) {
             )
               return;
 
+            // Skip schemes with no real PURCHASE activity (e.g. segregated
+            // portfolio spin-offs whose only transactions are "OTHER" unit
+            // transfers) — mirrors the totalInvested filter used to build
+            // the Current/Past Holdings tabs.
+            const hasPurchase = scheme.transactions.some(
+              (t) => t.type === "PURCHASE",
+            );
+            if (!hasPurchase) return;
+
             const schemeValue = scheme.valuation
               ? parseFloat(scheme.valuation.value || 0)
               : 0;
@@ -14204,22 +14383,18 @@ async function updateAllUsersStats(updateType = "auto") {
 
       userDataMap.set(user, { casData, mfStats: mfStatsUser });
 
-      // Collect ISINs ONLY from active holdings
+      // Full stats update: collect ALL ISINs (active + redeemed) so that
+      // funds which were parsed before new fields (e.g. launch_date, manager)
+      // were added also get their stale cached objects refreshed.
       if (casData.cas_type === "SUMMARY") {
         casData.folios.forEach((folio) => {
-          const hasValue =
-            folio.current_value && parseFloat(folio.current_value || 0) > 0;
-          if (folio.isin && hasValue) allIsins.add(folio.isin);
+          if (folio.isin) allIsins.add(folio.isin);
         });
       } else {
         casData.folios.forEach((folio) => {
           if (folio.schemes && Array.isArray(folio.schemes)) {
             folio.schemes.forEach((scheme) => {
-              const hasValue =
-                scheme.isActive ||
-                (scheme.currentValue &&
-                  parseFloat(scheme.currentValue || 0) > 0);
-              if (scheme.isin && hasValue) allIsins.add(scheme.isin);
+              if (scheme.isin) allIsins.add(scheme.isin);
             });
           }
         });
@@ -14234,7 +14409,9 @@ async function updateAllUsersStats(updateType = "auto") {
     return false;
   }
 
-  console.log(`📊 Fetching stats for ${allIsins.size} unique ACTIVE funds...`);
+  console.log(
+    `📊 Fetching stats for ${allIsins.size} unique funds (active + redeemed)...`,
+  );
 
   // Get search keys for all ISINs
   const searchKeyJson = await getSearchKeys();
@@ -15183,6 +15360,10 @@ window.addEventListener("popstate", function (event) {
   const commonHoldingDetailModal = document.getElementById(
     "commonHoldingDetailModal",
   );
+  const allOverlapPairsModal = document.getElementById("allOverlapPairsModal");
+  const allCommonHoldingsModal = document.getElementById(
+    "allCommonHoldingsModal",
+  );
 
   if (commonHoldingDetailModal) {
     closeCommonHoldingDetailModal();
@@ -15191,6 +15372,16 @@ window.addEventListener("popstate", function (event) {
 
   if (overlapDetailModal) {
     closeOverlapDetailModal();
+    return;
+  }
+
+  if (allOverlapPairsModal) {
+    closeAllOverlapPairsModal();
+    return;
+  }
+
+  if (allCommonHoldingsModal) {
+    closeAllCommonHoldingsModal();
     return;
   }
 
