@@ -5132,6 +5132,13 @@ function renderTransactionCalendar() {
     return;
   }
 
+  const allCount = (allTimeFlows || []).filter(
+    (f) => f.type !== "VALUATION",
+  ).length;
+  const activeCount = (activeFlows || []).filter(
+    (f) => f.type !== "VALUATION",
+  ).length;
+
   // Build a map: "YYYY-MM-DD" -> { invested: number, withdrawn: number }
   const dayMap = {};
   allTimeFlows.forEach((flow) => {
@@ -5228,12 +5235,19 @@ function renderTransactionCalendar() {
         `<div class="txcal-year-panel" id="txcal-year-${y}" style="display:${y === defaultYear ? "block" : "none"}">${buildYearCalendar(y)}</div>`,
     )
     .join("");
+  section.innerHTML = "";
 
-  section.innerHTML = `
+  const calander = `
     <div class="monthly-summary-container">
-      <div class="section-header">
-        <h3>📅 Transaction Calendar</h3>
-        <p class="section-subtitle">Days you invested (green) or withdrew (red)</p>
+      <div class="section-header section-header--with-pills">
+        <div class="section-header-left">
+          <h3>📅 Transaction Calendar</h3>
+          <p class="section-subtitle">Days you invested (green) or withdrew (red)</p>
+        </div>
+        <div class="section-header-pills">
+          <span class="tx-stat-pill tx-stat-pill--total">Total ${allCount}</span>
+          <span class="tx-stat-pill tx-stat-pill--active">Active ${activeCount}</span>
+        </div>
       </div>
       ${yearSelectorHtml}
       <div class="txcal-legend">
@@ -5244,6 +5258,8 @@ function renderTransactionCalendar() {
       ${calendarsHtml}
     </div>
   `;
+
+  section.insertAdjacentHTML("beforeend", calander);
 }
 
 window.switchCalendarYear = function (year) {
@@ -7422,12 +7438,12 @@ function showFundDetailsModal(
                 <span class="fund-stats-cell-value">${roundValueOrDash(extendedData.return_stats?.alpha, "-")}</span>
               </div>
               <div class="fund-stats-cell">
-                <span class="fund-stats-cell-label">Sharpe</span>
-                <span class="fund-stats-cell-value">${roundValueOrDash(extendedData.return_stats?.sharpe_ratio, "-")}</span>
-              </div>
-              <div class="fund-stats-cell">
                 <span class="fund-stats-cell-label">Beta</span>
                 <span class="fund-stats-cell-value">${roundValueOrDash(extendedData.return_stats?.beta, "-")}</span>
+              </div>
+              <div class="fund-stats-cell">
+                <span class="fund-stats-cell-label">Sharpe</span>
+                <span class="fund-stats-cell-value">${roundValueOrDash(extendedData.return_stats?.sharpe_ratio, "-")}</span>
               </div>
               <div class="fund-stats-cell">
                 <span class="fund-stats-cell-label">Sortino</span>
@@ -7458,9 +7474,101 @@ function showFundDetailsModal(
                     </div>`
                   : "";
               })()}
+              ${
+                extendedData?.portfolio_stats?.pe != null
+                  ? `
+              <div class="fund-stats-cell">
+                <span class="fund-stats-cell-label">P/E</span>
+                <span class="fund-stats-cell-value">${roundValue(extendedData.portfolio_stats.pe)}</span>
+              </div>`
+                  : ""
+              }
+              ${
+                extendedData?.portfolio_stats?.pb != null
+                  ? `
+              <div class="fund-stats-cell">
+                <span class="fund-stats-cell-label">P/B</span>
+                <span class="fund-stats-cell-value">${roundValue(extendedData.portfolio_stats.pb)}</span>
+              </div>`
+                  : ""
+              }
             </div>
           </div>
 
+        </div>
+        `
+            : ""
+        }
+
+        <!-- Investment Limits Section -->
+        ${
+          extendedData
+            ? `
+        <div class="fund-meta-section inv-limit-section">
+          <div class="fund-stats-header">
+            <span class="fund-stats-header-icon">💰</span>
+            <span class="fund-stats-header-title">Investment Limits</span>
+          </div>
+          <div class="fund-meta-grid">
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Min SIP</span>
+              <span class="fund-meta-value">
+                ${
+                  extendedData.min_sip != null
+                    ? `₹${Number(extendedData.min_sip).toLocaleString("en-IN")}`
+                    : "-"
+                }
+              </span>
+            </div>
+
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Min 1st Investment</span>
+              <span class="fund-meta-value">
+                ${
+                  extendedData.min_first_investment != null
+                    ? `₹${Number(
+                        extendedData.min_first_investment,
+                      ).toLocaleString("en-IN")}`
+                    : "-"
+                }
+              </span>
+            </div>
+
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Min Add. Investment</span>
+              <span class="fund-meta-value">
+                ${
+                  extendedData.min_second_investment != null
+                    ? `₹${Number(
+                        extendedData.min_second_investment,
+                      ).toLocaleString("en-IN")}`
+                    : "-"
+                }
+              </span>
+            </div>
+
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Min SWP</span>
+              <span class="fund-meta-value">
+                ${
+                  extendedData.min_swp != null
+                    ? `₹${Number(extendedData.min_swp).toLocaleString("en-IN")}`
+                    : "-"
+                }
+              </span>
+            </div>
+
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Min STP</span>
+              <span class="fund-meta-value">
+                ${
+                  extendedData.min_stp != null
+                    ? `₹${Number(extendedData.min_stp).toLocaleString("en-IN")}`
+                    : "-"
+                }
+              </span>
+            </div>
+          </div>
         </div>
         `
             : ""
@@ -7518,6 +7626,8 @@ function showFundDetailsModal(
                 }
               </span>
             </div>
+
+            <!-- Managers -->
             <div class="fund-meta-item fund-meta-item--managers">
               <span class="fund-meta-label">Fund Manager(s)</span>
               <span class="fund-meta-value">${(() => {
@@ -7528,6 +7638,7 @@ function showFundDetailsModal(
               })()}</span>
             </div>
           </div>
+
           <!-- Taxation row -->
           <div class="fund-meta-row-full">
             <div class="fund-meta-item fund-meta-item--full">
@@ -7535,6 +7646,16 @@ function showFundDetailsModal(
               <span class="fund-meta-value fund-meta-value--tax">${extendedData.tax_impact || "--"}</span>
             </div>
           </div>
+          
+          <!-- Exit Load row -->
+          <div class="fund-meta-row-full">
+            <div class="fund-meta-item fund-meta-item--full">
+              <span class="fund-meta-label">Exit Load</span>
+              <span class="fund-meta-value fund-meta-value--tax">${extendedData.exit_load || "--"}</span>
+            </div>
+          </div>
+
+          <!-- About the Fund -->
           ${
             extendedData.meta_desc
               ? `
@@ -9139,14 +9260,6 @@ function initializeTransactionSections() {
   wrapper.className = "tx-page-wrapper";
 
   wrapper.innerHTML = `
-    <div class="tx-page-header">
-      <div class="tx-page-title-row">
-        <h2 class="tx-page-title">Transactions</h2>
-        <span class="tx-stat-pill tx-stat-pill--total">Total ${allCount}</span>
-        <span class="tx-stat-pill tx-stat-pill--active">Active ${activeCount}</span>
-      </div>
-    </div>
-
     <div class="tx-section">
       <div class="tx-section-header">
         <div class="tx-section-left">
@@ -14787,9 +14900,9 @@ function switchDashboardTab(tabId) {
     section.classList.remove("active-tab");
   });
 
-  // Remove active class from all tab buttons (both desktop and mobile)
+  // Remove active class from all tab buttons (sidebar + topbar)
   document
-    .querySelectorAll(".dashboard-tab-btn, .mobile-menu-item")
+    .querySelectorAll(".sidebar-menu-item, .topbar-cas-btn")
     .forEach((btn) => {
       btn.classList.remove("active");
     });
@@ -14817,6 +14930,11 @@ function switchDashboardTab(tabId) {
       displayMonthlySummaryAndProjections();
       renderTransactionCalendar();
     }
+  }
+  if (tabId === "transactions") {
+    if (!isSummaryCAS) {
+      renderTransactionCalendar();
+    }
   } else if (tabId === "overlap-analysis") {
     displayOverlapAnalysis();
   } else if (tabId === "expense-impact") {
@@ -14836,15 +14954,15 @@ function switchDashboardTab(tabId) {
 }
 
 function toggleMobileMenu() {
-  const menu = document.getElementById("mobileMenu");
+  const menu = document.getElementById("appSidebar");
   const overlay = document.getElementById("mobileMenuOverlay");
   const hamburger = document.getElementById("hamburgerMenu");
 
-  menu.classList.toggle("active");
+  menu.classList.toggle("mobile-active");
   overlay.classList.toggle("active");
   hamburger.classList.toggle("active");
 
-  if (menu.classList.contains("active")) {
+  if (menu.classList.contains("mobile-active")) {
     lockBodyScroll();
   } else {
     unlockBodyScroll();
@@ -14852,14 +14970,21 @@ function toggleMobileMenu() {
 }
 
 function closeMobileMenu() {
-  const menu = document.getElementById("mobileMenu");
+  const menu = document.getElementById("appSidebar");
   const overlay = document.getElementById("mobileMenuOverlay");
   const hamburger = document.getElementById("hamburgerMenu");
 
-  menu.classList.remove("active");
+  menu.classList.remove("mobile-active");
   overlay.classList.remove("active");
   hamburger.classList.remove("active");
   unlockBodyScroll();
+}
+
+function toggleSidebar() {
+  const sidebar = document.getElementById("appSidebar");
+  const expanded = sidebar.classList.toggle("expanded");
+  document.body.classList.toggle("sidebar-expanded", expanded);
+  localStorage.setItem("sidebarExpanded", expanded ? "1" : "0");
 }
 function showUploadSection() {
   const dashboard = document.getElementById("dashboard");
@@ -14892,7 +15017,7 @@ function showUploadSection() {
 
 function enableAllTabs() {
   document
-    .querySelectorAll(".dashboard-tab-btn, .mobile-menu-item")
+    .querySelectorAll(".sidebar-menu-item, .topbar-cas-btn")
     .forEach((btn) => {
       btn.disabled = false;
       btn.style.opacity = "1";
@@ -14903,7 +15028,7 @@ function enableAllTabs() {
 
 function disableAllTabsExceptUpload() {
   document
-    .querySelectorAll(".dashboard-tab-btn, .mobile-menu-item")
+    .querySelectorAll(".sidebar-menu-item, .topbar-cas-btn")
     .forEach((btn) => {
       if (!btn) return;
       if (!btn.classList.contains("cas-upload-tab-button")) {
@@ -14974,49 +15099,49 @@ function enableSummaryIncompatibleTabs() {
       if (btn.classList.contains("charts-button")) {
         btn.onclick = () => {
           switchDashboardTab("charts");
-          if (btn.classList.contains("mobile-menu-item")) {
+          if (btn.classList.contains("sidebar-menu-item")) {
             closeMobileMenu();
           }
         };
       } else if (btn.classList.contains("transactions-button")) {
         btn.onclick = () => {
           switchDashboardTab("transactions");
-          if (btn.classList.contains("mobile-menu-item")) {
+          if (btn.classList.contains("sidebar-menu-item")) {
             closeMobileMenu();
           }
         };
       } else if (btn.classList.contains("capital-gains-button")) {
         btn.onclick = () => {
           switchDashboardTab("capital-gains");
-          if (btn.classList.contains("mobile-menu-item")) {
+          if (btn.classList.contains("sidebar-menu-item")) {
             closeMobileMenu();
           }
         };
       } else if (btn.classList.contains("past-holding-button")) {
         btn.onclick = () => {
           switchDashboardTab("past-holding");
-          if (btn.classList.contains("mobile-menu-item")) {
+          if (btn.classList.contains("sidebar-menu-item")) {
             closeMobileMenu();
           }
         };
       } else if (btn.classList.contains("overlap-analysis-button")) {
         btn.onclick = () => {
           switchDashboardTab("overlap-analysis");
-          if (btn.classList.contains("mobile-menu-item")) {
+          if (btn.classList.contains("sidebar-menu-item")) {
             closeMobileMenu();
           }
         };
       } else if (btn.classList.contains("expense-impact-button")) {
         btn.onclick = () => {
           switchDashboardTab("expense-impact");
-          if (btn.classList.contains("mobile-menu-item")) {
+          if (btn.classList.contains("sidebar-menu-item")) {
             closeMobileMenu();
           }
         };
       } else if (btn.classList.contains("health-score-button")) {
         btn.onclick = () => {
           switchDashboardTab("health-score");
-          if (btn.classList.contains("mobile-menu-item")) {
+          if (btn.classList.contains("sidebar-menu-item")) {
             closeMobileMenu();
           }
         };
@@ -15037,7 +15162,7 @@ function toggleFamilyDashboard() {
       btn.style.cursor = "pointer";
       btn.title = "";
 
-      if (btn.classList.contains("mobile-menu-item")) {
+      if (btn.classList.contains("sidebar-menu-item")) {
         btn.onclick = () => {
           switchDashboardTab("family-dashboard");
           closeMobileMenu();
@@ -15209,6 +15334,12 @@ async function callHealthCheck() {
 
 window.addEventListener("DOMContentLoaded", async () => {
   initializeTheme();
+  // Restore sidebar expanded/collapsed preference
+  const sidebarEl = document.getElementById("appSidebar");
+  if (sidebarEl && localStorage.getItem("sidebarExpanded") === "1") {
+    sidebarEl.classList.add("expanded");
+    document.body.classList.add("sidebar-expanded");
+  }
   callHealthCheck();
   // Show debug CAS inject row only when DEBUG_MODE is on
   const debugRow = document.getElementById("debugCASInjectRow");
@@ -15345,6 +15476,33 @@ window.switchDashboardTab = function (tabId) {
   }
 
   originalSwitchDashboardTab(tabId);
+
+  // Update dashboard-title to reflect the active tab name
+  const tabNames = {
+    main: "Dashboard",
+    charts: "Charts",
+    transactions: "Transactions",
+    "capital-gains": "Capital Gains",
+    "past-holding": "Past Holdings",
+    "current-holding": "Current Holdings",
+    "additional-assets": "Additional Assets",
+    "overlap-analysis": "Overlap Analysis",
+    "expense-impact": "Expense Impact",
+    "health-score": "Portfolio Health",
+    "family-dashboard": "Family Dashboard",
+    "cas-upload-tab": "Manage CAS",
+    "tax-planning": "Tax Planning",
+  };
+  const titleEl = document.querySelector(".dashboard-title");
+  if (titleEl && tabNames[tabId]) {
+    titleEl.textContent = tabNames[tabId];
+  }
+
+  // Sync active state on sidebar-footer CAS button (mobile)
+  const footerCasBtn = document.querySelector(".sidebar-footer-cas-btn");
+  if (footerCasBtn) {
+    footerCasBtn.classList.toggle("active", tabId === "cas-upload-tab");
+  }
 };
 
 window.addEventListener("popstate", function (event) {
@@ -15499,9 +15657,58 @@ async function takeFullPageScreenshot() {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
   }
 
+  const patched = [];
   try {
     const isDark =
       document.documentElement.getAttribute("data-theme") === "dark";
+
+    // --- Directly patch every backdrop-filter element via inline styles ---
+    // html2canvas reads computed/inline styles, so CSS class overrides can
+    // arrive too late or be ignored. Inline style is the only reliable fix.
+    const solidBg = isDark ? "#22252f" : "#ffffff";
+    const patchSelectors = [
+      ".summary-cards",
+      ".upload-section",
+      ".folio-card",
+      ".analytics-card",
+      ".chart-section",
+      ".compact-dashboard",
+      ".compact-summary-card",
+      ".modal-content",
+      ".portfolio-analytics-section",
+      ".transaction-section",
+      ".portfolio-valuation-section",
+      ".monthly-summary-container",
+      ".additional-assets-container",
+      ".tax-planning-container",
+      ".upload-card",
+      ".cas-panel",
+      ".stat-item",
+    ];
+    patchSelectors.forEach((sel) => {
+      document.querySelectorAll(sel).forEach((el) => {
+        const prev = {
+          backdropFilter: el.style.backdropFilter,
+          webkitBackdropFilter: el.style.webkitBackdropFilter,
+          background: el.style.background,
+        };
+        el.style.backdropFilter = "none";
+        el.style.webkitBackdropFilter = "none";
+        // Only solidify if the computed background is semi-transparent
+        const computedBg = getComputedStyle(el).backgroundColor;
+        if (computedBg.startsWith("rgba")) {
+          el.style.background = solidBg;
+        }
+        patched.push({ el, prev });
+      });
+    });
+
+    document.body.classList.add("screenshot-mode");
+
+    // Wait for 2 rAFs + a small timeout to ensure a full repaint flush
+    await new Promise((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 50)))
+    );
 
     const canvas = await html2canvas(document.body, {
       backgroundColor: isDark ? "#0f0f14" : "#f8f9fa",
@@ -15533,6 +15740,12 @@ async function takeFullPageScreenshot() {
     console.error("Screenshot failed:", err);
     showToast("Screenshot failed. Please try again.", "error");
   } finally {
+    patched.forEach(({ el, prev }) => {
+      el.style.backdropFilter = prev.backdropFilter;
+      el.style.webkitBackdropFilter = prev.webkitBackdropFilter;
+      el.style.background = prev.background;
+    });
+    document.body.classList.remove("screenshot-mode");
     if (btn) {
       btn.classList.remove("capturing");
       btn.innerHTML = '<i class="fa-solid fa-camera"></i>';

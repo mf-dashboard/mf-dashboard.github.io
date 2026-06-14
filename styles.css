@@ -181,7 +181,6 @@
 
 :root[data-theme="dark"] .compact-controls {
   background: var(--bg-light);
-  border-bottom: 1px solid var(--border-light);
 }
 
 :root[data-theme="dark"] .compact-holding-item {
@@ -298,12 +297,11 @@
 }
 
 :root[data-theme="dark"] .dashboard-title {
-  background: var(--text-primary);
-  background-clip: text;
+  color: var(--text-primary);
 }
 
-:root[data-theme="dark"] .hamburger-menu span {
-  background: var(--text-primary);
+:root[data-theme="dark"] .hamburger-menu {
+  color: var(--text-primary);
 }
 
 * {
@@ -1271,7 +1269,7 @@ button:disabled {
 }
 
 #transactionSectionsWrapper {
-  margin: 10px 10px 20px 10px;
+  margin: 10px 0px 20px 0px;
 }
 
 .transaction-section-header {
@@ -1656,26 +1654,29 @@ button:disabled {
   gap: 20px;
 }
 
-.tx-page-header {
-  padding: 4px 0 8px;
-}
-
-.tx-page-title-row {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
-.tx-page-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
-}
-
 .tx-page-subtitle {
   font-size: 12px;
   color: var(--text-tertiary);
+}
+
+/* Section header with pills in top-right (e.g. Transaction Calendar) */
+.section-header--with-pills {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.section-header--with-pills .section-header-left {
+  min-width: 0;
+}
+
+.section-header-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 /* ── Transactions header stat pills ── */
@@ -2577,40 +2578,24 @@ p.instructions-note {
 /* Hamburger Menu Styles */
 .hamburger-menu {
   display: none;
-  flex-direction: column;
-  justify-content: space-around;
-  width: 30px;
-  height: 24px;
-  background: transparent;
-  border: none;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: var(--bg-offwhite);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  color: var(--text-primary);
   cursor: pointer;
   padding: 0;
   z-index: 1001;
   box-shadow: none;
+  font-size: 18px;
 }
 
-.hamburger-menu span {
-  width: 100%;
-  height: 3px;
-  background: var(--scrollbar-thumb);
-  border-radius: 3px;
-  transition: all 0.3s ease;
-}
-
-.hamburger-menu:hover span {
-  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-}
-
-.hamburger-menu.active span:nth-child(1) {
-  transform: rotate(45deg) translate(8px, 8px);
-}
-
-.hamburger-menu.active span:nth-child(2) {
-  opacity: 0;
-}
-
-.hamburger-menu.active span:nth-child(3) {
-  transform: rotate(-45deg) translate(7px, -7px);
+.hamburger-menu:hover {
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
 }
 
 .mobile-menu-overlay {
@@ -6315,16 +6300,22 @@ button.theme-toggle i {
   gap: 0;
 }
 
+.inv-limit-section .fund-meta-grid {
+  grid-template-columns: repeat(5, 1fr);
+}
+
 /* tablet: 2 cols — last item fills 2 cells */
 @media (max-width: 885px) and (min-width: 501px) {
-  .fund-meta-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .fund-meta-grid,
+  .inv-limit-section .fund-meta-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
 /* mobile: 2 cols — last item fills 2 cells */
 @media (max-width: 500px) {
-  .fund-meta-grid {
+  .fund-meta-grid,
+  .inv-limit-section .fund-meta-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -6890,6 +6881,10 @@ button.theme-toggle i {
     margin: 20px 0;
     box-shadow: none;
     border: none;
+  }
+
+  #transactions .monthly-summary-container {
+    margin: 0px;
   }
 
   .gains-table th,
@@ -10909,6 +10904,8 @@ button.theme-toggle i {
     align-items: center;
     text-align: center;
     gap: 10px;
+    min-height: 120px;
+    justify-content: space-around;
   }
 
   #transactions .tx-section-left {
@@ -12036,4 +12033,440 @@ button.theme-toggle i {
   .holdings-search-wrap {
     flex: 1 1 100%;
   }
+}
+
+/* ============================================
+   NEW APP SHELL — Collapsible Left Sidebar + Slim Top Bar
+   ============================================ */
+
+:root {
+  --sidebar-width-collapsed: 56px;
+  --sidebar-width-expanded: 216px;
+  --topbar-height: 60px;
+}
+
+/* ---------- Top bar ---------- */
+.dashboard-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0px;
+  border-bottom: 2px solid var(--border-primary);
+  position: sticky;
+  top: 0;
+  background: var(--bg-light);
+  z-index: 100;
+  flex-wrap: nowrap;
+  height: var(--topbar-height);
+  box-sizing: border-box;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: var(--bg-offwhite);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  color: var(--text-primary);
+  cursor: pointer;
+  box-shadow: none;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle:hover {
+  background: rgba(102, 126, 234, 0.1);
+  transform: none;
+  color: #667eea;
+}
+
+.dashboard-tabs .dashboard-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: none;
+  -webkit-background-clip: unset;
+  -webkit-text-fill-color: unset;
+  background-clip: unset;
+  color: var(--text-primary);
+}
+
+.theme-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* "Manage CAS" quick-action button in top bar */
+.topbar-cas-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px;
+  border-radius: 10px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.topbar-cas-btn i {
+  font-size: 20px;
+}
+
+.topbar-cas-btn:hover {
+  color: #667eea;
+  transform: none;
+  box-shadow: none;
+}
+
+.topbar-cas-btn.active {
+  color: #667eea;
+}
+
+/* ---------- App Sidebar ---------- */
+.app-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: var(--sidebar-width-collapsed);
+  background: var(--bg-white);
+  border-right: 1px solid var(--border-light);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.25s ease;
+  overflow: hidden;
+}
+
+/* Hover = temporary overlay preview, doesn't shift content */
+.app-sidebar:hover {
+  width: var(--sidebar-width-expanded);
+}
+
+/* Click-toggled expanded state shifts content too (see body.sidebar-expanded) */
+.app-sidebar.expanded {
+  width: var(--sidebar-width-expanded);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--topbar-height);
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sidebar-brand-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  background: var(--scrollbar-thumb);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.sidebar-brand-text {
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  background: var(--scrollbar-thumb);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+:root[data-theme="dark"] .sidebar-brand-icon,
+:root[data-theme="dark"] .sidebar-brand-text {
+  background: none;
+  -webkit-background-clip: unset;
+  -webkit-text-fill-color: var(--text-primary);
+  background-clip: unset;
+  color: var(--text-primary);
+}
+
+.app-sidebar:hover .sidebar-brand-text,
+.app-sidebar.expanded .sidebar-brand-text {
+  opacity: 1;
+}
+
+.sidebar-header .mobile-menu-close {
+  display: none;
+  color: var(--text-primary);
+}
+
+.sidebar-items {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 0;
+}
+
+.sidebar-group {
+  margin-bottom: 6px;
+}
+
+.sidebar-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  padding: 10px 16px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 11px 16px;
+  background: transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+  text-align: left;
+  box-shadow: none;
+  white-space: nowrap;
+  border-radius: 0;
+}
+
+.sidebar-menu-item i {
+  font-size: 17px;
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.sidebar-menu-item span {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.app-sidebar:hover .sidebar-menu-item span,
+.app-sidebar.expanded .sidebar-menu-item span {
+  opacity: 1;
+}
+
+.sidebar-menu-item:hover {
+  background: rgba(102, 126, 234, 0.08);
+  border-left-color: #667eea;
+  transform: none;
+  box-shadow: none;
+  color: #667eea;
+}
+
+.sidebar-menu-item.active {
+  background: rgba(102, 126, 234, 0.12);
+  border-left-color: #667eea;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.sidebar-menu-item:disabled,
+.sidebar-menu-item.disabled-tab {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  background: transparent;
+}
+
+.sidebar-menu-item.disabled-tab::after {
+  content: "🔒";
+  margin-left: auto;
+  font-size: 0.8em;
+  opacity: 1;
+}
+
+.app-sidebar:not(:hover):not(.expanded):not(.mobile-active)
+  .sidebar-group-label {
+  opacity: 0;
+  padding-top: 6px;
+  padding-bottom: 0;
+  height: 6px;
+}
+
+.sidebar-footer {
+  display: none;
+  border-top: 1px solid var(--border-light);
+  padding: 10px;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ---------- Content offset for fixed sidebar ---------- */
+.container {
+  margin-left: var(--sidebar-width-collapsed);
+  transition: margin-left 0.25s ease;
+}
+
+body.sidebar-expanded .container {
+  margin-left: var(--sidebar-width-expanded);
+}
+
+/* Old elements no longer used in the new layout */
+.mobile-header,
+.mobile-menu,
+.tab-container {
+  display: none !important;
+}
+
+.mobile-menu-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 199;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.mobile-menu-overlay.active {
+  display: block;
+  opacity: 1;
+}
+
+/* ---------- Responsive ---------- */
+@media (min-width: 1025px) {
+  .hamburger-menu {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  /* Force theme-container visible on tablet — overrides legacy rule */
+  .dashboard-tabs .theme-container {
+    display: flex !important;
+  }
+
+  .sidebar-toggle {
+    display: none;
+  }
+
+  .hamburger-menu {
+    display: flex;
+  }
+
+  .container,
+  body.sidebar-expanded .container {
+    margin-left: 0 !important;
+  }
+
+  .app-sidebar {
+    left: -100%;
+    width: 260px;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.15);
+    transition: left 0.3s ease;
+  }
+
+  .app-sidebar.mobile-active {
+    left: 0;
+  }
+
+  .app-sidebar:hover,
+  .app-sidebar.expanded {
+    width: 260px;
+  }
+
+  .sidebar-brand-text,
+  .sidebar-menu-item span,
+  .sidebar-group-label {
+    opacity: 1 !important;
+  }
+
+  .sidebar-header .mobile-menu-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    box-shadow: none;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+  }
+
+  /* Tablet: hide CAS label text, icon only */
+  .topbar-cas-btn span {
+    display: none;
+  }
+
+  /* Tablet: sidebar-footer kept but empty for future use */
+  .sidebar-footer {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-title {
+    font-size: 15px;
+  }
+
+  /* Mobile: all 3 buttons stay in top bar, icon-only (span already hidden by ≤1024px rule) */
+  /* sidebar-footer kept but empty for future use */
+  .sidebar-footer {
+    display: none;
+  }
+
+  .dashboard-tabs {
+    padding: 10px;
+  }
+
+  #transactionSectionsWrapper {
+    margin: 10px 10px 20px 10px;
+  }
+}
+
+/* ===== Screenshot mode — disable backdrop-filter (html2canvas can't render it) ===== */
+body.screenshot-mode .summary-cards,
+body.screenshot-mode .upload-section,
+body.screenshot-mode .folio-card,
+body.screenshot-mode .analytics-card,
+body.screenshot-mode .chart-section,
+body.screenshot-mode .compact-dashboard,
+body.screenshot-mode .compact-summary-card,
+body.screenshot-mode .modal-content,
+body.screenshot-mode .portfolio-analytics-section {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
