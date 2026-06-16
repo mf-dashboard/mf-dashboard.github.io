@@ -29,8 +29,8 @@ const ICONS = {
   info: "ℹ️",
 };
 
-function getChartColors() {
-  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+function getChartTheme() {
+  const isDark = isDarkMode();
   return {
     textColor: isDark ? "#e5e7eb" : "#374151",
     gridColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)",
@@ -293,56 +293,127 @@ function destroyIfExists(chartRef) {
   return null;
 }
 
-function buildDoughnutChart(canvasId, labels, data) {
+// Registry of live doughnut chart instances, keyed by canvas id, so repeat
+// renders destroy the previous Chart.js instance before creating a new one.
+const _donutChartRegistry = {};
+
+/**
+ * Renders a doughnut chart into `canvasId` plus a label list below it in the
+ * consistent format: "Name: ₹value (pct%)". Used across the Dashboard and
+ * Family Dashboard for Asset Allocation, Equity Split, Debt Split, AMC
+ * Split, Equity Sectors, Debt Sectors and Portfolio Holdings.
+ *
+ * @param {string} canvasId   id of the <canvas> element
+ * @param {string[]} labels   slice labels
+ * @param {number[]} data     slice values as percentages (0-100)
+ * @param {number} [totalValue] portfolio rupee value used to compute the
+ *                               rupee amount shown next to each label
+ */
+// One-time registration of the doughnut center-text plugin.
+if (!Chart.registry.plugins.get("doughnutCenterText")) {
+  Chart.register({
+    id: "doughnutCenterText",
+    afterDraw(chart) {
+      const cfg = chart.options.plugins?.centerText;
+      if (!cfg?.display || !cfg.value) return;
+
+      const { ctx, chartArea } = chart;
+      const cx = (chartArea.left + chartArea.right) / 2;
+      const cy = (chartArea.top + chartArea.bottom) / 2;
+
+      // Shift the whole block up slightly so it reads as optically centred
+      const blockOffset = -3;
+      const lineGap = 9;
+
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      // "Total" — small, muted, above value
+      ctx.font = `500 10px Inter, system-ui, sans-serif`;
+      ctx.fillStyle = cfg.labelColor || "rgba(107,114,128,0.85)";
+      ctx.fillText("Total", cx, cy + blockOffset - lineGap);
+
+      // Rupee value — bold, below label
+      ctx.font = `700 13px Inter, system-ui, sans-serif`;
+      ctx.fillStyle = cfg.valueColor || "#374151";
+      ctx.fillText(cfg.value, cx, cy + blockOffset + lineGap);
+
+      ctx.restore();
+    },
+  });
+}
+
+function buildDoughnutChart(canvasId, labels, data, totalValue = 0) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) {
     console.warn(`Canvas element '${canvasId}' not found`);
     return null;
   }
 
-  const colors = getChartColors();
-  const ctx = document.getElementById(canvasId).getContext("2d");
-  return new Chart(ctx, {
+  // Destroy any previous chart instance bound to this canvas
+  _donutChartRegistry[canvasId] = destroyIfExists(
+    _donutChartRegistry[canvasId],
+  );
+
+  const colors = getChartTheme();
+  const isDark = isDarkMode();
+
+  // Ensure the canvas sits inside a fixed-size box so Chart.js can size
+  // itself correctly, with a label list rendered below it.
+  let canvasBox = canvas.closest(".donut-canvas-box");
+  if (!canvasBox) {
+    canvasBox = document.createElement("div");
+    canvasBox.className = "donut-canvas-box";
+    canvas.parentNode.insertBefore(canvasBox, canvas);
+    canvasBox.appendChild(canvas);
+  }
+
+  const wrapper = canvasBox.parentElement;
+  let labelsContainer = wrapper.querySelector(".donut-labels");
+  if (!labelsContainer) {
+    labelsContainer = document.createElement("div");
+    labelsContainer.className = "donut-labels";
+    wrapper.appendChild(labelsContainer);
+  }
+
+  const sliceColors = getDoughnutColors(labels.length, labels);
+
+  // Neutral gap between slices — matches card background so segments feel
+  // cleanly separated without any coloured border artifact.
+  const gapColor = isDark ? "#22252f" : "#ffffff";
+
+  const centerTextCfg = {
+    display: true,
+    value: totalValue > 0 ? `₹${formatNumber(Math.round(totalValue))}` : `${labels.length} items`,
+    labelColor: isDark ? "rgba(156,163,175,0.85)" : "rgba(107,114,128,0.85)",
+    valueColor: isDark ? "#e5e7eb" : "#1f2937",
+  };
+
+  const ctx = canvas.getContext("2d");
+  const chart = new Chart(ctx, {
     type: "doughnut",
     data: {
       labels,
       datasets: [
         {
           data,
-          backgroundColor: themeColors.slice(0, data.length),
-          borderColor: colors.borderColor,
+          backgroundColor: sliceColors,
+          borderColor: gapColor,
           borderWidth: 2,
-          hoverOffset: 8,
+          hoverOffset: 10,
         },
       ],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: "60%",
+      cutout: "64%",
       plugins: {
         legend: {
-          position: "bottom",
-          align: "center",
-          labels: {
-            padding: 6,
-            boxWidth: 12,
-            font: { size: 11, weight: "500" },
-            usePointStyle: true,
-            color: colors.textColor,
-            generateLabels: (chart) =>
-              chart.data.labels.map((label, i) => ({
-                text: `${truncateLabel(label)}: ${chart.data.datasets[0].data[
-                  i
-                ].toFixed(2)}%`,
-                fillStyle: chart.data.datasets[0].backgroundColor[i],
-                strokeStyle: colors.borderColor,
-                lineWidth: 1,
-                hidden: false,
-                index: i,
-              })),
-          },
+          display: false,
         },
+        centerText: centerTextCfg,
         tooltip: {
           enabled: true,
           backgroundColor: colors.tooltipBg,
@@ -359,23 +430,11 @@ function buildDoughnutChart(canvasId, labels, data) {
             title: (items) => items[0].label,
             label: (ctx) => {
               const val = ctx.parsed ?? 0;
-              const isFamilyChart = ctx.chart.canvas.id.startsWith("family");
-
-              let totalValue;
-              if (isFamilyChart && window.familyDashboardCache) {
-                totalValue = window.familyDashboardCache.totalCurrentValue;
-              } else {
-                totalValue = Object.values(window.fundWiseData || {}).reduce(
-                  (sum, fund) =>
-                    sum + (fund.advancedMetrics?.currentValue || 0),
-                  0,
-                );
+              if (totalValue > 0) {
+                const rupeeValue = (totalValue * val) / 100;
+                return `₹${formatNumber(Math.round(rupeeValue))} (${val.toFixed(2)}%)`;
               }
-
-              const rupeeValue = (totalValue * val) / 100;
-              return `₹${formatNumber(Math.round(rupeeValue))} (${val.toFixed(
-                2,
-              )}%)`;
+              return `${val.toFixed(2)}%`;
             },
           },
         },
@@ -391,6 +450,27 @@ function buildDoughnutChart(canvasId, labels, data) {
       },
     },
   });
+
+  _donutChartRegistry[canvasId] = chart;
+
+  // Build the label list below the chart in "Name: ₹value (pct%)" or "Name: pct%" format
+  labelsContainer.innerHTML = labels
+    .map((label, i) => {
+      const pct = data[i];
+      const valueText =
+        totalValue > 0
+          ? `₹${formatNumber(Math.round((totalValue * pct) / 100))} (${pct.toFixed(2)}%)`
+          : `${pct.toFixed(2)}%`;
+      return `
+        <div class="donut-label-item">
+          <span class="donut-label-color" style="background-color: ${sliceColors[i]};"></span>
+          <span class="donut-label-name" title="${label}">${label}</span>
+          <span class="donut-label-value">${valueText}</span>
+        </div>`;
+    })
+    .join("");
+
+  return chart;
 }
 
 function buildBarChart(canvasId, labels, data, totalValue = null) {
@@ -400,7 +480,7 @@ function buildBarChart(canvasId, labels, data, totalValue = null) {
     return null;
   }
 
-  const colors = getChartColors();
+  const colors = getChartTheme();
   const ctx = document.getElementById(canvasId).getContext("2d");
   const maxVal = Math.max(...data);
   const suggestedMax = Math.min(100, Math.ceil((maxVal * 1.1) / 10) * 10);

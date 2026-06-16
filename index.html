@@ -31,7 +31,7 @@
       data-cf-beacon='{"token": "4d8174ccb12041b3a010d11343f45f18"}'
     ></script> -->
     <!-- End Cloudflare Web Analytics -->
-    <link rel="stylesheet" href="styles.css?v=20260614" />
+    <link rel="stylesheet" href="styles.css?v=20260617" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -56,7 +56,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260614" />
+    <link rel="manifest" href="/manifest.json?v=20260617" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -88,10 +88,10 @@
             <button
               class="cas-upload-tab-button topbar-cas-btn"
               onclick="switchDashboardTab('cas-upload-tab')"
-              title="Manage CAS"
+              title="Manage Data"
             >
               <i class="fa-solid fa-upload"></i>
-              <span>Manage CAS</span>
+              <span>Manage Data</span>
             </button>
             <button
               id="screenshotBtnDesktop"
@@ -183,17 +183,6 @@
               >
                 <i class="fa-solid fa-clock-rotate-left"></i>
                 <span>Past Holdings</span>
-              </button>
-              <button
-                class="sidebar-menu-item additional-assets-button"
-                onclick="
-                  switchDashboardTab('additional-assets');
-                  closeMobileMenu();
-                "
-                title="Additional Assets"
-              >
-                <i class="fa-solid fa-piggy-bank"></i>
-                <span>Additional Assets</span>
               </button>
               <button
                 class="sidebar-menu-item transactions-button"
@@ -293,41 +282,12 @@
                   switchDashboardTab('cas-upload-tab');
                   closeMobileMenu();
                 "
-                title="Manage CAS"
+                title="Manage Data"
               >
                 <i class="fa-solid fa-upload"></i>
-                <span>Manage CAS</span>
+                <span>Manage Data</span>
               </button>
             </div>
-          </div>
-
-          <div class="sidebar-footer">
-            <button
-              class="sidebar-footer-cas-btn cas-upload-tab-button"
-              onclick="
-                switchDashboardTab('cas-upload-tab');
-                closeMobileMenu();
-              "
-              title="Manage CAS"
-            >
-              <i class="fa-solid fa-upload"></i>
-              <span>Manage CAS</span>
-            </button>
-            <button
-              id="screenshotBtnMobile"
-              class="screenshot-btn"
-              onclick="takeFullPageScreenshot()"
-              title="Take screenshot"
-            >
-              <i class="fa-solid fa-camera"></i>
-            </button>
-            <button
-              class="theme-toggle"
-              onclick="toggleTheme()"
-              title="Toggle Dark Mode"
-            >
-              <i class="fa-solid fa-moon" id="themeIconMobile"></i>
-            </button>
           </div>
         </nav>
         <section id="cas-upload-tab">
@@ -337,7 +297,7 @@
               <!-- Panel header -->
               <div class="cas-panel-header">
                 <i class="fa-solid fa-upload cas-panel-header-icon"></i>
-                <span class="cas-panel-header-title">Manage CAS</span>
+                <span class="cas-panel-header-title">Manage Data</span>
               </div>
 
               <!-- Upload CAS row -->
@@ -403,6 +363,7 @@
                   <div class="user-list-container" id="userListContainer"></div>
                   <button
                     type="button"
+                    id="deleteAllUsersBtn"
                     class="danger-btn cas-row-btn"
                     onclick="deleteAllUsers()"
                   >
@@ -429,6 +390,7 @@
                 <div class="cas-row-action">
                   <button
                     type="button"
+                    id="updateNavBtn"
                     class="primary-btn cas-row-btn"
                     onclick="updateNavManually()"
                   >
@@ -455,6 +417,7 @@
                 <div class="cas-row-action">
                   <button
                     type="button"
+                    id="updateStatsBtn"
                     class="primary-btn cas-row-btn"
                     onclick="updateMFStats()"
                   >
@@ -485,6 +448,7 @@
                 <div class="cas-row-action">
                   <button
                     type="button"
+                    id="clearCacheBtn"
                     class="danger-btn cas-row-btn"
                     onclick="clearAllCacheAndReload()"
                   >
@@ -607,162 +571,75 @@
             <!-- /.cas-panel -->
           </div>
           <!-- /.cas-panels-row -->
-        </section>
-        <section id="additional-assets">
-          <div class="additional-assets-container">
-            <!-- Header bar — same as folio-card-header -->
-            <div class="aa-header">
-              <span class="aa-header-icon">💰</span>
-              <span class="aa-header-title">Additional Assets</span>
-              <span class="aa-header-sub"
-                >Manually track non-MF investments</span
-              >
-            </div>
 
-            <!-- Summary row — cells like .summary-cards / .card -->
-            <div class="aa-summary-row">
-              <div class="aa-summary-cell">
-                <span class="aa-cell-label">Total Additional</span>
-                <span class="aa-cell-value" id="totalAdditionalAssets">₹0</span>
+          <!-- ── Backup & Restore panel ── -->
+          <div class="cas-panels-row cas-panels-row--single">
+            <div class="cas-panel">
+              <div class="cas-panel-header">
+                <i class="fa-solid fa-database cas-panel-header-icon"></i>
+                <span class="cas-panel-header-title">Backup &amp; Restore</span>
               </div>
-              <div class="aa-summary-cell">
-                <span class="aa-cell-label">Combined Portfolio</span>
-                <span class="aa-cell-value" id="combinedPortfolioValue"
-                  >₹0</span
-                >
-                <span class="aa-cell-sub">MF + Additional</span>
-              </div>
-            </div>
 
-            <!-- Asset input rows — one per asset, divided by 1px lines -->
-            <div class="aa-assets-body">
-              <!-- Gold row -->
-              <div class="aa-asset-row">
-                <div class="aa-asset-identity">
-                  <div
-                    class="aa-asset-icon"
-                    style="
-                      background: linear-gradient(
-                        135deg,
-                        #ffd700 0%,
-                        #ffa500 100%
-                      );
-                    "
+              <!-- Export row -->
+              <div class="cas-panel-row">
+                <div class="cas-row-meta">
+                  <span class="cas-row-icon">
+                    <i class="fa-solid fa-file-export"></i>
+                  </span>
+                  <div>
+                    <div class="cas-row-title">Export Backup</div>
+                    <div class="cas-row-sub">
+                      Download all your portfolio data as a single JSON file —
+                      includes CAS data, fund statistics, and app settings for
+                      all users.
+                    </div>
+                    <div class="cas-row-info">
+                      💡 Use this before clearing cache or switching devices
+                    </div>
+                  </div>
+                </div>
+                <div class="cas-row-action">
+                  <button
+                    type="button"
+                    class="primary-btn cas-row-btn"
+                    onclick="exportBackup()"
                   >
-                    <i class="fa-solid fa-coins"></i>
-                  </div>
-                  <span class="aa-asset-name">Gold</span>
-                </div>
-                <div class="aa-asset-fields">
-                  <div class="aa-field">
-                    <label class="aa-field-label">Quantity</label>
-                    <input
-                      type="number"
-                      id="goldQuantity"
-                      placeholder="0"
-                      step="0.01"
-                      onchange="saveAdditionalAssets()"
-                    />
-                  </div>
-                  <div class="aa-field">
-                    <label class="aa-field-label">Rate (₹/qty)</label>
-                    <input
-                      type="number"
-                      id="goldRate"
-                      placeholder="0"
-                      step="1"
-                      onchange="saveAdditionalAssets()"
-                    />
-                  </div>
-                </div>
-                <div class="aa-asset-value-cell">
-                  <span class="aa-cell-label">Value</span>
-                  <strong class="aa-asset-total" id="goldValue">₹0</strong>
+                    <i class="fa-solid fa-download"></i> Export Backup
+                  </button>
                 </div>
               </div>
 
-              <!-- Silver row -->
-              <div class="aa-asset-row">
-                <div class="aa-asset-identity">
-                  <div
-                    class="aa-asset-icon"
-                    style="
-                      background: linear-gradient(
-                        135deg,
-                        #c0c0c0 0%,
-                        #a8a8a8 100%
-                      );
-                    "
+              <!-- Import row -->
+              <div class="cas-panel-row cas-panel-row--last">
+                <div class="cas-row-meta">
+                  <span class="cas-row-icon">
+                    <i class="fa-solid fa-file-import"></i>
+                  </span>
+                  <div>
+                    <div class="cas-row-title">Import Backup</div>
+                    <div class="cas-row-sub">
+                      Restore portfolio data from a previously exported backup
+                      file. Existing data for matching users will be
+                      overwritten; other users are left untouched.
+                    </div>
+                    <div class="cas-row-info">
+                      ⚠️ Only import backups exported from this app
+                    </div>
+                  </div>
+                </div>
+                <div class="cas-row-action">
+                  <button
+                    type="button"
+                    class="secondary-btn cas-row-btn"
+                    onclick="importBackup()"
                   >
-                    <i class="fa-solid fa-gem"></i>
-                  </div>
-                  <span class="aa-asset-name">Silver</span>
-                </div>
-                <div class="aa-asset-fields">
-                  <div class="aa-field">
-                    <label class="aa-field-label">Quantity</label>
-                    <input
-                      type="number"
-                      id="silverQuantity"
-                      placeholder="0"
-                      step="0.01"
-                      onchange="saveAdditionalAssets()"
-                    />
-                  </div>
-                  <div class="aa-field">
-                    <label class="aa-field-label">Rate (₹/qty)</label>
-                    <input
-                      type="number"
-                      id="silverRate"
-                      placeholder="0"
-                      step="0.1"
-                      onchange="saveAdditionalAssets()"
-                    />
-                  </div>
-                </div>
-                <div class="aa-asset-value-cell">
-                  <span class="aa-cell-label">Value</span>
-                  <strong class="aa-asset-total" id="silverValue">₹0</strong>
-                </div>
-              </div>
-
-              <!-- Cash row -->
-              <div class="aa-asset-row">
-                <div class="aa-asset-identity">
-                  <div
-                    class="aa-asset-icon"
-                    style="
-                      background: linear-gradient(
-                        135deg,
-                        #10b981 0%,
-                        #059669 100%
-                      );
-                    "
-                  >
-                    <i class="fa-solid fa-money-bill-wave"></i>
-                  </div>
-                  <span class="aa-asset-name">Cash &amp; Equiv.</span>
-                </div>
-                <div class="aa-asset-fields">
-                  <div class="aa-field">
-                    <label class="aa-field-label">Amount (₹)</label>
-                    <input
-                      type="number"
-                      id="cashAmount"
-                      placeholder="0"
-                      step="1"
-                      onchange="saveAdditionalAssets()"
-                    />
-                  </div>
-                </div>
-                <div class="aa-asset-value-cell">
-                  <span class="aa-cell-label">Value</span>
-                  <strong class="aa-asset-total" id="cashValue">₹0</strong>
+                    <i class="fa-solid fa-upload"></i> Import Backup
+                  </button>
                 </div>
               </div>
             </div>
-            <!-- /.aa-assets-body -->
           </div>
+          <!-- /.backup panel -->
         </section>
         <section id="main">
           <div class="summary-cards">
@@ -862,49 +739,65 @@
             <div class="compact-holdings-list" id="compactHoldingsList"></div>
           </div>
           <div class="portfolio-analytics-section">
-            <h4>Portfolio Analytics</h4>
+            <h4>Portfolio Insights</h4>
             <div class="analytics-grid">
-              <div class="analytics-card loading" id="asset-market-cap-split">
-                <div id="assetAllocationCard">
-                  <h4>Asset Allocation</h4>
-                  <div class="chart-wrapper">
-                    <div class="chart-loading">
-                      <div class="chart-spinner"></div>
-                    </div>
-                    <canvas id="assetAllocationChart"></canvas>
+              <div class="analytics-card loading" id="assetAllocationCard">
+                <h4>Asset Allocation</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
                   </div>
-                </div>
-                <div>
-                  <h4>Equity Distribution</h4>
-                  <div class="chart-wrapper" id="marketCapCard">
-                    <div class="chart-loading">
-                      <div class="chart-spinner"></div>
-                    </div>
-                    <canvas id="marketCapChart"></canvas>
-                  </div>
+                  <canvas id="assetAllocationChart"></canvas>
                 </div>
               </div>
               <div class="analytics-card loading" id="amcCard">
-                <h4>Fund House Distribution</h4>
+                <h4>AMC Split</h4>
                 <div class="chart-wrapper">
                   <div class="chart-loading">
                     <div class="chart-spinner"></div>
                   </div>
-                  <div id="amcChart" class="text-bar-chart"></div>
+                  <canvas id="amcChart"></canvas>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="marketCapCard">
+                <h4>Equity Split</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="marketCapChart"></canvas>
+                </div>
+              </div>
+              <div id="debtDistributionCard" class="analytics-card loading">
+                <h4>Debt Split</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="debtDistributionChart"></canvas>
                 </div>
               </div>
               <div class="analytics-card loading" id="sectorCard">
-                <h4>Equity Sector Distribution</h4>
+                <h4>Equity Sectors</h4>
                 <div class="chart-wrapper">
                   <div class="chart-loading">
                     <div class="chart-spinner"></div>
                   </div>
-                  <div id="sectorChart" class="text-bar-chart"></div>
+                  <canvas id="sectorChart"></canvas>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="debtSectorCard">
+                <h4>Debt Sectors</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="debtSectorChart"></canvas>
                 </div>
               </div>
               <div class="analytics-card loading" id="holdingsCard">
                 <h4>
-                  Portfolio Holdings
+                  Top Equity Holdings
                   <button
                     class="holdings-eye-btn"
                     title="View Holdings"
@@ -917,12 +810,12 @@
                   <div class="chart-loading">
                     <div class="chart-spinner"></div>
                   </div>
-                  <div id="holdingsChart" class="text-bar-chart"></div>
+                  <canvas id="holdingsChart"></canvas>
                 </div>
               </div>
             </div>
             <div class="weighted-returns-section">
-              <h4>Weighted Portfolio Returns</h4>
+              <h4>Portfolio Returns vs Nifty 50 & Nifty 500</h4>
               <div class="returns-grid" id="weightedReturnsContainer"></div>
             </div>
           </div>
@@ -1004,53 +897,90 @@
           <div class="summary-cards" id="familySummaryCards"></div>
 
           <div class="portfolio-analytics-section">
-            <h4>Family Portfolio Analytics</h4>
+            <h4>Family Portfolio Insights</h4>
             <div class="analytics-grid">
               <div
                 class="analytics-card loading"
-                id="family-asset-market-cap-split"
+                id="familyAssetAllocationCard"
               >
-                <div id="familyAssetAllocationCard">
-                  <h4>Asset Allocation</h4>
-                  <div class="chart-wrapper">
-                    <div class="chart-loading">
-                      <div class="chart-spinner"></div>
-                    </div>
-                    <canvas id="familyAssetAllocationChart"></canvas>
+                <h4>Asset Allocation</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
                   </div>
-                </div>
-                <div id="familyMarketCapCard">
-                  <h4>Equity Distribution</h4>
-                  <div class="chart-wrapper">
-                    <div class="chart-loading">
-                      <div class="chart-spinner"></div>
-                    </div>
-                    <canvas id="familyMarketCapChart"></canvas>
-                  </div>
+                  <canvas id="familyAssetAllocationChart"></canvas>
                 </div>
               </div>
               <div class="analytics-card loading" id="familyAmcCard">
-                <h4>Fund House Distribution</h4>
+                <h4>AMC Split</h4>
                 <div class="chart-wrapper">
                   <div class="chart-loading">
                     <div class="chart-spinner"></div>
                   </div>
-                  <div id="familyAmcChart" class="text-bar-chart"></div>
+                  <canvas id="familyAmcChart"></canvas>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="familyMarketCapCard">
+                <h4>Equity Split</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="familyMarketCapChart"></canvas>
+                </div>
+              </div>
+              <div
+                class="analytics-card loading"
+                id="familyDebtDistributionCard"
+              >
+                <h4>Debt Split</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="familyDebtDistributionChart"></canvas>
                 </div>
               </div>
               <div class="analytics-card loading" id="familySectorCard">
-                <h4>Equity Sector Distribution</h4>
+                <h4>Equity Sectors</h4>
                 <div class="chart-wrapper">
                   <div class="chart-loading">
                     <div class="chart-spinner"></div>
                   </div>
-                  <div id="familySectorChart" class="text-bar-chart"></div>
+                  <canvas id="familySectorChart"></canvas>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="familyDebtSectorCard">
+                <h4>Debt Sectors</h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="familyDebtSectorChart"></canvas>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="familyHoldingsCard">
+                <h4>
+                  Top Equity Holdings
+                  <button
+                    class="holdings-eye-btn"
+                    title="View Holdings"
+                    onclick="showAllFamilyHoldings()"
+                  >
+                    <i class="fa-solid fa-eye"></i>
+                  </button>
+                </h4>
+                <div class="chart-wrapper">
+                  <div class="chart-loading">
+                    <div class="chart-spinner"></div>
+                  </div>
+                  <canvas id="familyHoldingsChart"></canvas>
                 </div>
               </div>
             </div>
 
             <div class="weighted-returns-section">
-              <h4>Family Weighted Portfolio Returns</h4>
+              <h4>Portfolio Returns vs Nifty 50 & Nifty 500</h4>
               <div
                 class="returns-grid"
                 id="familyWeightedReturnsContainer"
@@ -1064,8 +994,8 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260614"></script>
-    <script src="utils.js?v=20260614"></script>
-    <script src="scripts.js?v=20260614"></script>
+    <script src="indexeddb-helper.js?v=20260617"></script>
+    <script src="utils.js?v=20260617"></script>
+    <script src="scripts.js?v=20260617"></script>
   </body>
 </html>

@@ -8,7 +8,7 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 
 ## ✨ Features
 
-### 📈 Portfolio Analytics
+### 📈 Portfolio Insights
 
 - **Real-time Portfolio Tracking**: Monitor current value, gains/losses, and returns
 - **Asset Allocation**: Visualize distribution across equity, debt, gold, and silver
@@ -23,6 +23,10 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 - **Absolute Returns**: Track overall and individual fund performance
 - **Realized vs Unrealized Gains**: Separate tracking of booked and paper profits
 - **Weighted Portfolio Returns**: 1Y, 3Y, and 5Y weighted returns across all holdings
+- **Weighted Portfolio Returns**: 1Y, 3Y, and 5Y weighted returns across all holdings
+- **Benchmark Comparison**: Portfolio vs Nifty 50 and Nifty 500
+- **Alpha Analysis**: Outperformance and underperformance across 1Y, 3Y, and 5Y periods
+- **Visual Return Comparison**: Side-by-side benchmark comparison charts
 - **Fund-Level XIRR**: Individual XIRR calculation for each fund
 
 ### 📊 Visual Analytics
@@ -70,7 +74,7 @@ The application automatically keeps your portfolio data fresh:
 
 - **Daily NAV Updates ⏰**
   - Automatically fetched every day when you load the app
-  - Manual trigger available from the Manage CAS tab
+  - Manual trigger available from the Manage Data tab
   - Limited to once per day to avoid unnecessary API calls
   - Incremental — only new data is fetched and merged
   - Runs silently in the background
@@ -78,11 +82,11 @@ The application automatically keeps your portfolio data fresh:
 - **Weekly Fund Statistics Updates 📅**
   - Triggered automatically every week
   - Fetches portfolio composition, returns, ratings, holdings, and expense ratios
-  - Manual trigger available from the Manage CAS tab
+  - Manual trigger available from the Manage Data tab
   - Limited to once per week
   - Non-blocking background process
 
-- **Smart Update Tracking**: The Manage CAS tab shows last-updated timestamps for CAS parsing, fund stats, and NAV.
+- **Smart Update Tracking**: The Manage Data tab shows last-updated timestamps for CAS parsing, fund stats, and NAV.
 
 ### 🔍 Advanced Analysis Tools
 
@@ -109,22 +113,19 @@ The application automatically keeps your portfolio data fresh:
 - **Unrealized LTCG & STCG**: Know your tax exposure before you redeem
 - **Tax Optimization Tips**: LTCG harvesting up to the ₹1.25L annual exemption, hold-period strategy, rebalancing timing
 
-### 💰 Additional Assets
-
-- **Non-MF Investments**: Manually track Gold, Silver, and Cash & Equivalents
-- **Combined Portfolio Value**: MF holdings + additional assets in one number
-- **Live Rate Input**: Enter current market rates per unit for accurate valuation
-
 ### 👨‍👩‍👧‍👦 Multi-User & Family Dashboard
 
 - **Multiple Portfolios**: Track portfolios for your entire family
-- **User Management**: Add, switch, and delete users from the Manage CAS tab
+- **User Management**: Add, switch, and delete users from the Manage Data tab
 - **Separate Storage**: Each user's data stored independently
 - **Family Dashboard**: Aggregated view across all users (visible when 2+ users exist)
   - Combined family value, cost, P&L, and unique holdings count
   - Family-wide asset allocation, fund house distribution, and sector breakdown
   - Equity market cap split across all portfolios
   - Family weighted returns (1Y, 3Y, 5Y)
+  - Family benchmark comparison against Nifty 50 and Nifty 500
+  - Family alpha generation metrics
+  - Family performance visualization- Family weighted returns (1Y, 3Y, 5Y)
   - Per-member breakdown with value, cost, P&L, and active holdings count
 
 ### 📱 Progressive Web App (PWA)
@@ -136,9 +137,13 @@ The application automatically keeps your portfolio data fresh:
 
 ---
 
-## 📸 Screenshots
+### 📷 Screenshot Export
 
-### Manage CAS — New User
+- Full dashboard screenshot capture
+- Desktop and mobile screenshot buttons
+- Share portfolio snapshots instantly
+
+### Manage Data — New User
 
 ![New User](./img/screenshots/new-user.png)
 
@@ -146,7 +151,7 @@ On first visit, upload your CAMS CAS PDF and enter the password to load your por
 
 ---
 
-### Manage CAS — Returning User
+### Manage Data — Returning User
 
 ![Upload and Update](./img/screenshots/upload-and-update.png)
 
@@ -234,14 +239,6 @@ Overall score out of 100 with letter grade, plus individual dimension scores for
 
 ---
 
-### Additional Assets
-
-![Additional Assets](./img/screenshots/additional-assets.png)
-
-Manually enter Gold, Silver, and Cash & Equivalents to see your true combined portfolio value alongside mutual funds.
-
----
-
 ### Family Dashboard
 
 ![Family Dashboard](./img/screenshots/family-dashboard.png)
@@ -269,7 +266,7 @@ Visit: [My MF Dashboard](https://mf-dashboard.github.io)
 1. **Visit CAMS Portal** — [CAMS Online](https://www.camsonline.com/Investors/Statements/Consolidated-Account-Statement) or use the **myCAMS mobile app**
 2. **Request CAS** — Select **"Detailed Statement"**, choose "With Zero Balance" or "Without Zero Balance", enter your email, and set a password
 3. **Receive CAS** — Download the password-protected PDF from your email (arrives within minutes)
-4. **Upload** — Open the app, go to **Manage CAS**, select the PDF, enter the password, and click **Load Portfolio**
+4. **Upload** — Open the app, go to **Manage Data**, select the PDF, enter the password, and click **Load Portfolio**
 
 > **Note**: Currently supports **CAMS CAS files only**. CDSL/NSDL are not supported.
 
@@ -288,7 +285,7 @@ Visit: [My MF Dashboard](https://mf-dashboard.github.io)
 
 **Summary Cards**: Current value, cost, unrealized P&L with XIRR, holdings count, average holding days, all-time P&L.
 
-**Portfolio Analytics**: Asset allocation, market cap split, fund house distribution, sector distribution, top holdings, weighted returns (1Y/3Y/5Y).
+**Portfolio Insights**: Asset allocation, market cap split, fund house distribution, sector distribution, top holdings, weighted returns (1Y/3Y/5Y).
 
 ### 3. Current Holdings
 
@@ -323,10 +320,6 @@ All-Time or Active Holdings views. View in a modal or download as Excel.
 - STCG: equity at 20%, debt as per income slab
 - Tips on LTCG harvesting, hold-period optimization, and rebalancing timing
 
-### 9. Additional Assets
-
-Enter Gold (qty + ₹/unit), Silver (qty + ₹/unit), Cash & Equivalents amount. Total additional assets and combined portfolio value (MF + additional) shown at the bottom.
-
 ### 10. Overlap Analysis
 
 Highest overlapping fund pairs with overlap % and common stock count. Full table of stocks held across multiple funds with average weight and fund list.
@@ -343,7 +336,7 @@ Score out of 100 with letter grade (A+ to D). Sub-scores for Diversification, Ex
 
 Visible when 2+ users exist. Combined family value/cost/P&L, unique holdings count, family analytics (allocation, fund house, sector, market cap), family weighted returns, and a per-member breakdown card.
 
-### 14. Manage CAS
+### 14. Manage Data
 
 Upload fresh CAS for any user, add/switch/delete users, trigger manual NAV or stats update, and view last-update timestamps.
 
@@ -478,7 +471,7 @@ IndexedDB is browser-dependent (typically 50MB+). Very large portfolios may requ
 
 **CAS Upload Fails** — Verify the password is correct, ensure it's a CAMS Detailed CAS PDF, try clearing cache and re-uploading.
 
-**NAV Update Fails** — Check if already updated today (timestamps shown in Manage CAS). Backend may be on cold start — wait 30–60 seconds and retry.
+**NAV Update Fails** — Check if already updated today (timestamps shown in Manage Data). Backend may be on cold start — wait 30–60 seconds and retry.
 
 **Charts Not Loading** — Wait for all data to finish loading. Try refreshing or clearing cache and reloading.
 
@@ -535,7 +528,6 @@ MIT License — see [LICENSE](LICENSE). Free to use, modify, and distribute with
 **New Features**:
 
 - ✅ Tax Planning dashboard (unrealized LTCG/STCG, harvesting tips)
-- ✅ Additional Assets tracking (Gold, Silver, Cash & Equivalents)
 - ✅ Portfolio Projection calculator (custom SIP, CAGR, annual step-up, 20Y tables)
 - ✅ Transaction Calendar heatmap
 - ✅ Average Monthly Summary (6M / 12M buy/sell/net inflow)
@@ -548,7 +540,7 @@ MIT License — see [LICENSE](LICENSE). Free to use, modify, and distribute with
 
 **Improvements**:
 
-- Enhanced user management (add/delete/switch) from Manage CAS tab
+- Enhanced user management (add/delete/switch) from Manage Data tab
 - Separate IndexedDB storage per user
 - Improved mobile navigation
 - Better chart rendering and animations
@@ -567,7 +559,7 @@ MIT License — see [LICENSE](LICENSE). Free to use, modify, and distribute with
 - ✅ Auto-update system (daily NAV, weekly stats)
 - ✅ Capital gains with FY-wise breakdown
 - ✅ Transaction management with Excel export
-- ✅ Portfolio analytics and visualizations
+- ✅ Portfolio insights and visualizations
 - ✅ Holdings analysis (portfolio + fund level)
 - ✅ Extended fund statistics
 

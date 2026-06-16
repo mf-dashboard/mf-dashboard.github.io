@@ -35,13 +35,19 @@ let capitalGainsData = {
   },
 };
 
+// PORTFOLIO BENCHMARKS
+const PORTFOLIO_BENCHMARKS = {
+  nifty500: {
+    isin: "INF247L01957",
+    name: "Nifty 500",
+  },
+  nifty50: {
+    isin: "INF247L01AE7",
+    name: "Nifty 50",
+  },
+};
+
 // Chart instances
-let marketCapChart = null;
-let sectorChart = null; // kept for compatibility — no longer Chart.js
-let amcChart = null;
-let holdingsChart = null;
-let familySectorChart = null;
-let familyAmcChart = null;
 let projectionChartInstance = null;
 
 const default6M = 10000;
@@ -114,17 +120,56 @@ function getCompositionColor(index, total) {
 // Fund House, Sector, and Holdings text-bar charts.  Asset Allocation
 // and Market Cap bars use this so all four panels share the same hues.
 const TBC_COLORS = [
-  "#667eea",
-  "#f093fb",
-  "#4facfe",
-  "#43e97b",
-  "#fa709a",
-  "#ffd89b",
-  "#a18cd1",
-  "#f5576c",
-  "#34d399",
-  "#fcd34d",
+  "#7086FF",
+  "#B388FF",
+  "#4DA3FF",
+  "#5EDB8A",
+  "#FF7AA8",
+  "#FFD166",
+  "#9B8CFF",
+  "#FF6E6E",
+  "#4FD1C5",
+  "#F6C453",
 ];
+
+const TBC_COLORS_LIGHT = [
+  "#818CF8",
+  "#A78BFA",
+  "#60A5FA",
+  "#86EFAC",
+  "#FB7185",
+  "#FCD34D",
+  "#C4B5FD",
+  "#F87171",
+  "#6EE7B7",
+  "#FBBF24",
+];
+
+const TBC_COLORS_DARK = [
+  "#7086FF",
+  "#B388FF",
+  "#4DA3FF",
+  "#5EDB8A",
+  "#FF7AA8",
+  "#FFD166",
+  "#9B8CFF",
+  "#FF6E6E",
+  "#4FD1C5",
+  "#F6C453",
+];
+
+function getDoughnutColors(count, labels = []) {
+  const isDark = isDarkMode();
+
+  const palette = isDark ? TBC_COLORS_DARK : TBC_COLORS_LIGHT;
+
+  return Array.from({ length: count }, (_, i) => {
+    if (labels[i]?.toLowerCase() === "others") {
+      return isDark ? "#FF6E6E" : "#F87171";
+    }
+    return palette[i % palette.length];
+  });
+}
 
 function getTbcColor(index) {
   return TBC_COLORS[index % TBC_COLORS.length];
@@ -648,6 +693,49 @@ async function processPortfolio(skipAnalytics = false) {
   );
   loadFamilyDashboard();
 }
+
+function getPortfolioBenchmarks() {
+  const getReturns = (isin) => {
+    const stats = mfStats?.[isin]?.return_stats || {};
+
+    return {
+      return1y: stats.return1y ?? null,
+      return3y: stats.return3y ?? null,
+      return5y: stats.return5y ?? null,
+    };
+  };
+
+  return {
+    nifty50: {
+      ...PORTFOLIO_BENCHMARKS.nifty50,
+      ...getReturns(PORTFOLIO_BENCHMARKS.nifty50.isin),
+    },
+    nifty500: {
+      ...PORTFOLIO_BENCHMARKS.nifty500,
+      ...getReturns(PORTFOLIO_BENCHMARKS.nifty500.isin),
+    },
+  };
+}
+
+function calculatePortfolioAlpha(weightedReturns, benchmarks) {
+  const diff = (a, b) =>
+    a != null && b != null
+      ? Math.round((a - b + Number.EPSILON) * 100) / 100
+      : null;
+  return {
+    vsNifty50: {
+      alpha1y: diff(weightedReturns.return1y, benchmarks.nifty50.return1y),
+      alpha3y: diff(weightedReturns.return3y, benchmarks.nifty50.return3y),
+      alpha5y: diff(weightedReturns.return5y, benchmarks.nifty50.return5y),
+    },
+    vsNifty500: {
+      alpha1y: diff(weightedReturns.return1y, benchmarks.nifty500.return1y),
+      alpha3y: diff(weightedReturns.return3y, benchmarks.nifty500.return3y),
+      alpha5y: diff(weightedReturns.return5y, benchmarks.nifty500.return5y),
+    },
+  };
+}
+
 function aggregateFundWiseData() {
   if (isSummaryCAS) {
     console.log("⏭️ Skipping aggregateFundWiseData for Summary CAS");
@@ -2376,39 +2464,44 @@ function calculateMonthlySummary() {
 // PORTFOLIO ANALYTICS
 function calculateAndDisplayPortfolioAnalytics() {
   try {
-    document.getElementById("asset-market-cap-split")?.classList.add("loading");
+    document.getElementById("assetAllocationCard")?.classList.add("loading");
+    document.getElementById("marketCapCard")?.classList.add("loading");
+    document.getElementById("debtDistributionCard")?.classList.add("loading");
     document.getElementById("sectorCard")?.classList.add("loading");
+    document.getElementById("debtSectorCard")?.classList.add("loading");
     document.getElementById("amcCard")?.classList.add("loading");
     document.getElementById("holdingsCard")?.classList.add("loading");
 
-    // Clear text bar chart containers
-    const clearTbc = (id) => {
-      const el = document.getElementById(id);
-      if (el) el.innerHTML = "";
+    // Restore canvas elements if a previous render swapped them out for an
+    // "empty" / "DATA NOT AVAILABLE" placeholder, so buildDoughnutChart has
+    // a <canvas> to attach to.
+    const ensureCanvas = (cardId, canvasId) => {
+      const card = document.getElementById(cardId);
+      if (!card) return;
+      const wrapper = card.querySelector(".chart-wrapper");
+      if (wrapper && !wrapper.querySelector(`#${canvasId}`)) {
+        wrapper.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+      }
     };
-    clearTbc("sectorChart");
-    clearTbc("amcChart");
-    clearTbc("holdingsChart");
-
-    // Immediately clear asset allocation and market cap bar content so stale
-    // data from a previous user doesn't show during the setTimeout delays.
-    // Target wrappers directly — the canvas IDs may no longer exist if a
-    // previous render already replaced the wrapper innerHTML with bar HTML.
-    const assetCard = document.getElementById("assetAllocationCard");
-    if (assetCard) {
-      const assetWrapper = assetCard.querySelector(".chart-wrapper");
-      if (assetWrapper)
-        assetWrapper.innerHTML = '<canvas id="assetAllocationChart"></canvas>';
-    }
-    const mcapCard = document.getElementById("marketCapCard");
-    if (mcapCard) mcapCard.innerHTML = '<canvas id="marketCapChart"></canvas>';
+    ensureCanvas("assetAllocationCard", "assetAllocationChart");
+    ensureCanvas("marketCapCard", "marketCapChart");
+    ensureCanvas("debtDistributionCard", "debtDistributionChart");
 
     setTimeout(() => {
       const analytics = calculatePortfolioAnalytics();
 
       setTimeout(() => {
         displayAssetAllocation(analytics.assetAllocation);
-        displayMarketCapSplit(analytics.marketCap);
+        displayMarketCapSplit(
+          analytics.marketCap,
+          analytics.assetAllocation,
+          analytics.totalValue,
+        );
+        displayDebtDistribution(
+          analytics.debtDistribution,
+          analytics.assetAllocation,
+          analytics.totalValue,
+        );
       }, 200);
 
       setTimeout(() => {
@@ -2416,23 +2509,45 @@ function calculateAndDisplayPortfolioAnalytics() {
       }, 100);
 
       setTimeout(() => {
-        displaySectorSplit(analytics.sector, analytics.totalValue);
+        displaySectorSplit(
+          analytics.sector,
+          analytics.assetAllocation,
+          analytics.totalValue,
+        );
       }, 100);
 
       setTimeout(() => {
-        displayHoldingsSplit(analytics.holdings, analytics.totalValue);
+        displayDebtSectorSplit(
+          analytics.debtSector,
+          analytics.assetAllocation,
+          analytics.totalValue,
+        );
       }, 100);
 
       setTimeout(() => {
-        displayWeightedReturns(analytics.weightedReturns);
+        displayHoldingsSplit(
+          analytics.holdings,
+          analytics.assetAllocation,
+          analytics.totalValue,
+        );
+      }, 100);
+
+      setTimeout(() => {
+        displayWeightedReturns(
+          analytics.weightedReturns,
+          "weightedReturnsContainer",
+        );
       }, 100);
     }, 100);
   } catch (err) {
     console.error("Portfolio analytics failed:", err);
+    document.getElementById("assetAllocationCard")?.classList.remove("loading");
+    document.getElementById("marketCapCard")?.classList.remove("loading");
     document
-      .getElementById("asset-market-cap-split")
+      .getElementById("debtDistributionCard")
       ?.classList.remove("loading");
     document.getElementById("sectorCard")?.classList.remove("loading");
+    document.getElementById("debtSectorCard")?.classList.remove("loading");
     document.getElementById("amcCard")?.classList.remove("loading");
     document.getElementById("holdingsCard")?.classList.remove("loading");
   }
@@ -2506,95 +2621,333 @@ function getAssetClass(holding) {
 }
 
 /**
- * Map an API-level asset_allocation key to per-holding breakdown buckets using getAssetClass.
- * Returns an object: { "Domestic Equity": %, "Global Equity": %, "Gold": %, ... }
- * All percentages are proportional slices of the given `allocPct` (the fund-level %).
+ * Canonical asset-allocation resolver.
+ *
+ * Derives a flat bucket map from a fund's portfolio_stats.asset_allocation
+ * object, using the fund's holdings array only for two targeted splits:
+ *
+ *   • "equity" key  → split into "domestic equity" / "global equity" by
+ *     filtering holdings where nature_name === "EQUITY" and checking
+ *     whether instrument_name === "Foreign - Equity" (→ Global) or not
+ *     (→ Domestic).  Falls back to 100 % Domestic when no EQUITY holdings
+ *     are found.
+ *
+ *   • "commodities" key → split into "gold" / "silver" by checking whether
+ *     instrument_name (case-insensitive) contains "gold" or "silver".
+ *     Falls back to 100 % gold when no commodity holdings are found.
+ *
+ *   • All other keys (debt, cash, real estate, reit, other, …) are mapped
+ *     directly to their canonical lowercase label without touching holdings.
+ *
+ * @param  {Object} fundAsset  portfolio_stats.asset_allocation  (key → %)
+ * @param  {Array}  holdings   fund holdings array (may be empty / null)
+ * @param  {number} weight     portfolio weight of this fund (0–1); each
+ *                             bucket value is expressed as weight × alloc %
+ * @returns {Object}  e.g. { "domestic equity": 18.4, "global equity": 3.1,
+ *                            "gold": 2.0, "debt": 12.5, … }
  */
-function splitAssetKeyByHoldings(key, allocPct, holdings) {
-  const keyLower = key.trim().toLowerCase();
-
-  // Keys we split further via holdings
-  const splitKeys = ["equity", "commodities", "real estate", "debt", "cash"];
-  const needsSplit = splitKeys.some((s) => keyLower.includes(s));
-
-  if (
-    !needsSplit ||
-    !holdings ||
-    !Array.isArray(holdings) ||
-    holdings.length === 0
-  ) {
-    // Direct mapping for non-split keys
-    return { [mapApiKeyToLabel(keyLower)]: allocPct };
-  }
-
-  // Tally corpus_per by asset class among holdings that match this API key
-  const holdingFilter = makeHoldingFilter(keyLower);
+function resolveAssetAllocation(fundAsset, holdings, weight) {
   const buckets = {};
-  let filteredTotal = 0;
+  const safeHoldings = Array.isArray(holdings) ? holdings : [];
 
-  holdings.forEach((h) => {
-    const rawPct = parseFloat(h.corpus_per || 0);
-    if (!holdingFilter(h)) return;
-    const cls = getAssetClass(h);
-    // Hedged Equity (futures) often carries negative corpus — use absolute value
-    const pct = cls === "Hedged Equity" ? Math.abs(rawPct) : rawPct;
-    if (pct <= 0) return;
-    buckets[cls] = (buckets[cls] || 0) + pct;
-    filteredTotal += pct;
+  Object.entries(fundAsset).forEach(([key, value]) => {
+    const val = parseFloat(value);
+    if (val == null || isNaN(val)) return;
+
+    // Contribution of this key to the overall portfolio (in %).
+    // Note: negative values (e.g. cash: -0.7) are intentionally kept so
+    // that the bucket totals stay proportional to the API's own sum.
+    // We only skip truly absent / NaN entries, not negatives.
+    const allocPct = (val / 100) * weight * 100;
+    const keyLower = key.trim().toLowerCase();
+
+    // Negative allocations (e.g. net-payable cash) are passed through as
+    // negative buckets so callers can decide whether to display them.
+    // The guard below drops them from display buckets only for non-cash
+    // asset classes where a negative makes no semantic sense.
+    const isNegative = val < 0;
+    // For cash, allow negative through — it represents net payables.
+    // For everything else, skip negatives (they are data artefacts).
+    if (isNegative && !keyLower.includes("cash")) return;
+
+    // ── HEDGED EQUITY: pass through directly — must be checked before the
+    //    generic "equity" branch so "hedged equity" isn't caught by it. ───
+    if (keyLower.includes("hedged")) {
+      buckets["hedged equity"] = (buckets["hedged equity"] || 0) + allocPct;
+      return;
+    }
+
+    // ── EQUITY: split Domestic vs Global via holdings ──────────────────────
+    if (keyLower.includes("equity")) {
+      const equityHoldings = safeHoldings.filter(
+        (h) => (h.nature_name || "").toUpperCase() === "EQUITY",
+      );
+
+      if (equityHoldings.length === 0) {
+        // No granular data — treat everything as domestic
+        buckets["domestic equity"] =
+          (buckets["domestic equity"] || 0) + allocPct;
+        return;
+      }
+
+      let globalCorpus = 0;
+      let domesticCorpus = 0;
+
+      equityHoldings.forEach((h) => {
+        const corpus = parseFloat(h.corpus_per || 0);
+        if (corpus <= 0) return;
+        if (h.instrument_name === "Foreign - Equity") {
+          globalCorpus += corpus;
+        } else {
+          domesticCorpus += corpus;
+        }
+      });
+
+      const equityTotal = domesticCorpus + globalCorpus;
+
+      if (equityTotal === 0) {
+        buckets["domestic equity"] =
+          (buckets["domestic equity"] || 0) + allocPct;
+        return;
+      }
+
+      if (domesticCorpus > 0) {
+        buckets["domestic equity"] =
+          (buckets["domestic equity"] || 0) +
+          (domesticCorpus / equityTotal) * allocPct;
+      }
+      if (globalCorpus > 0) {
+        buckets["global equity"] =
+          (buckets["global equity"] || 0) +
+          (globalCorpus / equityTotal) * allocPct;
+      }
+      return;
+    }
+
+    // ── COMMODITIES: split Gold vs Silver via holdings ──────────────────────
+    if (keyLower.includes("commodit")) {
+      const commodityHoldings = safeHoldings.filter((h) => {
+        const inst = (h.instrument_name || "").toLowerCase();
+        return inst.includes("gold") || inst.includes("silver");
+      });
+
+      if (commodityHoldings.length === 0) {
+        // No granular data — treat everything as gold (conservative fallback)
+        buckets["gold"] = (buckets["gold"] || 0) + allocPct;
+        return;
+      }
+
+      let goldCorpus = 0;
+      let silverCorpus = 0;
+
+      commodityHoldings.forEach((h) => {
+        const corpus = parseFloat(h.corpus_per || 0);
+        if (corpus <= 0) return;
+        const inst = (h.instrument_name || "").toLowerCase();
+        if (inst.includes("silver")) {
+          silverCorpus += corpus;
+        } else {
+          goldCorpus += corpus;
+        }
+      });
+
+      const commTotal = goldCorpus + silverCorpus;
+
+      if (commTotal === 0) {
+        buckets["gold"] = (buckets["gold"] || 0) + allocPct;
+        return;
+      }
+
+      if (goldCorpus > 0) {
+        buckets["gold"] =
+          (buckets["gold"] || 0) + (goldCorpus / commTotal) * allocPct;
+      }
+      if (silverCorpus > 0) {
+        buckets["silver"] =
+          (buckets["silver"] || 0) + (silverCorpus / commTotal) * allocPct;
+      }
+      return;
+    }
+
+    // ── ALL OTHER KEYS: direct label mapping ────────────────────────────────
+    const label = _mapAssetKeyToLabel(keyLower);
+    buckets[label] = (buckets[label] || 0) + allocPct;
   });
 
-  if (filteredTotal === 0) {
-    // No matching holdings — fall back to direct label
-    return { [mapApiKeyToLabel(keyLower)]: allocPct };
-  }
-
-  // Scale bucket percentages to the fund-level allocPct
-  const result = {};
-  Object.entries(buckets).forEach(([cls, pct]) => {
-    const label = cls.toLowerCase(); // use lowercase internal keys
-    result[label] = (pct / filteredTotal) * allocPct;
-  });
-  return result;
+  return buckets;
 }
 
-function mapApiKeyToLabel(keyLower) {
-  if (keyLower.includes("equity")) return "domestic equity";
-  if (keyLower.includes("commodit")) return "gold"; // fallback
+/** Map a raw portfolio_stats.asset_allocation key to its canonical label. */
+function _mapAssetKeyToLabel(keyLower) {
+  if (keyLower.includes("hedged")) return "hedged equity";
   if (keyLower.includes("real estate") || keyLower.includes("reit"))
     return "real estate";
   if (keyLower.includes("debt")) return "debt";
   if (keyLower.includes("cash")) return "cash";
+  if (keyLower.includes("gold")) return "gold";
+  if (keyLower.includes("silver")) return "silver";
   return "other";
 }
 
-function makeHoldingFilter(keyLower) {
-  if (keyLower.includes("equity")) {
-    return (h) => {
-      const cls = getAssetClass(h);
-      return (
-        cls === "Domestic Equity" ||
-        cls === "Global Equity" ||
-        cls === "Hedged Equity"
-      );
+/**
+ * Thin shim kept for any call-site that still passes a single (key, allocPct,
+ * holdings) triple.  Internally delegates to resolveAssetAllocation so that
+ * the splitting logic remains in one place.
+ *
+ * @deprecated  Prefer resolveAssetAllocation(fundAsset, holdings, weight).
+ */
+function splitAssetKeyByHoldings(key, allocPct, holdings) {
+  // Reconstruct a minimal fundAsset map and weight=1 so that allocPct passes
+  // through unchanged.
+  const pseudoFundAsset = { [key]: allocPct }; // allocPct is already scaled %
+  // resolveAssetAllocation multiplies (val/100)*weight*100 = val when weight=1
+  return resolveAssetAllocation(pseudoFundAsset, holdings, 1);
+}
+
+/**
+ * Derives debt instrument breakdown from a fund's holdings array.
+ * Filters to holdings where nature_name === "DEBT" and groups by
+ * instrument_name, returning corpus_per-weighted bucket percentages
+ * scaled by the fund's portfolio weight.
+ *
+ * Canonical instrument_name groups (title-cased for display):
+ *   Government Securities, State Dev. Loans, Treasury Bills,
+ *   Certificate of Deposit, Commercial Paper, Debenture, Others
+ *
+ * @param  {Array}  holdings  fund holdings array
+ * @param  {number} weight    portfolio weight of this fund (0–1)
+ * @returns {Object}  e.g. { "Government Securities": 4.2, "Debenture": 8.1, … }
+ */
+function resolveDebtDistribution(holdings, weight) {
+  const buckets = {};
+  if (!Array.isArray(holdings) || holdings.length === 0) return buckets;
+
+  const debtHoldings = holdings.filter(
+    (h) => (h.nature_name || "").toUpperCase() === "DEBT",
+  );
+  if (debtHoldings.length === 0) return buckets;
+
+  let debtCorpusTotal = 0;
+  const rawBuckets = {};
+
+  debtHoldings.forEach((h) => {
+    const corpus = parseFloat(h.corpus_per || 0);
+    if (corpus <= 0) return;
+    const label = _normalizeDebtInstrumentLabel(h.instrument_name || "Others");
+    rawBuckets[label] = (rawBuckets[label] || 0) + corpus;
+    debtCorpusTotal += corpus;
+  });
+
+  if (debtCorpusTotal === 0) return buckets;
+
+  // Scale each bucket to the fund's portfolio weight
+  Object.entries(rawBuckets).forEach(([label, corpus]) => {
+    buckets[label] = (corpus / debtCorpusTotal) * weight * 100;
+  });
+
+  return buckets;
+}
+
+/** Normalize a raw instrument_name into a clean display label for debt. */
+function _normalizeDebtInstrumentLabel(raw) {
+  const s = raw.trim().toLowerCase();
+  if (
+    s.includes("goi") ||
+    s.includes("government") ||
+    s.includes("g-sec") ||
+    s.includes("gsec")
+  )
+    return "Government Securities";
+  if (s.includes("sdl") || s.includes("state dev")) return "State Dev. Loans";
+  if (s.includes("treasury") || s.includes("t-bill") || s.includes("tbill"))
+    return "Treasury Bills";
+  if (s.includes("certificate of deposit") || s === "cd")
+    return "Certificate of Deposit";
+  if (s.includes("commercial paper") || s === "cp") return "Commercial Paper";
+  if (s.includes("debenture") || s.includes("ncd")) return "Debenture / NCD";
+  if (s.includes("repo")) return "Repo";
+  if (s.includes("floating") || s.includes("frb")) return "Floating Rate Bonds";
+  if (s.includes("zero coupon") || s.includes("zcb"))
+    return "Zero Coupon Bonds";
+  if (s === "" || s === "others" || s === "other") return "Others";
+  // Title-case the raw value as a catch-all
+  return raw.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function applyGroupedMarketCapLegend(canvasId, labels, data, totalValue) {
+  const wrapper = document.getElementById(canvasId)?.closest(".chart-wrapper");
+
+  const labelsContainer = wrapper?.querySelector(".donut-labels");
+
+  if (!labelsContainer) return;
+
+  const colors = labels.map((_, i) => getTbcColor(i));
+
+  renderMarketCapGroupedLegend(
+    labelsContainer,
+    labels,
+    data,
+    totalValue,
+    colors,
+  );
+}
+
+function renderMarketCapGroupedLegend(
+  container,
+  labels,
+  data,
+  totalValue,
+  colors,
+) {
+  const domestic = [];
+  const other = [];
+
+  labels.forEach((label, i) => {
+    const item = {
+      label,
+      pct: data[i],
+      rupees: Math.round((totalValue * data[i]) / 100),
+      color: colors[i],
     };
-  }
-  if (keyLower.includes("commodit")) {
-    return (h) => {
-      const cls = getAssetClass(h);
-      return cls === "Gold" || cls === "Silver";
-    };
-  }
-  if (keyLower.includes("real estate") || keyLower.includes("reit")) {
-    return (h) => getAssetClass(h) === "Real Estate";
-  }
-  if (keyLower.includes("debt")) {
-    return (h) => getAssetClass(h) === "Debt";
-  }
-  if (keyLower.includes("cash")) {
-    return (h) => getAssetClass(h) === "Cash";
-  }
-  // Default: include everything
-  return () => true;
+
+    if (label === "Large" || label === "Mid" || label === "Small") {
+      domestic.push(item);
+    } else {
+      other.push(item);
+    }
+  });
+
+  const renderItems = (items) =>
+    items
+      .map(
+        (item) => `
+        <div class="donut-label-item">
+          <span class="donut-label-color"
+                style="background:${item.color}">
+          </span>
+          <span class="donut-label-name">${item.label}</span>
+          <span class="donut-label-value">
+            ₹${formatNumber(item.rupees)}
+            (${item.pct.toFixed(2)}%)
+          </span>
+        </div>
+      `,
+      )
+      .join("");
+
+  container.innerHTML = `
+    <div class="donut-section-title">Domestic</div>
+    ${renderItems(domestic)}
+
+    ${
+      other.length
+        ? `
+      <div class="donut-section-title">Other</div>
+      ${renderItems(other)}
+    `
+        : ""
+    }
+  `;
 }
 
 function calculatePortfolioAnalytics() {
@@ -2602,49 +2955,27 @@ function calculatePortfolioAnalytics() {
     totalValue: 0,
     assetAllocation: {},
     marketCap: { global: 0, large: 0, mid: 0, small: 0 },
+    debtDistribution: {},
     sector: {},
+    debtSector: {},
     amc: {},
     holdings: {},
     weightedReturns: { return1y: null, return3y: null, return5y: null },
   };
 
-  // Get additional assets
-  const additionalAssets = getAdditionalAssets();
-  let additionalGoldValue = 0;
-  let additionalSilverValue = 0;
-  let additionalCashValue = 0;
-
-  if (additionalAssets) {
-    additionalGoldValue =
-      additionalAssets.gold.quantity * additionalAssets.gold.rate;
-    additionalSilverValue =
-      additionalAssets.silver.quantity * additionalAssets.silver.rate;
-    additionalCashValue = additionalAssets.cash;
-  }
-
-  // Object.values(fundWiseData).forEach((fund) => {
-  //   const value = fund.valuation ? parseFloat(fund.valuation.value || 0) : 0;
-  //   if (value > 0) result.totalValue += value;
-  // });
   // ✅ After — use advancedMetrics.currentValue, same source used everywhere else
   Object.values(fundWiseData).forEach((fund) => {
     const value = parseFloat(fund.advancedMetrics?.currentValue || 0);
     if (value > 0) result.totalValue += value;
   });
 
-  // Add additional assets to total
-  const totalAdditional =
-    additionalGoldValue + additionalSilverValue + additionalCashValue;
-  const totalWithAdditional = result.totalValue + totalAdditional;
+  if (result.totalValue === 0) return result;
 
-  if (totalWithAdditional === 0) return result;
-
-  // Process MF funds with totalWithAdditional as base
   Object.values(fundWiseData).forEach((fund) => {
     const value = parseFloat(fund.advancedMetrics.currentValue || 0);
     if (!(value > 0)) return;
 
-    const weight = value / totalWithAdditional; // CHANGED: Use totalWithAdditional instead of result.totalValue
+    const weight = value / result.totalValue;
     const extended = fund.isin ? mfStats[fund.isin] : null;
 
     const fundAsset = extended?.portfolio_stats?.asset_allocation;
@@ -2653,17 +2984,19 @@ function calculatePortfolioAnalytics() {
     let fundHedgedEquity = 0;
 
     if (fundAsset) {
-      Object.entries(fundAsset).forEach(([k, v]) => {
-        if (v == null || isNaN(parseFloat(v)) || parseFloat(v) <= 0) return;
-        const allocPct = (parseFloat(v) / 100) * weight * 100;
-        const splits = splitAssetKeyByHoldings(k, allocPct, extended?.holdings);
-        Object.entries(splits).forEach(([label, pct]) => {
-          result.assetAllocation[label] =
-            (result.assetAllocation[label] || 0) + pct;
-          if (label === "domestic equity") fundDomesticEquity += pct;
-          else if (label === "global equity") fundGlobalEquity += pct;
-          else if (label === "hedged equity") fundHedgedEquity += pct;
-        });
+      // Use resolveAssetAllocation: equity split via nature_name=EQUITY +
+      // instrument_name; commodities split via instrument_name gold/silver.
+      const splits = resolveAssetAllocation(
+        fundAsset,
+        extended?.holdings,
+        weight,
+      );
+      Object.entries(splits).forEach(([label, pct]) => {
+        result.assetAllocation[label] =
+          (result.assetAllocation[label] || 0) + pct;
+        if (label === "domestic equity") fundDomesticEquity += pct;
+        else if (label === "global equity") fundGlobalEquity += pct;
+        else if (label === "hedged equity") fundHedgedEquity += pct;
       });
     } else {
       // Fallback: no portfolio_stats — classify by fund category
@@ -2680,6 +3013,13 @@ function calculatePortfolioAnalytics() {
           (result.assetAllocation["other"] || 0) + weight * 100;
       }
     }
+
+    // ── DEBT DISTRIBUTION: group DEBT holdings by instrument_name ──────────
+    const debtSplits = resolveDebtDistribution(extended?.holdings, weight);
+    Object.entries(debtSplits).forEach(([label, pct]) => {
+      result.debtDistribution[label] =
+        (result.debtDistribution[label] || 0) + pct;
+    });
 
     const ps = extended?.portfolio_stats;
     let l = 0,
@@ -2722,7 +3062,8 @@ function calculatePortfolioAnalytics() {
     }
 
     // Hedged equity (index futures) treated as large-cap exposure
-    result.marketCap.large += fundHedgedEquity;
+    // result.marketCap.large += fundHedgedEquity;
+    result.marketCap.hedged = (result.marketCap.hedged || 0) + fundHedgedEquity;
     // Global Equity component
     result.marketCap.global += fundGlobalEquity;
 
@@ -2739,6 +3080,16 @@ function calculatePortfolioAnalytics() {
         (result.sector["Unclassified"] || 0) + weight * 100;
     }
 
+    if (ps?.debt_sector_per && Object.keys(ps.debt_sector_per).length > 0) {
+      Object.entries(ps.debt_sector_per).forEach(([sectorName, pct]) => {
+        if (pct == null) return;
+        const cleaned = sectorName.trim();
+        result.debtSector[cleaned] =
+          (result.debtSector[cleaned] || 0) +
+          (parseFloat(pct) / 100) * weight * 100;
+      });
+    }
+
     const amcName = standardizeTitle(
       extended?.amc ?? fund.amc ?? "Unknown AMC",
     );
@@ -2749,46 +3100,57 @@ function calculatePortfolioAnalytics() {
       Array.isArray(fund.holdings) &&
       fund.holdings.length > 0
     ) {
-      let fundHoldingsTotal = 0;
-      fund.holdings.forEach((holding) => {
-        const holdingWeight = parseFloat(holding.corpus_per || 0);
-        fundHoldingsTotal += holdingWeight;
-      });
+      // Only include EQUITY holdings — debt/cash instruments (Reverse Repo,
+      // Net Current Assets, Repo etc.) are already captured in debtDistribution
+      // and would cause the holdings total to exceed the portfolio value.
+      const equityHoldings = fund.holdings.filter(
+        (h) =>
+          (h.nature_name || "").toUpperCase() === "EQUITY" &&
+          parseFloat(h.corpus_per || 0) > 0,
+      );
 
-      fund.holdings.forEach((holding) => {
+      // Sum only equity corpus to compute correct portfolio weights
+      let equityCorpusTotal = equityHoldings.reduce(
+        (sum, h) => sum + parseFloat(h.corpus_per || 0),
+        0,
+      );
+
+      // Fall back to all holdings if no EQUITY nature tag found
+      let holdingsToProcess = equityHoldings;
+      if (equityHoldings.length === 0) {
+        holdingsToProcess = fund.holdings.filter(
+          (h) => parseFloat(h.corpus_per || 0) > 0,
+        );
+        equityCorpusTotal = holdingsToProcess.reduce(
+          (sum, h) => sum + parseFloat(h.corpus_per || 0),
+          0,
+        );
+      }
+
+      // The equity allocation % for this fund (portfolio-wide)
+      const fundEquityPct = fundDomesticEquity + fundGlobalEquity;
+
+      holdingsToProcess.forEach((holding) => {
         const companyName = holding.company_name || "Unknown";
-        const holdingWeight = parseFloat(holding.corpus_per || 0);
+        const holdingCorpus = parseFloat(holding.corpus_per || 0);
+        if (holdingCorpus <= 0) return;
 
-        if (holdingWeight > 0) {
-          const portfolioWeight = (holdingWeight / 100) * weight * 100;
+        // Scale: this holding's share of fund equity × fund's equity portfolio weight
+        const portfolioWeight =
+          equityCorpusTotal > 0
+            ? (holdingCorpus / equityCorpusTotal) * fundEquityPct
+            : (holdingCorpus / 100) * weight * 100;
 
-          if (!result.holdings[companyName]) {
-            result.holdings[companyName] = {
-              percentage: 0,
-              nature: holding.nature_name || "Unknown",
-              sector: holding.sector_name || "Unknown",
-              instrument: holding.instrument_name || "Unknown",
-            };
-          }
-          result.holdings[companyName].percentage += portfolioWeight;
-        }
-      });
-
-      if (fundHoldingsTotal < 100 && fundHoldingsTotal > 0) {
-        const remainingPercentage = 100 - fundHoldingsTotal;
-        const portfolioWeight = (remainingPercentage / 100) * weight * 100;
-
-        const cashDebtKey = "Cash Equivalents";
-        if (!result.holdings[cashDebtKey]) {
-          result.holdings[cashDebtKey] = {
+        if (!result.holdings[companyName]) {
+          result.holdings[companyName] = {
             percentage: 0,
-            nature: "Debt",
-            sector: "Cash",
-            instrument: "Cash Equivalents",
+            nature: holding.nature_name || "Unknown",
+            sector: holding.sector_name || "Unknown",
+            instrument: holding.instrument_name || "Unknown",
           };
         }
-        result.holdings[cashDebtKey].percentage += portfolioWeight;
-      }
+        result.holdings[companyName].percentage += portfolioWeight;
+      });
     }
 
     if (extended?.return_stats) {
@@ -2808,76 +3170,6 @@ function calculatePortfolioAnalytics() {
           (result.weightedReturns.return5y || 0) + parseFloat(r5) * weight;
     }
   });
-
-  // NOW add additional assets to allocation (ONLY ONCE, AT THE END)
-  if (additionalGoldValue > 0) {
-    const goldWeight = (additionalGoldValue / totalWithAdditional) * 100;
-
-    // Store breakdown info
-    if (!result.assetAllocation._breakdown) {
-      result.assetAllocation._breakdown = {};
-    }
-    if (!result.assetAllocation._breakdown.gold) {
-      result.assetAllocation._breakdown.gold = { mf: 0, physical: 0 };
-    }
-
-    // Store MF gold percentage BEFORE adding physical
-    result.assetAllocation._breakdown.gold.mf =
-      result.assetAllocation.gold || 0;
-
-    // Add physical gold
-    result.assetAllocation.gold =
-      (result.assetAllocation.gold || 0) + goldWeight;
-
-    // Store physical gold percentage
-    result.assetAllocation._breakdown.gold.physical = goldWeight;
-  }
-
-  if (additionalSilverValue > 0) {
-    const silverWeight = (additionalSilverValue / totalWithAdditional) * 100;
-
-    // Store breakdown info
-    if (!result.assetAllocation._breakdown) {
-      result.assetAllocation._breakdown = {};
-    }
-    if (!result.assetAllocation._breakdown.silver) {
-      result.assetAllocation._breakdown.silver = { mf: 0, physical: 0 };
-    }
-
-    // Store MF silver percentage BEFORE adding physical
-    result.assetAllocation._breakdown.silver.mf =
-      result.assetAllocation.silver || 0;
-
-    // Add physical silver
-    result.assetAllocation.silver =
-      (result.assetAllocation.silver || 0) + silverWeight;
-
-    // Store physical silver percentage
-    result.assetAllocation._breakdown.silver.physical = silverWeight;
-  }
-
-  if (additionalCashValue > 0) {
-    const cashWeight = (additionalCashValue / totalWithAdditional) * 100;
-
-    // Store breakdown info
-    if (!result.assetAllocation._breakdown) {
-      result.assetAllocation._breakdown = {};
-    }
-    if (!result.assetAllocation._breakdown.cash) {
-      result.assetAllocation._breakdown.cash = { mf: 0, physical: 0 };
-    }
-
-    // Store MF cash percentage BEFORE adding physical
-    result.assetAllocation._breakdown.cash.mf =
-      result.assetAllocation.cash || 0;
-
-    // Add physical cash
-    result.assetAllocation.cash =
-      (result.assetAllocation.cash || 0) + cashWeight;
-
-    // Store physical cash percentage
-    result.assetAllocation._breakdown.cash.physical = cashWeight;
-  }
 
   // Ensure all standard keys are initialised (new granular schema)
   result.assetAllocation["domestic equity"] =
@@ -2899,12 +3191,14 @@ function calculatePortfolioAnalytics() {
     result.marketCap.large +
     result.marketCap.mid +
     result.marketCap.small +
-    result.marketCap.global;
+    result.marketCap.global +
+    (result.marketCap.hedged || 0);
   if (mcSum > 0) {
     result.marketCap.large = (result.marketCap.large / mcSum) * 100;
     result.marketCap.mid = (result.marketCap.mid / mcSum) * 100;
     result.marketCap.small = (result.marketCap.small / mcSum) * 100;
     result.marketCap.global = (result.marketCap.global / mcSum) * 100;
+    result.marketCap.hedged = (result.marketCap.hedged / mcSum) * 100;
   }
 
   const sectorEntries = Object.entries(result.sector).sort(
@@ -2931,10 +3225,11 @@ function calculatePortfolioAnalytics() {
     return out;
   }
 
-  result.assetAllocation = roundMap(result.assetAllocation);
-  result.marketCap = roundMap(result.marketCap);
-  result.sector = roundMap(result.sector);
-  result.amc = roundMap(result.amc);
+  // result.assetAllocation = roundMap(result.assetAllocation);
+  // result.marketCap = roundMap(result.marketCap);
+  // result.sector = roundMap(result.sector);
+  // result.debtSector = roundMap(result.debtSector);
+  // result.amc = roundMap(result.amc);
 
   ["return1y", "return3y", "return5y"].forEach((k) => {
     if (result.weightedReturns[k] != null) {
@@ -3080,20 +3375,23 @@ function displayAssetAllocation(assetAllocation) {
   const [sortedLabels, sortedData] = sortData(labels, data);
 
   setTimeout(() => {
-    const container = document.getElementById("asset-market-cap-split");
+    const container = document.getElementById("assetAllocationCard");
     if (!container) return;
 
     const chartCanvas = document.getElementById("assetAllocationChart");
     if (!chartCanvas) return;
 
     if (sortedLabels.length === 0) {
-      chartCanvas.parentElement.innerHTML =
-        '<div class="fund-composition-chart empty-composition">DATA NOT AVAILABLE</div>';
+      const wrapper = chartCanvas.closest(".chart-wrapper");
+      if (wrapper) {
+        wrapper.innerHTML = `
+          <canvas id="assetAllocationChart"></canvas>
+          <div class="fund-composition-chart empty-composition">DATA NOT AVAILABLE</div>
+        `;
+      }
       container.classList.remove("loading");
       return;
     }
-
-    const additionalAssets = getAdditionalAssets();
 
     // Total value from funds
     let totalValue = Object.values(fundWiseData).reduce(
@@ -3101,55 +3399,30 @@ function displayAssetAllocation(assetAllocation) {
       0,
     );
 
-    // Add manual assets (gold, silver, cash)
-    if (additionalAssets) {
-      totalValue +=
-        additionalAssets.gold.quantity * additionalAssets.gold.rate +
-        additionalAssets.silver.quantity * additionalAssets.silver.rate +
-        additionalAssets.cash;
-    }
-
-    const barHTML = sortedLabels
-      .map((label, i) => {
-        const color = getTbcColor(i);
-        const rupeeValue = (totalValue * sortedData[i]) / 100;
-
-        return `
-          <div class="composition-segment"
-               style="width: ${sortedData[i]}%; background-color: ${color};"
-               title="${label}: ₹${formatNumber(
-                 Math.round(rupeeValue),
-               )} (${sortedData[i].toFixed(2)}%)">
-          </div>`;
-      })
-      .join("");
-
-    const legendHTML = sortedLabels
-      .map((label, i) => {
-        const color = getTbcColor(i);
-
-        return `
-          <span class="legend-item">
-            <span class="legend-color" style="background-color: ${color};"></span>
-            ${label} ${sortedData[i].toFixed(2)}%
-          </span>`;
-      })
-      .join("");
-
-    chartCanvas.parentElement.innerHTML = `
-      <div class="fund-composition-chart">
-        <div class="composition-bar">${barHTML}</div>
-        <div class="composition-legend">${legendHTML}</div>
-      </div>
-    `;
+    buildDoughnutChart(
+      "assetAllocationChart",
+      sortedLabels,
+      sortedData,
+      totalValue,
+    );
 
     container.classList.remove("loading");
   }, 50);
 }
 
-function displayMarketCapSplit(marketCap) {
+function displayMarketCapSplit(marketCap, assetAllocation, totalValue) {
+  const marketCapCard = document.getElementById("marketCapCard");
+  const domesticEquityPct = assetAllocation["domestic equity"] || 0;
+
+  if (domesticEquityPct <= 0) {
+    marketCapCard.classList.add("hidden");
+    return;
+  }
+
+  marketCapCard.classList.remove("hidden");
   const order = [
     { label: "Global Equity", key: "global" },
+    { label: "Hedged Equity", key: "hedged" },
     { label: "Large", key: "large" },
     { label: "Mid", key: "mid" },
     { label: "Small", key: "small" },
@@ -3167,57 +3440,45 @@ function displayMarketCapSplit(marketCap) {
   const [sortedLabels, sortedData] = sortData(labels, data);
 
   setTimeout(() => {
-    const container = document.getElementById("asset-market-cap-split");
+    const container = document.getElementById("marketCapCard");
     if (!container) return;
 
     const chartCanvas = document.getElementById("marketCapChart");
     if (!chartCanvas) return;
 
     if (sortedLabels.length === 0) {
-      chartCanvas.parentElement.innerHTML =
-        '<div class="fund-composition-chart empty-composition">DATA NOT AVAILABLE</div>';
+      const wrapper = chartCanvas.closest(".chart-wrapper");
+      if (wrapper) {
+        wrapper.innerHTML = `
+          <canvas id="marketCapChart"></canvas>
+          <div class="fund-composition-chart empty-composition">DATA NOT AVAILABLE</div>
+        `;
+      }
       container.classList.remove("loading");
       return;
     }
 
-    // Calculate total value for tooltip
-    const totalValue = Object.values(fundWiseData).reduce(
-      (sum, fund) => sum + (fund.advancedMetrics?.currentValue || 0),
-      0,
+    // marketCap values are already within-equity percentages (sum to 100).
+    // Compute equity rupee sub-total from the asset allocation equity share.
+    const equityPct =
+      (assetAllocation["domestic equity"] || 0) +
+      (assetAllocation["global equity"] || 0) +
+      (assetAllocation["hedged equity"] || 0);
+    const equityRupees = totalValue * (equityPct / 100);
+
+    buildDoughnutChart(
+      "marketCapChart",
+      sortedLabels,
+      sortedData,
+      equityRupees,
     );
 
-    const barHTML = sortedLabels
-      .map((label, i) => {
-        const color = getTbcColor(i);
-        const rupeeValue = (totalValue * sortedData[i]) / 100;
-        return `
-          <div class="composition-segment"
-               style="width: ${sortedData[i]}%; background-color: ${color};"
-               title="${label}: ₹${formatNumber(
-                 Math.round(rupeeValue),
-               )} (${sortedData[i].toFixed(2)}%)">
-          </div>`;
-      })
-      .join("");
-
-    const legendHTML = sortedLabels
-      .map((label, i) => {
-        const color = getTbcColor(i);
-        return `
-          <span class="legend-item">
-            <span class="legend-color" style="background-color: ${color};"></span>${label}: ${sortedData[
-              i
-            ].toFixed(2)}%
-          </span>`;
-      })
-      .join("");
-
-    chartCanvas.parentElement.innerHTML = `
-      <div class="fund-composition-chart">
-        <div class="composition-bar">${barHTML}</div>
-        <div class="composition-legend">${legendHTML}</div>
-      </div>
-    `;
+    applyGroupedMarketCapLegend(
+      "marketCapChart",
+      sortedLabels,
+      sortedData,
+      equityRupees,
+    );
 
     setTimeout(() => {
       container.classList.remove("loading");
@@ -3225,23 +3486,231 @@ function displayMarketCapSplit(marketCap) {
   }, 50);
 }
 
-function displaySectorSplit(sectorObj, totalValue) {
+/**
+ * Renders the portfolio-level Debt Distribution bar + legend.
+ * Mirrors displayMarketCapSplit — groups are sorted largest first.
+ * @param {Object} debtDist   { "Government Securities": 4.2, … } (portfolio-weighted %)
+ * @param {number} totalValue portfolio rupee value for tooltip
+ */
+function displayDebtDistribution(debtDist, assetAllocation, totalValue) {
+  const container = document.getElementById("debtDistributionCard");
+  if (!container) return;
+
+  let entries = Object.entries(debtDist)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  const top = entries.slice(0, 7);
+  const rest = entries.slice(7);
+  const othersValue = rest.reduce((sum, [, v]) => sum + v, 0);
+
+  const labels = top.map(([k]) => k);
+  const rawData = top.map(([, v]) => v);
+
+  if (othersValue > 0) {
+    labels.push("Others");
+    rawData.push(othersValue);
+  }
+
+  if (labels.length === 0) {
+    container.classList.add("hidden");
+    return;
+  }
+
+  container.classList.remove("hidden");
+
+  const wrapper = container.querySelector(".chart-wrapper");
+  if (wrapper && !wrapper.querySelector("#debtDistributionChart")) {
+    wrapper.innerHTML = '<canvas id="debtDistributionChart"></canvas>';
+  }
+
+  // Derive debt rupee total from assetAllocation (source of truth)
+  const debtPct = assetAllocation["debt"] || 0;
+  const debtRupees = totalValue * (debtPct / 100);
+
+  // Normalize raw portfolio-wide weights to within-debt percentages
+  const rawSum = rawData.reduce((s, v) => s + v, 0);
+  const normalisedData = rawData.map((v) => (v / rawSum) * 100);
+
+  buildDoughnutChart(
+    "debtDistributionChart",
+    labels,
+    normalisedData,
+    debtRupees,
+  );
+
+  container.classList.remove("loading");
+}
+
+/**
+ * Family-dashboard equivalent of displayDebtDistribution.
+ */
+function displayFamilyDebtDistribution(metrics) {
+  const container = document.getElementById("familyDebtDistributionCard");
+  if (!container) return;
+
+  let entries = Object.entries(metrics.debtDistribution || {})
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  const top = entries.slice(0, 7);
+  const rest = entries.slice(7);
+  const othersValue = rest.reduce((sum, [, v]) => sum + v, 0);
+
+  const labels = top.map(([k]) => k);
+  const rawData = top.map(([, v]) => v);
+
+  if (othersValue > 0) {
+    labels.push("Others");
+    rawData.push(othersValue);
+  }
+
+  if (labels.length === 0) {
+    container.classList.add("hidden");
+    return;
+  }
+
+  container.classList.remove("hidden");
+
+  const wrapper = container.querySelector(".chart-wrapper");
+  if (wrapper && !wrapper.querySelector("#familyDebtDistributionChart")) {
+    wrapper.innerHTML = '<canvas id="familyDebtDistributionChart"></canvas>';
+  }
+
+  // Derive debt rupee total from assetAllocation (source of truth)
+  const debtPct = metrics.assetAllocation?.["debt"] || 0;
+  const debtRupees = metrics.totalCurrentValue * (debtPct / 100);
+
+  // Normalize raw portfolio-wide weights to within-debt percentages
+  const rawSum = rawData.reduce((s, v) => s + v, 0);
+  const normalisedData = rawData.map((v) => (v / rawSum) * 100);
+
+  buildDoughnutChart(
+    "familyDebtDistributionChart",
+    labels,
+    normalisedData,
+    debtRupees,
+  );
+
+  container.classList.remove("loading");
+}
+
+function displayFamilyDebtSectorSplit(metrics) {
+  const card = document.getElementById("familyDebtSectorCard");
+  if (!card) return;
+
+  let entries = Object.entries(metrics.debtSector || {}).sort(
+    (a, b) => b[1] - a[1],
+  );
+  const top = entries.slice(0, 7);
+  const rest = entries.slice(7);
+  const othersValue = rest.reduce((sum, [, v]) => sum + v, 0);
+
+  const filteredTop = top.filter(([, value]) => value >= 1);
+  const labels = filteredTop.map(([name]) => name);
+  const data = filteredTop.map(([, val]) => val);
+
+  const [sortedLabels, sortedData] = sortData(labels, data);
+
+  if (othersValue > 0) {
+    sortedLabels.push("Others");
+    sortedData.push(othersValue);
+  }
+
+  if (
+    entries.filter(([, v]) => v > 0).length === 0 ||
+    sortedData.length === 0
+  ) {
+    card.classList.add("hidden");
+    return;
+  }
+
+  card.classList.remove("hidden");
+
+  // Derive debt rupee total from assetAllocation (source of truth)
+  const debtPct = metrics.assetAllocation?.["debt"] || 0;
+  const debtSectorRupees = metrics.totalCurrentValue * (debtPct / 100);
+
+  // Normalize raw portfolio-wide weights to within-debt percentages
+  const rawSumDS = sortedData.reduce((s, v) => s + v, 0);
+  const normalisedDS = sortedData.map((v) => (v / rawSumDS) * 100);
+  buildDoughnutChart(
+    "familyDebtSectorChart",
+    sortedLabels,
+    normalisedDS,
+    debtSectorRupees,
+  );
+  card.classList.remove("loading");
+}
+
+function displayFamilyHoldingsSplit(metrics) {
+  const holdingsCard = document.getElementById("familyHoldingsCard");
+  if (!holdingsCard) return;
+
+  const domesticEquityPct = metrics.assetAllocation?.["domestic equity"] || 0;
+
+  if (domesticEquityPct <= 0) {
+    holdingsCard.classList.add("hidden");
+    return;
+  }
+
+  holdingsCard.classList.remove("hidden");
+  let entries = Object.entries(metrics.holdings || {})
+    .filter(([company]) => company !== "Cash Equivalents")
+    .map(([company, data]) => [company, data.percentage])
+    .sort((a, b) => b[1] - a[1]);
+
+  const top = entries.slice(0, 15);
+  const rest = entries.slice(15);
+  const othersValue = rest.reduce((sum, [, v]) => sum + v, 0);
+
+  const labels = top.map(([name]) => name);
+  const rawData = top.map(([, val]) => val);
+
+  const [sortedLabels, sortedRaw] = sortData(labels, rawData);
+
+  if (othersValue > 0) {
+    sortedLabels.push("Others");
+    sortedRaw.push(othersValue);
+  }
+
+  // Derive equity rupee total from assetAllocation (source of truth)
+  const equityPct =
+    (metrics.assetAllocation?.["domestic equity"] || 0) +
+    (metrics.assetAllocation?.["global equity"] || 0) +
+    (metrics.assetAllocation?.["hedged equity"] || 0);
+  const equityRupees = metrics.totalCurrentValue * (equityPct / 100);
+
+  // Normalize raw family-wide weights to within-equity percentages
+  const rawSum = sortedRaw.reduce((s, v) => s + v, 0);
+  const normalisedData =
+    rawSum > 0 ? sortedRaw.map((v) => (v / rawSum) * 100) : sortedRaw;
+
+  buildDoughnutChart(
+    "familyHoldingsChart",
+    sortedLabels,
+    normalisedData,
+    equityRupees,
+  );
+  holdingsCard.classList.remove("loading");
+}
+
+function displaySectorSplit(sectorObj, assetAllocation, totalValue) {
   let entries = Object.entries(sectorObj).sort((a, b) => b[1] - a[1]);
-  const top = entries.slice(0, 7); //limit-bar-chart
+  const top = entries.slice(0, 7);
   const rest = entries.slice(7);
   const othersValue = rest.reduce((sum, [, v]) => sum + v, 0);
 
   const filteredTop = top.filter(([, value]) => value >= 1);
 
   const labels = filteredTop.map(([name]) => name);
-  const data = filteredTop.map(([, val]) => val);
+  const rawData = filteredTop.map(([, val]) => val);
 
-  const [sortedLabels, sortedData] = sortData(labels, data);
+  const [sortedLabels, sortedRaw] = sortData(labels, rawData);
 
-  // Append Others at the end after sorting so it's always last
   if (othersValue > 0) {
     sortedLabels.push("Others");
-    sortedData.push(othersValue);
+    sortedRaw.push(othersValue);
   }
 
   const sectorCard = document.getElementById("sectorCard");
@@ -3252,14 +3721,70 @@ function displaySectorSplit(sectorObj, totalValue) {
     nonZeroEntries.length === 1 &&
     nonZeroEntries[0][0].toLowerCase() === "unclassified";
 
-  if (onlyUnclassified || sortedData.length === 0) {
+  if (onlyUnclassified || sortedRaw.length === 0) {
     sectorCard.classList.add("hidden");
     return;
   }
 
   sectorCard.classList.remove("hidden");
-  buildTextBarChart("sectorChart", sortedLabels, sortedData);
+
+  // Derive equity rupee total from assetAllocation (source of truth)
+  const equityPct =
+    (assetAllocation["domestic equity"] || 0) +
+    (assetAllocation["global equity"] || 0) +
+    (assetAllocation["hedged equity"] || 0);
+  const equityRupees = totalValue * (equityPct / 100);
+
+  // Normalize raw portfolio-wide weights to within-equity percentages
+  const rawSum = sortedRaw.reduce((s, v) => s + v, 0);
+  const normalisedData = sortedRaw.map((v) => (v / rawSum) * 100);
+
+  buildDoughnutChart("sectorChart", sortedLabels, normalisedData, equityRupees);
   sectorCard.classList.remove("loading");
+}
+
+function displayDebtSectorSplit(debtSectorObj, assetAllocation, totalValue) {
+  const card = document.getElementById("debtSectorCard");
+  if (!card) return;
+
+  let entries = Object.entries(debtSectorObj).sort((a, b) => b[1] - a[1]);
+  const top = entries.slice(0, 7);
+  const rest = entries.slice(7);
+  const othersValue = rest.reduce((sum, [, v]) => sum + v, 0);
+
+  const filteredTop = top.filter(([, value]) => value >= 1);
+  const labels = filteredTop.map(([name]) => name);
+  const rawData = filteredTop.map(([, val]) => val);
+
+  const [sortedLabels, sortedRaw] = sortData(labels, rawData);
+
+  if (othersValue > 0) {
+    sortedLabels.push("Others");
+    sortedRaw.push(othersValue);
+  }
+
+  if (entries.filter(([, v]) => v > 0).length === 0 || sortedRaw.length === 0) {
+    card.classList.add("hidden");
+    return;
+  }
+
+  card.classList.remove("hidden");
+
+  // Derive debt rupee total from assetAllocation (source of truth)
+  const debtPct = assetAllocation["debt"] || 0;
+  const debtRupees = totalValue * (debtPct / 100);
+
+  // Normalize raw portfolio-wide weights to within-debt percentages
+  const rawSum = sortedRaw.reduce((s, v) => s + v, 0);
+  const normalisedData = sortedRaw.map((v) => (v / rawSum) * 100);
+
+  buildDoughnutChart(
+    "debtSectorChart",
+    sortedLabels,
+    normalisedData,
+    debtRupees,
+  );
+  card.classList.remove("loading");
 }
 
 function displayAMCSplit(amcObj, totalValue) {
@@ -3287,65 +3812,160 @@ function displayAMCSplit(amcObj, totalValue) {
     sortedData.push(othersValue);
   }
 
-  buildTextBarChart("amcChart", sortedLabels, sortedData);
+  buildDoughnutChart("amcChart", sortedLabels, sortedData, totalValue);
   document.getElementById("amcCard")?.classList.remove("loading");
 }
-function displayHoldingsSplit(holdingsObj, totalValue) {
+function displayHoldingsSplit(holdingsObj, assetAllocation, totalValue) {
+  const holdingsCard = document.getElementById("holdingsCard");
+  if (!holdingsCard) return;
+
+  const domesticEquityPct = assetAllocation["domestic equity"] || 0;
+
+  if (domesticEquityPct <= 0) {
+    holdingsCard.classList.add("hidden");
+    return;
+  }
+
+  holdingsCard.classList.remove("hidden");
   let entries = Object.entries(holdingsObj)
     .filter(([company]) => company !== "Cash Equivalents")
     .map(([company, data]) => [company, data.percentage])
     .sort((a, b) => b[1] - a[1]);
 
-  const top = entries.slice(0, 7); //limit-bar-chart
-  const rest = entries.slice(7);
+  const top = entries.slice(0, 15);
+  const rest = entries.slice(15);
   const othersValue = rest.reduce((sum, [, v]) => sum + v, 0);
 
   const labels = top.map(([name]) => name);
-  const data = top.map(([, val]) => val);
+  const rawData = top.map(([, val]) => val);
 
-  const [sortedLabels, sortedData] = sortData(labels, data);
+  const [sortedLabels, sortedRaw] = sortData(labels, rawData);
 
-  // Append Others at the end after sorting so it's always last
   if (othersValue > 0) {
     sortedLabels.push("Others");
-    sortedData.push(othersValue);
+    sortedRaw.push(othersValue);
   }
 
-  buildTextBarChart("holdingsChart", sortedLabels, sortedData);
+  // Derive equity rupee total from assetAllocation (source of truth)
+  const equityPct =
+    (assetAllocation["domestic equity"] || 0) +
+    (assetAllocation["global equity"] || 0) +
+    (assetAllocation["hedged equity"] || 0);
+  const equityRupees = totalValue * (equityPct / 100);
+
+  // Normalize raw portfolio-wide weights to within-equity percentages
+  const rawSum = sortedRaw.reduce((s, v) => s + v, 0);
+  const normalisedData =
+    rawSum > 0 ? sortedRaw.map((v) => (v / rawSum) * 100) : sortedRaw;
+
+  buildDoughnutChart(
+    "holdingsChart",
+    sortedLabels,
+    normalisedData,
+    equityRupees,
+  );
   document.getElementById("holdingsCard")?.classList.remove("loading");
 }
-function displayWeightedReturns(wr) {
-  const container = document.getElementById("weightedReturnsContainer");
+
+function displayWeightedReturns(wr, containerId = "weightedReturnsContainer") {
+  const benchmarks = getPortfolioBenchmarks();
+  const alpha = calculatePortfolioAlpha(wr, benchmarks);
+  const container = document.getElementById(containerId);
   if (!container) {
-    console.warn("weightedReturnsContainer not found");
+    console.warn(`${containerId} not found`);
     return;
   }
   container.innerHTML = "";
-
-  const cards = [
-    { key: "return1y", title: "1Y Weighted Return" },
-    { key: "return3y", title: "3Y Weighted Return" },
-    { key: "return5y", title: "5Y Weighted Return" },
+  const periods = [
+    {
+      label: "1Y",
+      portfolioVal: wr.return1y,
+      n50Val: benchmarks.nifty50.return1y,
+      n500Val: benchmarks.nifty500.return1y,
+      alphaN50: alpha.vsNifty50.alpha1y,
+      alphaN500: alpha.vsNifty500.alpha1y,
+    },
+    {
+      label: "3Y",
+      portfolioVal: wr.return3y,
+      n50Val: benchmarks.nifty50.return3y,
+      n500Val: benchmarks.nifty500.return3y,
+      alphaN50: alpha.vsNifty50.alpha3y,
+      alphaN500: alpha.vsNifty500.alpha3y,
+    },
+    {
+      label: "5Y",
+      portfolioVal: wr.return5y,
+      n50Val: benchmarks.nifty50.return5y,
+      n500Val: benchmarks.nifty500.return5y,
+      alphaN50: alpha.vsNifty50.alpha5y,
+      alphaN500: alpha.vsNifty500.alpha5y,
+    },
   ];
-
-  cards.forEach((c) => {
-    const val = wr[c.key];
+  const fmt = (v) => (v == null || isNaN(v) ? null : v);
+  const fmtDisplay = (v) => (v == null ? "--" : `${parseFloat(v).toFixed(2)}%`);
+  const fmtAlpha = (v) => {
+    if (v == null) return null;
+    const sign = v >= 0 ? "+" : "";
+    return `${sign}${parseFloat(v).toFixed(2)}%`;
+  };
+  const allVals = periods.flatMap((p) =>
+    [p.portfolioVal, p.n50Val, p.n500Val]
+      .map(fmt)
+      .filter((v) => v != null && v > 0),
+  );
+  const maxVal = allVals.length ? Math.max(...allVals) : 100;
+  const barPct = (v) => {
+    const n = fmt(v);
+    if (n == null || maxVal === 0) return 0;
+    return Math.max(0, Math.min(100, (n / maxVal) * 90));
+  };
+  const rows = [
+    {
+      name: "Portfolio",
+      color: "var(--wr-portfolio-color)",
+      valKey: "portfolioVal",
+    },
+    { name: "Nifty 50", color: "var(--wr-n50-color)", valKey: "n50Val" },
+    { name: "Nifty 500", color: "var(--wr-n500-color)", valKey: "n500Val" },
+  ];
+  periods.forEach((p, i) => {
+    const isLast = i === periods.length - 1;
+    const portfolioFmt = fmtDisplay(fmt(p.portfolioVal));
+    const portfolioCls =
+      p.portfolioVal == null
+        ? ""
+        : p.portfolioVal >= 0
+          ? "positive"
+          : "negative";
+    const barsHtml = rows
+      .map((r) => {
+        const v = fmt(p[r.valKey]);
+        const pct = barPct(p[r.valKey]);
+        return ` <div class="wr-bar-row"> <span class="wr-bar-label">${r.name}</span> <div class="wr-bar-track"> <div class="wr-bar-fill" style="width:${pct}%; background:${r.color};"> </div> </div> <span class="wr-bar-pct" style="color:${r.color};"> ${fmtDisplay(v)} </span> </div> `;
+      })
+      .join("");
+    const alphaN50Str = fmtAlpha(p.alphaN50);
+    const alphaN500Str = fmtAlpha(p.alphaN500);
+    const alphaPill = (val, str) => {
+      if (str == null) {
+        return `<span class="wr-alpha-pill wr-alpha-na">N/A</span>`;
+      }
+      const cls = val >= 0 ? "wr-alpha-pos" : "wr-alpha-neg";
+      const arrow = val >= 0 ? "▲" : "▼";
+      return ` <span class="wr-alpha-pill ${cls}"> ${arrow} ${str} </span> `;
+    };
     const card = document.createElement("div");
-    card.className = "return-card";
-
-    const display = val === null || isNaN(val) ? "--" : `${val}%`;
-    const cls = val === null ? "" : val >= 0 ? "positive" : "negative";
-
-    card.innerHTML = `
-      <h4>${c.title}</h4>
-      <div class="return-value ${cls}">${display}</div>
-    `;
-
+    card.className = "wr-period-card" + (isLast ? " wr-period-card--last" : "");
+    card.innerHTML = ` <div class="wr-period-header"> <span class="wr-period-label"> ${p.label} Weighted Return </span> <span class="return-value ${portfolioCls} wr-portfolio-val"> ${portfolioFmt} </span> </div> <div class="wr-bars"> ${barsHtml} </div> <div class="wr-divider"></div> <div class="wr-alpha-rows"> <div class="wr-alpha-row"> <span class="wr-alpha-label">vs Nifty 50</span> ${alphaPill(p.alphaN50, alphaN50Str)} </div> <div class="wr-alpha-row"> <span class="wr-alpha-label">vs Nifty 500</span> ${alphaPill(p.alphaN500, alphaN500Str)} </div> </div> `;
     container.appendChild(card);
   });
+  const legend = document.createElement("div");
+  legend.className = "wr-legend";
+  legend.innerHTML = ` <span class="wr-legend-item"> <span class="wr-legend-dot" style="background:var(--wr-portfolio-color);"> </span> Portfolio </span> <span class="wr-legend-item"> <span class="wr-legend-dot" style="background:var(--wr-n50-color);"> </span> Nifty 50 </span> <span class="wr-legend-item"> <span class="wr-legend-dot" style="background:var(--wr-n500-color);"> </span> Nifty 500 </span> <span class="wr-legend-sep"></span> <span class="wr-legend-item"> <span class="wr-alpha-pill wr-alpha-pos" style="font-size:11px;"> ▲ +X% </span> &nbsp;Outperformance (alpha) </span> `;
+  container.appendChild(legend);
 }
 
-// DISPLAY FUNCTIONS - CAPITAL GAINS
 function displayCapitalGains() {
   const container = document.getElementById("capitalGainsContent");
   if (!container) return;
@@ -5579,7 +6199,7 @@ function renderProjectionChart(
     projectionChartInstance.destroy();
   }
 
-  const colors = getChartColors();
+  const colors = getChartTheme();
   const ctx = canvas.getContext("2d");
 
   // Get current portfolio value
@@ -5871,21 +6491,8 @@ function updateProjections() {
 
 // SUMMARY CARDS
 function updateSummaryCards(summary) {
-  // Get additional assets
-  const assets = getAdditionalAssets();
-  const hasAdditionalAssets =
-    assets &&
-    (assets.gold.quantity * assets.gold.rate > 0 ||
-      assets.silver.quantity * assets.silver.rate > 0 ||
-      assets.cash > 0);
+  const combinedValue = summary.currentValue;
 
-  const goldValue = assets ? assets.gold.quantity * assets.gold.rate : 0;
-  const silverValue = assets ? assets.silver.quantity * assets.silver.rate : 0;
-  const cashValue = assets ? assets.cash : 0;
-  const totalAdditional = goldValue + silverValue + cashValue;
-  const combinedValue = summary.currentValue + totalAdditional;
-
-  // Dynamically update first card based on additional assets
   // summaryCardsContainer is absent on mobile (compact dashboard has no #main .summary-cards)
   const summaryCardsContainer = document.querySelector("#main .summary-cards");
   const firstCard = summaryCardsContainer?.querySelector(".card:first-child");
@@ -5895,35 +6502,22 @@ function updateSummaryCards(summary) {
     return;
   }
 
-  if (hasAdditionalAssets) {
-    // Show Total Portfolio card
-    firstCard.innerHTML = `
-      <h3>Total Portfolio Value</h3>
-      <div class="value">₹${formatNumber(combinedValue)}</div>
-      <div class="subtext" id="currentValueSubtext">MF: ₹${formatNumber(
-        summary.currentValue,
-      )} + Additional: ₹${formatNumber(totalAdditional)}</div>
-    `;
-  } else {
-    // Show Current Value card
-    firstCard.innerHTML = `
+  // Show Current Value card
+  firstCard.innerHTML = `
       <h3>Current Value</h3>
       <div class="value">₹<span id="currentValue">${formatNumber(
         summary.currentValue,
       )}</span></div>
       <div class="subtext" id="currentValueSubtext"></div>
     `;
-  }
 
   // Update all other cards (existing code)
   document.getElementById("totalInvested").textContent = formatNumber(
     summary.totalInvested,
   );
-  if (!hasAdditionalAssets) {
-    document.getElementById("currentValue").textContent = formatNumber(
-      summary.currentValue,
-    );
-  }
+  document.getElementById("currentValue").textContent = formatNumber(
+    summary.currentValue,
+  );
   document.getElementById("costBasis").textContent = formatNumber(
     summary.costPrice,
   );
@@ -7392,18 +7986,37 @@ function showFundDetailsModal(
           </div>
           <div class="fund-composition-cols">
             <div class="fund-composition-col">
-              <div class="fund-composition-col-label">Asset Alloc.</div>
+              <div class="fund-composition-col-label">Asset Allocation</div>
               <div class="fund-composition-col-body">
-                <canvas id="modalAssetAllocationChart" style="display:none"></canvas>
-                <div id="modalAssetAllocationBar"></div>
+                <div id="modalAssetAllocationBar" class="donut-chart-wrap"><canvas id="modalAssetAllocationChart"></canvas></div>
               </div>
             </div>
             <div class="fund-composition-col-divider"></div>
             <div class="fund-composition-col">
-              <div class="fund-composition-col-label">Market Cap</div>
+              <div class="fund-composition-col-label">Equity Split</div>
               <div class="fund-composition-col-body">
-                <canvas id="modalMarketCapChart" style="display:none"></canvas>
-                <div id="modalMarketCapBar"></div>
+                <div id="modalMarketCapBar" class="donut-chart-wrap"><canvas id="modalMarketCapChart"></canvas></div>
+              </div>
+            </div>
+            <div class="fund-composition-col-divider" id="modalDebtColDivider" style="display:none"></div>
+            <div class="fund-composition-col" id="modalDebtCol" style="display:none">
+              <div class="fund-composition-col-label">Debt Split</div>
+              <div class="fund-composition-col-body">
+                <div id="modalDebtBar" class="donut-chart-wrap"><canvas id="modalDebtChart"></canvas></div>
+              </div>
+            </div>
+            <div class="fund-composition-col-divider" id="modalEquitySectorColDivider" style="display:none"></div>
+            <div class="fund-composition-col" id="modalEquitySectorCol" style="display:none">
+              <div class="fund-composition-col-label">Equity Sectors</div>
+              <div class="fund-composition-col-body">
+                <div id="modalEquitySectorBar" class="donut-chart-wrap"><canvas id="modalEquitySectorChart"></canvas></div>
+              </div>
+            </div>
+            <div class="fund-composition-col-divider" id="modalDebtSectorColDivider" style="display:none"></div>
+            <div class="fund-composition-col" id="modalDebtSectorCol" style="display:none">
+              <div class="fund-composition-col-label">Debt Sectors</div>
+              <div class="fund-composition-col-body">
+                <div id="modalDebtSectorBar" class="donut-chart-wrap"><canvas id="modalDebtSectorChart"></canvas></div>
               </div>
             </div>
           </div>
@@ -7712,7 +8325,7 @@ function showFundDetailsModal(
   setTimeout(() => {
     renderModalFundValuationChart(fundKey, "3M");
     if (extendedData) {
-      renderModalCompositionCharts(fundKey, extendedData);
+      renderModalCompositionCharts(fundKey, extendedData, current);
     }
   }, 50);
 
@@ -8041,7 +8654,7 @@ function renderModalFundValuationChart(fundKey, initialPeriod = "ALL") {
   const canvas = document.getElementById("modalFundValuationChart");
   if (!canvas) return;
 
-  const colors = getChartColors();
+  const colors = getChartTheme();
   const ctx = canvas.getContext("2d");
 
   const allData = dailyValuation;
@@ -8186,7 +8799,7 @@ function renderModalFundPerformanceChart(
   const ctx = document.getElementById("modalFundPerformanceChart");
   if (!ctx) return;
 
-  const colors = getChartColors();
+  const colors = getChartTheme();
   const labels = ["1Y", "3Y", "5Y"];
   const safeRound = (val) =>
     typeof val === "number" && !isNaN(val) ? Math.round(val * 100) / 100 : null;
@@ -8335,25 +8948,32 @@ function filterValuationChart(period, fundKey) {
   chartInstance.update("none");
 }
 
-function renderModalCompositionCharts(fundKey, extendedData) {
+function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
   const ps = extendedData?.portfolio_stats;
   if (!ps) return;
 
-  // ============ ASSET ALLOCATION CHART ============
+  // Resolve asset-class buckets once — used by multiple charts below.
+  // resolveAssetAllocation returns fund-level percentages (sum ≈ 100).
+  const resolvedBuckets = resolveAssetAllocation(
+    ps.asset_allocation || {},
+    extendedData?.holdings,
+    1,
+  );
+
+  // Derive per-class rupee sub-totals from currentValue (mirrors dashboard logic)
+  const equityPct =
+    (resolvedBuckets["domestic equity"] || 0) +
+    (resolvedBuckets["global equity"] || 0) +
+    (resolvedBuckets["hedged equity"] || 0);
+  const debtPct = resolvedBuckets["debt"] || 0;
+
+  const equityRupees = currentValue * (equityPct / 100);
+  const debtRupees = currentValue * (debtPct / 100);
+
+  // ============ ASSET ALLOCATION CHART (Doughnut) ============
   const assetBarEl = document.getElementById("modalAssetAllocationBar");
   if (assetBarEl) {
-    const rawAsset = ps.asset_allocation || {};
-
-    // Accumulate per-asset-class buckets using getAssetClass on holdings
-    const buckets = {};
-    Object.entries(rawAsset).forEach(([key, value]) => {
-      const val = parseFloat(value);
-      if (isNaN(val) || val <= 0) return;
-      const splits = splitAssetKeyByHoldings(key, val, extendedData?.holdings);
-      Object.entries(splits).forEach(([label, pct]) => {
-        buckets[label] = (buckets[label] || 0) + pct;
-      });
-    });
+    const buckets = resolvedBuckets;
 
     const preferredOrder = [
       "domestic equity",
@@ -8368,6 +8988,14 @@ function renderModalCompositionCharts(fundKey, extendedData) {
     ];
     const toLabel = (k) => k.replace(/\b\w/g, (c) => c.toUpperCase());
 
+    // Use the raw API sum (including any negative buckets like cash: -0.7)
+    // as the denominator so positive segments display at their true API %.
+    const allBucketsTotal = Object.values(buckets).reduce(
+      (sum, v) => sum + v,
+      0,
+    );
+    const displayTotal = allBucketsTotal > 0 ? allBucketsTotal : 100;
+
     const segments = [];
     preferredOrder.forEach((k) => {
       if ((buckets[k] || 0) > 0)
@@ -8378,54 +9006,27 @@ function renderModalCompositionCharts(fundKey, extendedData) {
         segments.push({ label: toLabel(k), value: buckets[k] });
       }
     });
-    // Sort largest first
     segments.sort((a, b) => b.value - a.value);
 
     if (segments.length > 0) {
-      const total = segments.reduce((sum, s) => sum + s.value, 0);
       const normalized = segments.map((s) => ({
         ...s,
-        value: (s.value / total) * 100,
+        value: (s.value / displayTotal) * 100,
       }));
-
-      // Apply theme-based colors
-      const barHTML = normalized
-        .map((s, i) => {
-          const color = getTbcColor(i);
-          return `
-            <div class="composition-segment"
-                 style="width: ${s.value}%; background-color: ${color};"
-                 title="${s.label}: ${s.value.toFixed(2)}%">
-            </div>
-          `;
-        })
-        .join("");
-
-      const legendHTML = normalized
-        .map((s, i) => {
-          const color = getTbcColor(i);
-          return `
-            <span class="legend-item">
-              <span class="legend-color" style="background-color: ${color};"></span>
-              ${s.label}: ${s.value.toFixed(2)}%
-            </span>
-          `;
-        })
-        .join("");
-
-      assetBarEl.innerHTML = `
-        <div class="fund-composition-bar-wrap">
-          <div class="composition-bar">${barHTML}</div>
-          <div class="composition-legend">${legendHTML}</div>
-        </div>
-      `;
+      buildDoughnutChart(
+        "modalAssetAllocationChart",
+        normalized.map((s) => s.label),
+        normalized.map((s) => s.value),
+        currentValue,
+      );
     } else {
       assetBarEl.innerHTML =
         '<div class="fund-composition-chart empty-composition">DATA NOT AVAILABLE</div>';
     }
   }
 
-  // ============ MARKET CAP CHART ============
+  // ============ MARKET CAP / EQUITY SPLIT CHART (Doughnut) ============
+  // totalValue = equityRupees (mirrors dashboard displayMarketCapSplit)
   const mcapBarEl = document.getElementById("modalMarketCapBar");
   if (mcapBarEl) {
     let large = 0,
@@ -8446,25 +9047,15 @@ function renderModalCompositionCharts(fundKey, extendedData) {
       small = parseFloat(ps.market_cap_per.small || 0);
     }
 
-    // Domestic / Foreign / Hedged equity portions of this fund's allocation
-    let domesticEquity = 0;
-    let globalEquity = 0;
-    let hedgedEquity = 0;
-    const rawAssetMC = ps.asset_allocation || {};
-    Object.entries(rawAssetMC).forEach(([key, value]) => {
-      const val = parseFloat(value);
-      if (isNaN(val) || val <= 0) return;
-      const splits = splitAssetKeyByHoldings(key, val, extendedData?.holdings);
-      domesticEquity += splits["domestic equity"] || 0;
-      globalEquity += splits["global equity"] || 0;
-      hedgedEquity += splits["hedged equity"] || 0;
-    });
+    const domesticEquity = resolvedBuckets["domestic equity"] || 0;
+    const globalEquity = resolvedBuckets["global equity"] || 0;
+    const hedgedEquity = resolvedBuckets["hedged equity"] || 0;
 
-    // l/mid/small are % of this fund's domestic equity — scale to % of fund
     const capTotal = large + mid + small;
     let largeFund = 0,
       midFund = 0,
       smallFund = 0;
+
     if (capTotal > 0 && domesticEquity > 0) {
       largeFund = (large / capTotal) * domesticEquity;
       midFund = (mid / capTotal) * domesticEquity;
@@ -8473,55 +9064,162 @@ function renderModalCompositionCharts(fundKey, extendedData) {
       largeFund = domesticEquity;
     }
 
-    // Hedged equity (index futures) treated as large-cap exposure
-    largeFund += hedgedEquity;
-    const globalFund = globalEquity;
+    const total = largeFund + midFund + smallFund + hedgedEquity + globalEquity;
 
-    const total = largeFund + midFund + smallFund + globalFund;
     if (total > 0) {
       const segments = [
-        { label: "Global Equity", value: (globalFund / total) * 100 },
         { label: "Large", value: (largeFund / total) * 100 },
         { label: "Mid", value: (midFund / total) * 100 },
         { label: "Small", value: (smallFund / total) * 100 },
+        { label: "Hedged Equity", value: (hedgedEquity / total) * 100 },
+        { label: "Global Equity", value: (globalEquity / total) * 100 },
       ].filter((s) => s.value > 0);
 
-      // Sort largest first
       segments.sort((a, b) => b.value - a.value);
 
-      const barHTML = segments
-        .map((s, i) => {
-          const color = getTbcColor(i);
-          return `
-            <div class="composition-segment"
-                 style="width: ${s.value}%; background-color: ${color};"
-                 title="${s.label}: ${s.value.toFixed(2)}%">
-            </div>
-          `;
-        })
-        .join("");
+      const mcapLabels = segments.map((s) => s.label);
+      const mcapData = segments.map((s) => s.value);
 
-      const legendHTML = segments
-        .map((s, i) => {
-          const color = getTbcColor(i);
-          return `
-            <span class="legend-item">
-              <span class="legend-color" style="background-color: ${color};"></span>
-              ${s.label}: ${s.value.toFixed(2)}%
-            </span>
-          `;
-        })
-        .join("");
+      buildDoughnutChart(
+        "modalMarketCapChart",
+        mcapLabels,
+        mcapData,
+        equityRupees,
+      );
 
-      mcapBarEl.innerHTML = `
-        <div class="fund-composition-bar-wrap">
-          <div class="composition-bar">${barHTML}</div>
-          <div class="composition-legend">${legendHTML}</div>
-        </div>
-      `;
+      // Apply the same grouped legend (Domestic / Other) as the Dashboard
+      const mcapLabelsEl = mcapBarEl.querySelector(".donut-labels");
+      if (mcapLabelsEl) {
+        const mcapColors = mcapLabels.map((_, i) => getTbcColor(i));
+        renderMarketCapGroupedLegend(
+          mcapLabelsEl,
+          mcapLabels,
+          mcapData,
+          equityRupees,
+          mcapColors,
+        );
+      }
     } else {
       mcapBarEl.innerHTML =
         '<div class="fund-composition-chart empty-composition">DATA NOT AVAILABLE</div>';
+    }
+  }
+
+  // ============ DEBT DISTRIBUTION CHART (Doughnut) ============
+  // totalValue = debtRupees (mirrors dashboard displayDebtDistribution)
+  const debtCol = document.getElementById("modalDebtCol");
+  const debtColDivider = document.getElementById("modalDebtColDivider");
+  if (debtCol && debtColDivider) {
+    const debtBuckets = resolveDebtDistribution(extendedData?.holdings, 1);
+    const debtEntries = Object.entries(debtBuckets)
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1]);
+
+    if (debtEntries.length > 0) {
+      debtCol.style.display = "";
+      debtColDivider.style.display = "";
+
+      const debtTotal = debtEntries.reduce((sum, [, v]) => sum + v, 0);
+      buildDoughnutChart(
+        "modalDebtChart",
+        debtEntries.map(([label]) => label),
+        debtEntries.map(([, val]) => (val / debtTotal) * 100),
+        debtRupees,
+      );
+    } else {
+      debtCol.style.display = "none";
+      debtColDivider.style.display = "none";
+    }
+  }
+
+  // ============ EQUITY SECTOR SPLIT CHART (Doughnut) ============
+  // totalValue = equityRupees (mirrors dashboard displaySectorSplit)
+  const equitySectorCol = document.getElementById("modalEquitySectorCol");
+  const equitySectorColDivider = document.getElementById(
+    "modalEquitySectorColDivider",
+  );
+
+  if (equitySectorCol && equitySectorColDivider) {
+    const equitySectorPer = ps?.equity_sector_per;
+    const domesticEquityPct = parseFloat(ps?.asset_allocation?.equity ?? 0);
+    const hedgedEquityPct = parseFloat(
+      ps?.asset_allocation?.["Hedged Equity"] ?? 0,
+    );
+    const totalEquityPct = domesticEquityPct + hedgedEquityPct;
+
+    const equitySectorEntries =
+      equitySectorPer && totalEquityPct > 0
+        ? Object.entries(equitySectorPer)
+            .filter(([, v]) => v != null && parseFloat(v) > 0)
+            .map(([label, v]) => [
+              label.trim(),
+              (parseFloat(v) / 100) * totalEquityPct,
+            ])
+            .sort((a, b) => b[1] - a[1])
+        : [];
+
+    if (equitySectorEntries.length > 0) {
+      equitySectorCol.style.display = "";
+      equitySectorColDivider.style.display = "";
+
+      const equitySectorTotal = equitySectorEntries.reduce(
+        (sum, [, v]) => sum + v,
+        0,
+      );
+
+      buildDoughnutChart(
+        "modalEquitySectorChart",
+        equitySectorEntries.map(([label]) => label),
+        equitySectorEntries.map(([, val]) => (val / equitySectorTotal) * 100),
+        equityRupees,
+      );
+    } else {
+      equitySectorCol.style.display = "none";
+      equitySectorColDivider.style.display = "none";
+    }
+  }
+
+  // ============ DEBT SECTOR SPLIT CHART (Doughnut) ============
+  // totalValue = debtRupees (mirrors dashboard displayDebtSectorSplit)
+  const debtSectorCol = document.getElementById("modalDebtSectorCol");
+  const debtSectorColDivider = document.getElementById(
+    "modalDebtSectorColDivider",
+  );
+  if (debtSectorCol && debtSectorColDivider) {
+    const debtSectorPer = ps?.debt_sector_per;
+    const debtAllocPct = parseFloat(
+      ps?.asset_allocation?.debt ?? ps?.asset_allocation?.Debt ?? 0,
+    );
+
+    const debtSectorEntries =
+      debtSectorPer && debtAllocPct > 0
+        ? Object.entries(debtSectorPer)
+            .filter(([, v]) => v != null && parseFloat(v) > 0)
+            .map(([label, v]) => [
+              label.trim(),
+              (parseFloat(v) / 100) * debtAllocPct,
+            ])
+            .sort((a, b) => b[1] - a[1])
+        : [];
+
+    if (debtSectorEntries.length > 0) {
+      debtSectorCol.style.display = "";
+      debtSectorColDivider.style.display = "";
+
+      const debtSectorTotal = debtSectorEntries.reduce(
+        (sum, [, v]) => sum + v,
+        0,
+      );
+
+      buildDoughnutChart(
+        "modalDebtSectorChart",
+        debtSectorEntries.map(([label]) => label),
+        debtSectorEntries.map(([, val]) => (val / debtSectorTotal) * 100),
+        debtRupees,
+      );
+    } else {
+      debtSectorCol.style.display = "none";
+      debtSectorColDivider.style.display = "none";
     }
   }
 }
@@ -8557,7 +9255,7 @@ function showAllPortfolioHoldings() {
   modal.innerHTML = `
     <div class="transaction-modal">
       <div class="modal-header">
-        <h2>Portfolio Holdings (Top ${top200.length}${
+        <h2>Top Equity Holdings (Top ${top200.length}${
           rest.length > 0 ? " + Others" : ""
         })</h2>
         <button class="modal-close" onclick="closePortfolioHoldingsModal()">✕</button>
@@ -8591,6 +9289,127 @@ function closePortfolioHoldingsModal() {
   const modal = document.getElementById("portfolioHoldingsModal");
   if (modal) modal.remove();
   unlockBodyScroll();
+}
+function showAllFamilyHoldings() {
+  if (!familyDashboardCache || !familyDashboardCache.holdings) {
+    alert("No holdings data available.");
+    return;
+  }
+  const holdingsObj = familyDashboardCache.holdings;
+
+  if (Object.keys(holdingsObj).length === 0) {
+    alert("No holdings data available.");
+    return;
+  }
+
+  lockBodyScroll();
+
+  const modal = document.createElement("div");
+  modal.className = "transaction-modal-overlay";
+  modal.id = "familyHoldingsModal";
+
+  // Sort and limit to 200 items
+  let entries = Object.entries(holdingsObj).sort(
+    (a, b) => b[1].percentage - a[1].percentage,
+  );
+  const top200 = entries.slice(0, 200);
+  const rest = entries.slice(200);
+
+  let othersPercentage = 0;
+  if (rest.length > 0) {
+    othersPercentage = rest.reduce((sum, [, data]) => sum + data.percentage, 0);
+  }
+
+  modal.innerHTML = `
+    <div class="transaction-modal">
+      <div class="modal-header">
+        <h2>Family Top Equity Holdings (Top ${top200.length}${
+          rest.length > 0 ? " + Others" : ""
+        })</h2>
+        <button class="modal-close" onclick="closeFamilyHoldingsModal()">✕</button>
+      </div>
+      <div class="modal-content" id="familyHoldingsContent"></div>
+      <div class="modal-footer">
+        <button onclick="downloadFamilyHoldings()">Download as Excel</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  if (window.innerWidth <= 1024) {
+    initializeModalSwipe(modal);
+  }
+  window.history.pushState(
+    { modal: "familyHoldings" },
+    "",
+    window.location.pathname,
+  );
+
+  const content = document.getElementById("familyHoldingsContent");
+  content.appendChild(createHoldingsTable(top200, othersPercentage));
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeFamilyHoldingsModal();
+  });
+}
+
+function closeFamilyHoldingsModal() {
+  const modal = document.getElementById("familyHoldingsModal");
+  if (modal) modal.remove();
+  unlockBodyScroll();
+}
+
+function downloadFamilyHoldings() {
+  if (!familyDashboardCache || !familyDashboardCache.holdings) {
+    showToast("No holdings data available.", "warning");
+    return;
+  }
+  const holdingsObj = familyDashboardCache.holdings;
+
+  const allEntries = Object.entries(holdingsObj).sort(
+    (a, b) => b[1].percentage - a[1].percentage,
+  );
+
+  const mainHoldings = allEntries.filter(
+    ([company, info]) => info.percentage >= 0.01,
+  );
+  const smallHoldings = allEntries.filter(
+    ([company, info]) => info.percentage < 0.01,
+  );
+
+  const data = mainHoldings.map(([company, info]) => ({
+    "Company Name": company,
+    "% of Family Portfolio": parseFloat(info.percentage.toFixed(2)),
+    Nature: info.nature,
+    Sector: info.sector,
+  }));
+
+  // Add "Others" row if there are small holdings
+  if (smallHoldings.length > 0) {
+    const othersTotal = smallHoldings.reduce(
+      (sum, [, info]) => sum + info.percentage,
+      0,
+    );
+    data.push({
+      "Company Name": "Others (< 0.01% each)",
+      "% of Family Portfolio": parseFloat(othersTotal.toFixed(2)),
+      Nature: "Mixed",
+      Sector: "Mixed",
+    });
+  }
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws["!cols"] = [{ wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 20 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Family Top Equity Holdings");
+
+  const filename = `family_portfolio_holdings_${
+    new Date().toISOString().split("T")[0]
+  }.xlsx`;
+  XLSX.writeFile(wb, filename);
+
+  showToast("Family holdings downloaded successfully!", "success");
 }
 function showFundHoldings(fundKey) {
   const fund = fundWiseData[fundKey];
@@ -8816,7 +9635,7 @@ function downloadPortfolioHoldings() {
   ws["!cols"] = [{ wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 20 }];
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Portfolio Holdings");
+  XLSX.utils.book_append_sheet(wb, ws, "Top Equity Holdings");
 
   const filename = `portfolio_holdings_${
     new Date().toISOString().split("T")[0]
@@ -9518,11 +10337,62 @@ function initializeCharts() {
 
   updateChart();
 }
+function showChartLoadingState(canvas) {
+  if (chart) {
+    chart.destroy();
+    chart = null;
+  }
+  const container = canvas.parentNode;
+  if (!container) return;
+  container.style.position = container.style.position || "relative";
+
+  let overlay = container.querySelector(".chart-loading-overlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.className = "chart-loading-overlay";
+    overlay.style.cssText =
+      "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;";
+    overlay.innerHTML =
+      '<div class="chart-spinner"></div><span style="font-size:13px;opacity:0.7;">Calculating portfolio growth…</span>';
+    container.appendChild(overlay);
+  }
+  overlay.style.display = "flex";
+  canvas.style.visibility = "hidden";
+}
+
+function hideChartLoadingState(canvas) {
+  const container = canvas.parentNode;
+  const overlay =
+    container && container.querySelector(".chart-loading-overlay");
+  if (overlay) overlay.style.display = "none";
+  canvas.style.visibility = "visible";
+}
+
 function updateChart() {
   const canvas = document.getElementById("portfolioChart");
   if (!canvas) return;
 
-  // Don't show spinner here - it's already managed by initializeCharts
+  // The Growth tab depends on window.portfolioValuationHistory, which is
+  // computed asynchronously (in chunks, via requestIdleCallback) after CAS
+  // upload and can take a couple of seconds for larger portfolios. If the
+  // user opens the Charts tab before that finishes, getChartData() silently
+  // falls back to a different data shape (no `.costs`), which previously
+  // fell through into the bar-chart branch below and rendered something
+  // that looks just like the Investment chart. Show a loading state instead
+  // and bail out — the pending calculation already triggers a follow-up
+  // updateChart() call once portfolioValuationHistory is populated.
+  if (
+    currentTab === "growth" &&
+    !(
+      window.portfolioValuationHistory &&
+      window.portfolioValuationHistory.length > 0
+    )
+  ) {
+    showChartLoadingState(canvas);
+    return;
+  }
+  hideChartLoadingState(canvas);
+
   const data = getChartData();
 
   if (chart) {
@@ -9565,7 +10435,7 @@ function updateChart() {
       data.costs.push(lastCost);
     }
 
-    const colors = getChartColors();
+    const colors = getChartTheme();
 
     chart = new Chart(ctx, {
       type: "line",
@@ -9804,7 +10674,7 @@ function updateChart() {
         datalabels: {
           anchor: "end",
           align: "end",
-          color: getChartColors().textColor,
+          color: getChartTheme().textColor,
           font: { weight: "bold", size: 10 },
           padding: { top: 6, bottom: 0 },
           display: function (context) {
@@ -9824,8 +10694,8 @@ function updateChart() {
         },
         tooltip: {
           enabled: true,
-          backgroundColor: getChartColors().tooltipBg,
-          borderColor: getChartColors().tooltipBorder,
+          backgroundColor: getChartTheme().tooltipBg,
+          borderColor: getChartTheme().tooltipBorder,
           borderWidth: 2,
           titleColor: "#fff",
           bodyColor: "#fff",
@@ -9849,7 +10719,7 @@ function updateChart() {
             maxTicksLimit: 15,
             maxRotation: 0,
             minRotation: 0,
-            color: getChartColors().textColor,
+            color: getChartTheme().textColor,
           },
           grid: { drawTicks: false, drawBorder: false, display: false },
         },
@@ -10309,7 +11179,7 @@ function renderFundValuationChart(fundKey, canvasId) {
   const containerId = `fundChartContainer_${fundKey.replace(/\s+/g, "_")}`;
   const container = document.getElementById(containerId);
 
-  const colors = getChartColors();
+  const colors = getChartTheme();
   const ctx = canvas.getContext("2d");
 
   const allData = dailyValuation;
@@ -10443,7 +11313,7 @@ function renderFundPerformanceChart(canvasId, extendedData) {
   const containerId = `fundPerfChartContainer_${fundKey}`;
   const container = document.getElementById(containerId);
 
-  const colors = getChartColors();
+  const colors = getChartTheme();
   const labels = ["1Y", "3Y", "5Y"];
   const safeRound = (val) =>
     typeof val === "number" && !isNaN(val) ? Math.round(val * 100) / 100 : null;
@@ -10604,29 +11474,10 @@ function updateCompactDashboard() {
     return;
   }
 
-  // Calculate additional assets
-  const assets = getAdditionalAssets();
-  const hasAdditionalAssets =
-    assets &&
-    (assets.gold.quantity * assets.gold.rate > 0 ||
-      assets.silver.quantity * assets.silver.rate > 0 ||
-      assets.cash > 0);
-
-  const goldValue = assets ? assets.gold.quantity * assets.gold.rate : 0;
-  const silverValue = assets ? assets.silver.quantity * assets.silver.rate : 0;
-  const cashValue = assets ? assets.cash : 0;
-  const totalAdditional = goldValue + silverValue + cashValue;
   const mfValue = summary.currentValue;
-  const combinedValue = mfValue + totalAdditional;
 
   elements.compactHoldingsCount.textContent = activeFunds.length;
-
-  // Update total value display based on whether additional assets exist
-  if (hasAdditionalAssets) {
-    elements.compactTotalValue.textContent = formatNumber(combinedValue);
-  } else {
-    elements.compactTotalValue.textContent = formatNumber(summary.currentValue);
-  }
+  elements.compactTotalValue.textContent = formatNumber(mfValue);
 
   elements.compactInvested.textContent = "₹" + formatNumber(summary.costPrice);
   elements.compactXIRR.textContent =
@@ -10665,7 +11516,7 @@ function updateCompactDashboard() {
     "stat-value " + (oneDayReturns.value >= 0 ? "positive" : "negative");
 
   // Update the compact header subtitle to show breakdown
-  updateCompactHeaderSubtitle(hasAdditionalAssets, mfValue, totalAdditional);
+  updateCompactHeaderSubtitle(mfValue);
 
   populateCompactHoldings(activeFunds);
 }
@@ -10818,11 +11669,7 @@ function updateCompactPastDashboard() {
     populateCompactPastHoldings(pastFundsWithMetrics, pastList);
   }
 }
-function updateCompactHeaderSubtitle(
-  hasAdditionalAssets,
-  mfValue,
-  totalAdditional,
-) {
+function updateCompactHeaderSubtitle(mfValue) {
   // Find or create subtitle element in compact dashboard
   const compactHeader = document.querySelector(
     "#compactDashboard .compact-header",
@@ -10832,24 +11679,11 @@ function updateCompactHeaderSubtitle(
   // Remove existing subtitle if present
   let subtitle = compactHeader.querySelector(".compact-subtitle");
 
-  if (hasAdditionalAssets) {
-    if (!subtitle) {
-      subtitle = document.createElement("p");
-      subtitle.className = "compact-subtitle";
-      subtitle.style.cssText =
-        "font-size: 11px; color: var(--text-tertiary); margin-top: 5px;";
-      compactHeader.appendChild(subtitle);
-    }
-    subtitle.textContent = `MF: ₹${formatNumber(
-      mfValue,
-    )} + Additional: ₹${formatNumber(totalAdditional)}`;
-  } else {
-    // Remove subtitle if no additional assets
-    if (subtitle) {
-      subtitle.remove();
-    }
+  if (subtitle) {
+    subtitle.remove();
   }
 }
+
 function populateCompactHoldings(funds) {
   const list = document.getElementById("compactHoldingsList");
   if (!list) return;
@@ -11421,8 +12255,11 @@ function calculateFamilyMetrics(allUserData) {
     combinedFundData: {},
     assetAllocation: {},
     marketCap: { global: 0, large: 0, mid: 0, small: 0 },
+    debtDistribution: {},
     sector: {},
+    debtSector: {},
     amc: {},
+    holdings: {},
     weightedReturns: { return1y: null, return3y: null, return5y: null },
   };
 
@@ -11719,21 +12556,19 @@ function calculateFamilyMetrics(allUserData) {
       let fundHedgedEquity = 0;
 
       if (fundAsset) {
-        Object.entries(fundAsset).forEach(([k, v]) => {
-          if (v == null || isNaN(parseFloat(v)) || parseFloat(v) <= 0) return;
-          const allocPct = (parseFloat(v) / 100) * weight * 100;
-          const splits = splitAssetKeyByHoldings(
-            k,
-            allocPct,
-            extendedData?.holdings,
-          );
-          Object.entries(splits).forEach(([label, pct]) => {
-            metrics.assetAllocation[label] =
-              (metrics.assetAllocation[label] || 0) + pct;
-            if (label === "domestic equity") fundDomesticEquity += pct;
-            else if (label === "global equity") fundGlobalEquity += pct;
-            else if (label === "hedged equity") fundHedgedEquity += pct;
-          });
+        // Use resolveAssetAllocation: equity split via nature_name=EQUITY +
+        // instrument_name; commodities split via instrument_name gold/silver.
+        const splits = resolveAssetAllocation(
+          fundAsset,
+          extendedData?.holdings,
+          weight,
+        );
+        Object.entries(splits).forEach(([label, pct]) => {
+          metrics.assetAllocation[label] =
+            (metrics.assetAllocation[label] || 0) + pct;
+          if (label === "domestic equity") fundDomesticEquity += pct;
+          else if (label === "global equity") fundGlobalEquity += pct;
+          else if (label === "hedged equity") fundHedgedEquity += pct;
         });
       } else {
         const category = (extendedData.category || "").toLowerCase();
@@ -11749,6 +12584,16 @@ function calculateFamilyMetrics(allUserData) {
             (metrics.assetAllocation["other"] || 0) + weight * 100;
         }
       }
+
+      // ── DEBT DISTRIBUTION: group DEBT holdings by instrument_name ──────────
+      const debtSplits = resolveDebtDistribution(
+        extendedData?.holdings,
+        weight,
+      );
+      Object.entries(debtSplits).forEach(([label, pct]) => {
+        metrics.debtDistribution[label] =
+          (metrics.debtDistribution[label] || 0) + pct;
+      });
 
       const ps = extendedData.portfolio_stats;
       let l = 0,
@@ -11790,8 +12635,10 @@ function calculateFamilyMetrics(allUserData) {
         }
       }
 
-      // Hedged equity (index futures) treated as large-cap exposure
-      metrics.marketCap.large += fundHedgedEquity;
+      // Hedged Equity component
+      metrics.marketCap.hedged =
+        (metrics.marketCap.hedged || 0) + fundHedgedEquity;
+
       // Global Equity component
       metrics.marketCap.global += fundGlobalEquity;
 
@@ -11811,8 +12658,76 @@ function calculateFamilyMetrics(allUserData) {
           (metrics.sector["Unclassified"] || 0) + weight * 100;
       }
 
+      if (ps?.debt_sector_per && Object.keys(ps.debt_sector_per).length > 0) {
+        Object.entries(ps.debt_sector_per).forEach(([sectorName, pct]) => {
+          if (pct == null) return;
+          const cleaned = sectorName.trim();
+          metrics.debtSector[cleaned] =
+            (metrics.debtSector[cleaned] || 0) +
+            (parseFloat(pct) / 100) * weight * 100;
+        });
+      }
+
       const amcName = standardizeTitle(extendedData.amc || "Unknown AMC");
       metrics.amc[amcName] = (metrics.amc[amcName] || 0) + weight * 100;
+
+      if (
+        fund.holdings &&
+        Array.isArray(fund.holdings) &&
+        fund.holdings.length > 0
+      ) {
+        // Only include EQUITY holdings — debt/cash instruments (Reverse Repo,
+        // Net Current Assets, Repo etc.) are already captured in debtDistribution
+        // and would cause the holdings total to exceed the portfolio value.
+        const equityHoldings = fund.holdings.filter(
+          (h) =>
+            (h.nature_name || "").toUpperCase() === "EQUITY" &&
+            parseFloat(h.corpus_per || 0) > 0,
+        );
+
+        // Sum only equity corpus to compute correct portfolio weights
+        let equityCorpusTotal = equityHoldings.reduce(
+          (sum, h) => sum + parseFloat(h.corpus_per || 0),
+          0,
+        );
+
+        // Fall back to all holdings if no EQUITY nature tag found
+        let holdingsToProcess = equityHoldings;
+        if (equityHoldings.length === 0) {
+          holdingsToProcess = fund.holdings.filter(
+            (h) => parseFloat(h.corpus_per || 0) > 0,
+          );
+          equityCorpusTotal = holdingsToProcess.reduce(
+            (sum, h) => sum + parseFloat(h.corpus_per || 0),
+            0,
+          );
+        }
+
+        // The equity allocation % for this fund (family-wide)
+        const fundEquityPct = fundDomesticEquity + fundGlobalEquity;
+
+        holdingsToProcess.forEach((holding) => {
+          const companyName = holding.company_name || "Unknown";
+          const holdingCorpus = parseFloat(holding.corpus_per || 0);
+          if (holdingCorpus <= 0) return;
+
+          // Scale: this holding's share of fund equity × fund's equity portfolio weight
+          const portfolioWeight =
+            equityCorpusTotal > 0
+              ? (holdingCorpus / equityCorpusTotal) * fundEquityPct
+              : (holdingCorpus / 100) * weight * 100;
+
+          if (!metrics.holdings[companyName]) {
+            metrics.holdings[companyName] = {
+              percentage: 0,
+              nature: holding.nature_name || "Unknown",
+              sector: holding.sector_name || "Unknown",
+              instrument: holding.instrument_name || "Unknown",
+            };
+          }
+          metrics.holdings[companyName].percentage += portfolioWeight;
+        });
+      }
 
       if (extendedData.return_stats) {
         const rs = extendedData.return_stats;
@@ -11833,92 +12748,6 @@ function calculateFamilyMetrics(allUserData) {
     }
   });
 
-  // After processing all funds, add additional assets for all family members
-  Object.keys(allUserData).forEach((userName) => {
-    const additionalAssets = getAdditionalAssets(userName);
-    if (additionalAssets) {
-      const additionalGoldValue =
-        additionalAssets.gold.quantity * additionalAssets.gold.rate;
-      const additionalSilverValue =
-        additionalAssets.silver.quantity * additionalAssets.silver.rate;
-      const additionalCashValue = additionalAssets.cash;
-
-      const additionalTotal =
-        additionalGoldValue + additionalSilverValue + additionalCashValue;
-
-      if (additionalTotal > 0) {
-        // Update total value to include additional assets
-        const userTotalMF = metrics.userBreakdown[userName]?.currentValue || 0;
-        const userNewTotal = userTotalMF + additionalTotal;
-
-        // Recalculate total with additional assets
-        const oldTotal = metrics.totalCurrentValue;
-        const newTotal = oldTotal + additionalTotal;
-
-        // Update metrics totals
-        metrics.totalCurrentValue = newTotal;
-
-        // Add additional assets to allocation with breakdown
-        if (!metrics.assetAllocation._breakdown) {
-          metrics.assetAllocation._breakdown = {};
-        }
-
-        if (additionalGoldValue > 0) {
-          const goldWeight = (additionalGoldValue / newTotal) * 100;
-
-          if (!metrics.assetAllocation._breakdown.gold) {
-            metrics.assetAllocation._breakdown.gold = { mf: 0, physical: 0 };
-          }
-          metrics.assetAllocation._breakdown.gold.mf =
-            metrics.assetAllocation.gold || 0;
-          metrics.assetAllocation.gold =
-            (metrics.assetAllocation.gold || 0) + goldWeight;
-          metrics.assetAllocation._breakdown.gold.physical =
-            (metrics.assetAllocation._breakdown.gold.physical || 0) +
-            goldWeight;
-        }
-
-        if (additionalSilverValue > 0) {
-          const silverWeight = (additionalSilverValue / newTotal) * 100;
-
-          if (!metrics.assetAllocation._breakdown.silver) {
-            metrics.assetAllocation._breakdown.silver = { mf: 0, physical: 0 };
-          }
-          metrics.assetAllocation._breakdown.silver.mf =
-            metrics.assetAllocation.silver || 0;
-          metrics.assetAllocation.silver =
-            (metrics.assetAllocation.silver || 0) + silverWeight;
-          metrics.assetAllocation._breakdown.silver.physical =
-            (metrics.assetAllocation._breakdown.silver.physical || 0) +
-            silverWeight;
-        }
-
-        if (additionalCashValue > 0) {
-          const cashWeight = (additionalCashValue / newTotal) * 100;
-
-          if (!metrics.assetAllocation._breakdown.cash) {
-            metrics.assetAllocation._breakdown.cash = { mf: 0, physical: 0 };
-          }
-          metrics.assetAllocation._breakdown.cash.mf =
-            metrics.assetAllocation.cash || 0;
-          metrics.assetAllocation.cash =
-            (metrics.assetAllocation.cash || 0) + cashWeight;
-          metrics.assetAllocation._breakdown.cash.physical =
-            (metrics.assetAllocation._breakdown.cash.physical || 0) +
-            cashWeight;
-        }
-
-        // Update user breakdown to include additional assets
-        if (metrics.userBreakdown[userName]) {
-          metrics.userBreakdown[userName].currentValue = userNewTotal;
-          metrics.userBreakdown[userName].unrealizedGain =
-            userNewTotal - metrics.userBreakdown[userName].cost;
-        }
-      }
-    }
-  });
-
-  // Normalize all percentages after adding additional assets
   const totalAssetPercent = Object.entries(metrics.assetAllocation)
     .filter(([key]) => key !== "_breakdown")
     .reduce((sum, [, val]) => sum + val, 0);
@@ -11945,12 +12774,14 @@ function calculateFamilyMetrics(allUserData) {
     metrics.marketCap.large +
     metrics.marketCap.mid +
     metrics.marketCap.small +
-    metrics.marketCap.global;
+    metrics.marketCap.global +
+    (metrics.marketCap.hedged || 0);
   if (mcSum > 0) {
     metrics.marketCap.large = (metrics.marketCap.large / mcSum) * 100;
     metrics.marketCap.mid = (metrics.marketCap.mid / mcSum) * 100;
     metrics.marketCap.small = (metrics.marketCap.small / mcSum) * 100;
     metrics.marketCap.global = (metrics.marketCap.global / mcSum) * 100;
+    metrics.marketCap.hedged = ((metrics.marketCap.hedged || 0) / mcSum) * 100;
   }
 
   const sectorEntries = Object.entries(metrics.sector).sort(
@@ -11987,28 +12818,20 @@ function calculateFamilyMetrics(allUserData) {
     }
   });
 
+  Object.keys(metrics.holdings).forEach((company) => {
+    metrics.holdings[company].percentage =
+      Math.round(
+        (metrics.holdings[company].percentage + Number.EPSILON) * 1000000,
+      ) / 1000000;
+  });
+
   return metrics;
 }
 
 function displayFamilySummaryCards(metrics) {
   const container = document.getElementById("familySummaryCards");
   if (!container) return;
-  // Calculate additional assets for all family members
-  const users = storageManager.getAllUsers();
-  let totalAdditionalAssets = 0;
-
-  users.forEach((userName) => {
-    const assets = getAdditionalAssets(userName);
-    if (assets) {
-      const goldValue = assets.gold.quantity * assets.gold.rate;
-      const silverValue = assets.silver.quantity * assets.silver.rate;
-      const cashValue = assets.cash;
-      totalAdditionalAssets += goldValue + silverValue + cashValue;
-    }
-  });
-
-  const hasAdditionalAssets = totalAdditionalAssets > 0;
-  const combinedFamilyValue = metrics.totalCurrentValue + totalAdditionalAssets;
+  const combinedFamilyValue = metrics.totalCurrentValue;
 
   const unrealizedGainPercent =
     metrics.totalCost > 0
@@ -12025,46 +12848,7 @@ function displayFamilySummaryCards(metrics) {
     ? `<span class="one-day-subtext ${odClass}">${odTriangle} 1D: ₹${formatNumber(Math.abs(Math.round(od.rupees)))} (${odSign}${Math.abs(od.percent).toFixed(2)}%)</span>`
     : `<span class="one-day-subtext" style="color:var(--text-tertiary)">Combined Portfolio Value</span>`;
 
-  if (hasAdditionalAssets) {
-    // Show Total Family Value card
-    container.innerHTML = `
-      <div class="card">
-        <h3>Total Family Value</h3>
-        <div class="value">₹${formatNumber(combinedFamilyValue)}</div>
-        <div class="subtext">${odSubtextHTML}</div>
-      </div>
-      <div class="card">
-        <h3>MF Current Value</h3>
-        <div class="value">₹${formatNumber(metrics.totalCurrentValue)}</div>
-        <div class="subtext">Combined MF Holdings</div>
-      </div>
-      <div class="card">
-        <h3>Total Cost</h3>
-        <div class="value">₹${formatNumber(metrics.totalCost)}</div>
-        <div class="subtext">Combined Investment</div>
-      </div>
-      <div class="card ${
-        metrics.totalUnrealizedGain >= 0 ? "positive" : "negative"
-      }">
-        <h3>Total P&L</h3>
-        <div class="value">${
-          metrics.totalUnrealizedGain >= 0 ? "₹" : "-₹"
-        }${formatNumber(Math.abs(metrics.totalUnrealizedGain))}</div>
-        <div class="subtext">Absolute: ${
-          metrics.totalUnrealizedGain >= 0 ? "+" : ""
-        }${unrealizedGainPercent}%</div>
-      </div>
-      <div class="card">
-        <h3>Total Unique Holdings</h3>
-        <div class="value">${metrics.totalHoldings}</div>
-        <div class="subtext">Across ${
-          Object.keys(metrics.userBreakdown).length
-        } Family Members</div>
-      </div>
-    `;
-  } else {
-    // Show MF Current Value card (no Total Family Value)
-    container.innerHTML = `
+  container.innerHTML = `
       <div class="card">
         <h3>Total Family Value</h3>
         <div class="value">₹${formatNumber(metrics.totalCurrentValue)}</div>
@@ -12094,30 +12878,26 @@ function displayFamilySummaryCards(metrics) {
         } Family Members</div>
       </div>
     `;
-  }
 }
 function displayFamilyAnalytics(metrics) {
   window.familyDashboardCache = metrics;
 
-  if (familySectorChart) {
-    familySectorChart = null;
+  // If a prior "DATA NOT AVAILABLE" render blanked the AMC wrapper, restore
+  // the canvas so buildDoughnutChart has something to render into.
+  const familyAmcCard = document.getElementById("familyAmcCard");
+  if (familyAmcCard) {
+    const amcWrapper = familyAmcCard.querySelector(".chart-wrapper");
+    if (amcWrapper && !amcWrapper.querySelector("#familyAmcChart")) {
+      amcWrapper.innerHTML =
+        '<div class="chart-loading"><div class="chart-spinner"></div></div><canvas id="familyAmcChart"></canvas>';
+    }
   }
-
-  if (familyAmcChart) {
-    familyAmcChart = null;
-  }
-
-  // Clear text bar chart containers
-  const el1 = document.getElementById("familySectorChart");
-  if (el1) el1.innerHTML = "";
-  else return;
-  const el2 = document.getElementById("familyAmcChart");
-  if (el2) el2.innerHTML = "";
-  else return;
 
   setTimeout(() => {
     displayFamilyAssetAllocation(metrics);
     displayFamilyMarketCapSplit(metrics);
+    displayFamilyDebtDistribution(metrics);
+    displayFamilyDebtSectorSplit(metrics);
   }, 200);
 
   const nonZeroEntries = Object.entries(metrics.sector).filter(
@@ -12145,7 +12925,22 @@ function displayFamilyAnalytics(metrics) {
       sortedLabels.push("Others");
       sortedData.push(sectorOthers);
     }
-    buildTextBarChart("familySectorChart", sortedLabels, sortedData);
+    // Derive equity rupee total from assetAllocation (source of truth)
+    const equityPctFam =
+      (metrics.assetAllocation?.["domestic equity"] || 0) +
+      (metrics.assetAllocation?.["global equity"] || 0) +
+      (metrics.assetAllocation?.["hedged equity"] || 0);
+    const sectorRupees = metrics.totalCurrentValue * (equityPctFam / 100);
+
+    // Normalize raw portfolio-wide weights to within-equity percentages
+    const rawSumSec = sortedData.reduce((s, v) => s + v, 0);
+    const normalisedSec = sortedData.map((v) => (v / rawSumSec) * 100);
+    buildDoughnutChart(
+      "familySectorChart",
+      sortedLabels,
+      normalisedSec,
+      sectorRupees,
+    );
     sectorCard.classList.remove("loading");
   }
 
@@ -12172,39 +12967,28 @@ function displayFamilyAnalytics(metrics) {
       sortedLabels.push("Others");
       sortedData.push(amcOthers);
     }
-    buildTextBarChart("familyAmcChart", sortedLabels, sortedData);
+    buildDoughnutChart(
+      "familyAmcChart",
+      sortedLabels,
+      sortedData,
+      metrics.totalCurrentValue,
+    );
     document.getElementById("familyAmcCard")?.classList.remove("loading");
   } else {
-    document.getElementById("familyAmcCard").innerHTML =
-      '<p style="text-align: center; color: #9ca3af; padding: 20px;">DATA NOT AVAILABLE</p>';
+    const amcCard = document.getElementById("familyAmcCard");
+    const amcWrapper = amcCard?.querySelector(".chart-wrapper");
+    if (amcWrapper) {
+      amcWrapper.innerHTML =
+        '<p style="text-align: center; color: #9ca3af; padding: 20px;">DATA NOT AVAILABLE</p>';
+    }
   }
 
-  const returnsContainer = document.getElementById(
+  displayFamilyHoldingsSplit(metrics);
+
+  displayWeightedReturns(
+    metrics.weightedReturns,
     "familyWeightedReturnsContainer",
   );
-  returnsContainer.innerHTML = "";
-
-  const returnCards = [
-    { key: "return1y", title: "1Y Weighted Return" },
-    { key: "return3y", title: "3Y Weighted Return" },
-    { key: "return5y", title: "5Y Weighted Return" },
-  ];
-
-  returnCards.forEach((c) => {
-    const val = metrics.weightedReturns[c.key];
-    const card = document.createElement("div");
-    card.className = "return-card";
-
-    const display = val === null || isNaN(val) ? "--" : `${val}%`;
-    const cls = val === null ? "" : val >= 0 ? "positive" : "negative";
-
-    card.innerHTML = `
-      <h4>${c.title}</h4>
-      <div class="return-value ${cls}">${display}</div>
-    `;
-
-    returnsContainer.appendChild(card);
-  });
 }
 
 function displayFamilyAssetAllocation(metrics) {
@@ -12246,72 +13030,42 @@ function displayFamilyAssetAllocation(metrics) {
     }
   });
 
-  const container = document.getElementById("family-asset-market-cap-split");
   const assetCard = document.getElementById("familyAssetAllocationCard");
-  if (!container || !assetCard) return;
+  if (!assetCard) return;
 
-  container.classList.remove("loading");
+  assetCard.classList.remove("loading");
+
+  const wrapper = assetCard.querySelector(".chart-wrapper");
 
   if (assetData.length === 0) {
-    assetCard.querySelector(".chart-wrapper").innerHTML =
-      '<p style="text-align: center; color: #9ca3af; padding: 20px;">DATA NOT AVAILABLE</p>';
+    if (wrapper)
+      wrapper.innerHTML =
+        '<p style="text-align: center; color: #9ca3af; padding: 20px;">DATA NOT AVAILABLE</p>';
     return;
+  }
+
+  if (wrapper && !wrapper.querySelector("#familyAssetAllocationChart")) {
+    wrapper.innerHTML = '<canvas id="familyAssetAllocationChart"></canvas>';
   }
 
   const [sortedLabels, sortedData] = sortData(assetLabels, assetData);
 
-  // Calculate total value INCLUDING additional assets
+  // Calculate total value
   const users = storageManager.getAllUsers();
   let totalValue = metrics.totalCurrentValue || 0;
 
-  users.forEach((user) => {
-    const assets = getAdditionalAssets(user);
-    if (assets) {
-      totalValue +=
-        assets.gold.quantity * assets.gold.rate +
-        assets.silver.quantity * assets.silver.rate +
-        assets.cash;
-    }
-  });
-
-  const barHTML = sortedLabels
-    .map((label, i) => {
-      const color = getTbcColor(i);
-      const rupeeValue = (totalValue * sortedData[i]) / 100;
-
-      return `
-        <div class="composition-segment"
-             style="width: ${sortedData[i]}%; background-color: ${color};"
-             title="${label}: ₹${formatNumber(
-               Math.round(rupeeValue),
-             )} (${sortedData[i].toFixed(2)}%)">
-        </div>`;
-    })
-    .join("");
-
-  const legendHTML = sortedLabels
-    .map((label, i) => {
-      const color = getTbcColor(i);
-      return `
-        <span class="legend-item">
-          <span class="legend-color" style="background-color: ${color};"></span>
-          ${label} ${sortedData[i].toFixed(2)}%
-        </span>`;
-    })
-    .join("");
-
-  const wrapper = assetCard.querySelector(".chart-wrapper");
-  wrapper.innerHTML = `
-    <div class="fund-composition-chart">
-      <div class="composition-bar">${barHTML}</div>
-      <div class="composition-legend">${legendHTML}</div>
-    </div>
-  `;
+  buildDoughnutChart(
+    "familyAssetAllocationChart",
+    sortedLabels,
+    sortedData,
+    totalValue,
+  );
 }
 
 function displayFamilyMarketCapSplit(metrics) {
   const order = [
     { label: "Global Equity", key: "global" },
+    { label: "Hedged Equity", key: "hedged" },
     { label: "Large", key: "large" },
     { label: "Mid", key: "mid" },
     { label: "Small", key: "small" },
@@ -12327,55 +13081,56 @@ function displayFamilyMarketCapSplit(metrics) {
     }
   });
 
-  const container = document.getElementById("family-asset-market-cap-split");
   const mcCard = document.getElementById("familyMarketCapCard");
-  if (!container || !mcCard) return;
+  if (!mcCard) return;
 
-  container.classList.remove("loading");
+  const domesticEquityPct = metrics.assetAllocation?.["domestic equity"] || 0;
+
+  if (domesticEquityPct <= 0) {
+    mcCard.classList.add("hidden");
+    return;
+  }
+
+  mcCard.classList.remove("hidden");
+
+  mcCard.classList.remove("loading");
+
+  const wrapper = mcCard.querySelector(".chart-wrapper");
 
   if (mcData.length === 0) {
-    mcCard.querySelector(".chart-wrapper").innerHTML =
-      '<p style="text-align: center; color: #9ca3af; padding: 20px;">DATA NOT AVAILABLE</p>';
+    if (wrapper)
+      wrapper.innerHTML =
+        '<p style="text-align: center; color: #9ca3af; padding: 20px;">DATA NOT AVAILABLE</p>';
     return;
+  }
+
+  if (wrapper && !wrapper.querySelector("#familyMarketCapChart")) {
+    wrapper.innerHTML = '<canvas id="familyMarketCapChart"></canvas>';
   }
 
   const [sortedLabels, sortedData] = sortData(mcLabels, mcData);
 
-  // Calculate total value for tooltip
-  const totalValue = metrics.totalCurrentValue;
+  // marketCap values already sum to 100 (within-equity %).
+  // Derive the equity rupee sub-total from the family asset allocation.
+  const equityPct =
+    (metrics.assetAllocation?.["domestic equity"] || 0) +
+    (metrics.assetAllocation?.["global equity"] || 0) +
+    (metrics.assetAllocation?.["hedged equity"] || 0);
+  const equityRupees = metrics.totalCurrentValue * (equityPct / 100);
 
-  const barHTML = sortedLabels
-    .map((label, i) => {
-      const color = getTbcColor(i);
-      const rupeeValue = (totalValue * sortedData[i]) / 100;
-      return `
-      <div class="composition-segment"
-           style="width: ${sortedData[i]}%; background-color: ${color};"
-           title="${label}: ₹${formatNumber(
-             Math.round(rupeeValue),
-           )} (${sortedData[i].toFixed(2)}%)">
-      </div>`;
-    })
-    .join("");
+  buildDoughnutChart(
+    "familyMarketCapChart",
+    sortedLabels,
+    sortedData,
+    equityRupees,
+  );
 
-  const legendHTML = sortedLabels
-    .map((label, i) => {
-      const color = getTbcColor(i);
-      return `
-      <span class="legend-item">
-        <span class="legend-color" style="background-color: ${color};"></span>
-        ${label}: ${sortedData[i].toFixed(2)}%
-      </span>`;
-    })
-    .join("");
-
-  const wrapper = mcCard.querySelector(".chart-wrapper");
-  wrapper.innerHTML = `
-    <div class="fund-composition-chart">
-      <div class="composition-bar">${barHTML}</div>
-      <div class="composition-legend">${legendHTML}</div>
-    </div>
-  `;
+  applyGroupedMarketCapLegend(
+    "familyMarketCapChart",
+    sortedLabels,
+    sortedData,
+    equityRupees,
+  );
 }
 
 function displayFamilyUserBreakdown(userBreakdown) {
@@ -12447,36 +13202,14 @@ function updateCompactFamilyDashboard(metrics) {
   const container = document.getElementById("compactFamilyDashboard");
   if (!container) return;
 
-  // Calculate additional assets for all family members
-  const users = storageManager.getAllUsers();
-  let totalAdditionalAssets = 0;
-
-  users.forEach((userName) => {
-    const assets = getAdditionalAssets(userName);
-    if (assets) {
-      const goldValue = assets.gold.quantity * assets.gold.rate;
-      const silverValue = assets.silver.quantity * assets.silver.rate;
-      const cashValue = assets.cash;
-      totalAdditionalAssets += goldValue + silverValue + cashValue;
-    }
-  });
-
-  const hasAdditionalAssets = totalAdditionalAssets > 0;
-  const combinedFamilyValue = metrics.totalCurrentValue + totalAdditionalAssets;
+  const combinedFamilyValue = metrics.totalCurrentValue;
 
   const unrealizedGainPercent =
     metrics.totalCost > 0
       ? ((metrics.totalUnrealizedGain / metrics.totalCost) * 100).toFixed(2)
       : 0;
 
-  const displayValue = hasAdditionalAssets
-    ? combinedFamilyValue
-    : metrics.totalCurrentValue;
-  const subtitle = hasAdditionalAssets
-    ? `MF: ₹${formatNumber(
-        metrics.totalCurrentValue,
-      )} + Additional: ₹${formatNumber(totalAdditionalAssets)}`
-    : `Combined Portfolio Value`;
+  const displayValue = metrics.totalCurrentValue;
 
   container.innerHTML = `
     <div class="compact-summary-card">
@@ -12485,11 +13218,6 @@ function updateCompactFamilyDashboard(metrics) {
           Object.keys(metrics.userBreakdown).length
         }</span> MEMBERS)</h3>
         <h2 class="compact-total-value">₹${formatNumber(displayValue)}</h2>
-        ${
-          hasAdditionalAssets
-            ? `<p style="font-size: 11px; color: var(--text-tertiary); margin-top: 5px;">${subtitle}</p>`
-            : ""
-        }
       </div>
 
       <div class="compact-stats">
@@ -12595,6 +13323,24 @@ function invalidateFamilyDashboardCache() {
 }
 
 // USER MANAGEMENT
+function setDataManagementButtons(hasUsers) {
+  const ids = [
+    "deleteAllUsersBtn",
+    "updateNavBtn",
+    "updateStatsBtn",
+    "clearCacheBtn",
+  ];
+  ids.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (id === "deleteAllUsersBtn") {
+      el.style.display = hasUsers ? "" : "none";
+    } else {
+      el.disabled = !hasUsers;
+    }
+  });
+}
+
 function initializeUserManagement() {
   const users = storageManager.getAllUsers();
   allUsers = users;
@@ -12621,6 +13367,8 @@ function initializeUserManagement() {
         '<div style="text-align: right; padding: 20px; color: var(--text-tertiary); font-size:12px">No users found. Upload a CAS file to get started.</div>';
     }
 
+    setDataManagementButtons(false);
+
     const display = document.getElementById("currentUserDisplay");
     if (display) {
       display.style.display = "none";
@@ -12642,8 +13390,11 @@ function populateUserList(users) {
   if (users.length === 0) {
     container.innerHTML =
       '<div style="text-align: right; padding: 20px; color: var(--text-tertiary); font-size:12px">No users found. Upload a CAS file to get started.</div>';
+    setDataManagementButtons(false);
     return;
   }
+
+  setDataManagementButtons(true);
 
   users.forEach((user) => {
     const investorName = getStoredInvestorName(user);
@@ -12692,7 +13443,6 @@ function switchToUser(userName) {
 
   console.log("Switching to user:", userName);
 
-  loadAdditionalAssetsForm();
   toggleFamilyDashboard();
 
   setTimeout(() => {
@@ -12732,10 +13482,6 @@ async function deleteSingleUser(userName) {
     const hiddenFoliosKey = `hiddenFolios_${userName}`;
     localStorage.removeItem(hiddenFoliosKey);
     console.log(`🗑️ Cleared hidden folios for deleted user: ${userName}`);
-
-    const additionalAssetsKey = `additionalAssets_${userName}`;
-    localStorage.removeItem(additionalAssetsKey);
-    console.log(`🗑️ Cleared additional assets for deleted user: ${userName}`);
 
     const investorNameKey = `investorName_${userName}`;
     localStorage.removeItem(investorNameKey);
@@ -12818,17 +13564,13 @@ async function deleteAllUsers() {
         keysToRemove.push(key);
       }
 
-      if (key && key.startsWith("additionalAssets_")) {
-        keysToRemove.push(key);
-      }
-
       if (key && key.startsWith("investorName_")) {
         keysToRemove.push(key);
       }
     }
     keysToRemove.forEach((key) => localStorage.removeItem(key));
     console.log(
-      `🗑️ Cleared hidden folios, additional assets, and investor names for all users (${keysToRemove.length} entries)`,
+      `🗑️ Cleared hidden folios, and investor names for all users (${keysToRemove.length} entries)`,
     );
 
     hideSimpleSplash();
@@ -12923,6 +13665,60 @@ async function clearAllCacheAndReload() {
     showToast("Cache clear failed: " + err.message, "error");
   }
 }
+
+// ── Backup Export ────────────────────────────────────────────────────────────
+
+async function exportBackup() {
+  const users = storageManager.getAllUsers();
+  if (users.length === 0) {
+    showToast("No data to export — upload a CAS first.", "warning");
+    return;
+  }
+
+  showSimpleSplash("Preparing backup…");
+  try {
+    await storageManager.downloadBackup();
+    hideSimpleSplash();
+    showToast("Backup downloaded successfully!", "success");
+  } catch (err) {
+    hideSimpleSplash();
+    console.error("Export backup error:", err);
+    showToast("Export failed: " + err.message, "error");
+  }
+}
+
+// ── Backup Import ────────────────────────────────────────────────────────────
+
+function importBackup() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,application/json";
+
+  input.onchange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const confirmed = confirm(
+      `⚠️ Importing a backup will merge data into the current app.\n\nExisting data for matching users will be overwritten.\n\nContinue with "${file.name}"?`,
+    );
+    if (!confirmed) return;
+
+    showSimpleSplash("Importing backup…");
+    try {
+      await storageManager.importBackupFile(file);
+      hideSimpleSplash();
+      showToast("Backup imported! Reloading…", "success");
+      setTimeout(() => location.reload(), 800);
+    } catch (err) {
+      hideSimpleSplash();
+      console.error("Import backup error:", err);
+      showToast("Import failed: " + err.message, "error");
+    }
+  };
+
+  input.click();
+}
+
 function updateCurrentUserDisplay() {
   if (!currentUser) {
     const display = document.getElementById("currentUserDisplay");
@@ -13508,101 +14304,6 @@ function toggleFolioSection(sectionId) {
 
   content.classList.toggle("collapsed");
   icon.classList.toggle("rotated");
-}
-
-// ADDITIONAL ASSETS
-function getAdditionalAssets(userName = null) {
-  const user = userName || currentUser;
-  if (!user) return null;
-
-  const key = `additionalAssets_${user}`;
-  const stored = localStorage.getItem(key);
-  return stored
-    ? JSON.parse(stored)
-    : {
-        gold: { quantity: 0, rate: 0 },
-        silver: { quantity: 0, rate: 0 },
-        cash: 0,
-      };
-}
-
-function saveAdditionalAssets() {
-  if (!currentUser) return;
-
-  const goldQty =
-    parseFloat(document.getElementById("goldQuantity").value) || 0;
-  const goldRate = parseFloat(document.getElementById("goldRate").value) || 0;
-  const silverQty =
-    parseFloat(document.getElementById("silverQuantity").value) || 0;
-  const silverRate =
-    parseFloat(document.getElementById("silverRate").value) || 0;
-  const cash = parseFloat(document.getElementById("cashAmount").value) || 0;
-
-  const assets = {
-    gold: { quantity: goldQty, rate: goldRate },
-    silver: { quantity: silverQty, rate: silverRate },
-    cash: cash,
-  };
-
-  const key = `additionalAssets_${currentUser}`;
-  localStorage.setItem(key, JSON.stringify(assets));
-
-  updateAdditionalAssetsDisplay();
-
-  // Update main dashboard if we have portfolio data
-  if (portfolioData && fundWiseData) {
-    calculateAndDisplayPortfolioAnalytics();
-  }
-}
-
-function updateAdditionalAssetsDisplay() {
-  const assets = getAdditionalAssets();
-  if (!assets) return;
-
-  const goldValue = assets.gold.quantity * assets.gold.rate;
-  const silverValue = assets.silver.quantity * assets.silver.rate;
-  const cashValue = assets.cash;
-  const totalAdditional = goldValue + silverValue + cashValue;
-
-  // These elements only exist on desktop; bail silently on mobile
-  const _goldEl = document.getElementById("goldValue");
-  if (!_goldEl) return;
-  _goldEl.textContent = "₹" + formatNumber(Math.round(goldValue));
-  document.getElementById("silverValue").textContent =
-    "₹" + formatNumber(Math.round(silverValue));
-  document.getElementById("cashValue").textContent =
-    "₹" + formatNumber(Math.round(cashValue));
-  document.getElementById("totalAdditionalAssets").textContent =
-    "₹" + formatNumber(Math.round(totalAdditional));
-
-  // Calculate combined value
-  const mfValue = Object.values(fundWiseData || {}).reduce(
-    (sum, fund) => sum + (fund.advancedMetrics?.currentValue || 0),
-    0,
-  );
-  const combinedValue = mfValue + totalAdditional;
-  document.getElementById("combinedPortfolioValue").textContent =
-    "₹" + formatNumber(Math.round(combinedValue));
-
-  // Trigger summary cards update
-  if (portfolioData && fundWiseData) {
-    const summary = calculateSummary();
-    updateSummaryCards(summary);
-  }
-}
-
-function loadAdditionalAssetsForm() {
-  const assets = getAdditionalAssets();
-  if (!assets) return;
-
-  document.getElementById("goldQuantity").value = assets.gold.quantity || "";
-  document.getElementById("goldRate").value = assets.gold.rate || "";
-  document.getElementById("silverQuantity").value =
-    assets.silver.quantity || "";
-  document.getElementById("silverRate").value = assets.silver.rate || "";
-  document.getElementById("cashAmount").value = assets.cash || "";
-
-  updateAdditionalAssetsDisplay();
 }
 
 // TAX PLANNING
@@ -14278,6 +14979,10 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
     // Step 1: Collect ISINs based on updateType and CAS type
     const targetIsins = new Set();
 
+    // Always fetch portfolio benchmark funds
+    targetIsins.add("INF247L01957"); // MO Nifty 500 Index
+    targetIsins.add("INF247L01AE7"); // MO Nifty 50 Index
+
     if (updateType === "initial") {
       // For initial load, fetch ALL funds
       if (portfolioData.cas_type === "SUMMARY") {
@@ -14484,6 +15189,11 @@ async function updateAllUsersStats(updateType = "auto") {
 
   // Collect ONLY ACTIVE ISINs from ALL users
   const allIsins = new Set();
+
+  // Always fetch portfolio benchmark funds
+  allIsins.add("INF247L01957"); // MO Nifty 500 Index
+  allIsins.add("INF247L01AE7"); // MO Nifty 50 Index
+
   const userDataMap = new Map();
 
   for (const user of users) {
@@ -15368,8 +16078,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (storedFileInfo) {
       lastUploadedFileInfo = storedFileInfo;
     }
-
-    loadAdditionalAssetsForm();
   }
 
   try {
@@ -15416,8 +16124,6 @@ window.addEventListener("DOMContentLoaded", async () => {
 
         updateFooterInfo();
         enableAllTabs();
-
-        updateAdditionalAssetsDisplay();
 
         if (isSummaryCAS) {
           disableSummaryIncompatibleTabs();
@@ -15485,12 +16191,11 @@ window.switchDashboardTab = function (tabId) {
     "capital-gains": "Capital Gains",
     "past-holding": "Past Holdings",
     "current-holding": "Current Holdings",
-    "additional-assets": "Additional Assets",
     "overlap-analysis": "Overlap Analysis",
     "expense-impact": "Expense Impact",
     "health-score": "Portfolio Health",
     "family-dashboard": "Family Dashboard",
-    "cas-upload-tab": "Manage CAS",
+    "cas-upload-tab": "Manage Data",
     "tax-planning": "Tax Planning",
   };
   const titleEl = document.querySelector(".dashboard-title");
@@ -15513,6 +16218,7 @@ window.addEventListener("popstate", function (event) {
   const portfolioHoldingsModal = document.getElementById(
     "portfolioHoldingsModal",
   );
+  const familyHoldingsModal = document.getElementById("familyHoldingsModal");
   const fundDetailsModal = document.getElementById("fundDetailsModal");
   const overlapDetailModal = document.getElementById("overlapDetailModal");
   const commonHoldingDetailModal = document.getElementById(
@@ -15565,6 +16271,11 @@ window.addEventListener("popstate", function (event) {
 
   if (portfolioHoldingsModal) {
     closePortfolioHoldingsModal();
+    return;
+  }
+
+  if (familyHoldingsModal) {
+    closeFamilyHoldingsModal();
     return;
   }
 
@@ -15679,7 +16390,6 @@ async function takeFullPageScreenshot() {
       ".transaction-section",
       ".portfolio-valuation-section",
       ".monthly-summary-container",
-      ".additional-assets-container",
       ".tax-planning-container",
       ".upload-card",
       ".cas-panel",
@@ -15707,7 +16417,9 @@ async function takeFullPageScreenshot() {
 
     // Wait for 2 rAFs + a small timeout to ensure a full repaint flush
     await new Promise((r) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 50)))
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => setTimeout(r, 50)),
+      ),
     );
 
     const canvas = await html2canvas(document.body, {

@@ -158,6 +158,46 @@ class IDBHelper {
       throw err;
     }
   }
+
+  async exportAllRecords() {
+    try {
+      const db = await this.init();
+      const transaction = db.transaction([this.storeName], "readonly");
+      const store = transaction.objectStore(this.storeName);
+
+      return new Promise((resolve, reject) => {
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
+      });
+    } catch (err) {
+      console.error("IDB exportAllRecords error:", err);
+      throw err;
+    }
+  }
+
+  async importAllRecords(records) {
+    if (!Array.isArray(records) || records.length === 0) return;
+
+    try {
+      const db = await this.init();
+      const transaction = db.transaction([this.storeName], "readwrite");
+      const store = transaction.objectStore(this.storeName);
+
+      return new Promise((resolve, reject) => {
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+
+        for (const record of records) {
+          store.put(record);
+        }
+      });
+    } catch (err) {
+      console.error("IDB importAllRecords error:", err);
+      throw err;
+    }
+  }
 }
 
 class ManifestManager {
@@ -193,9 +233,7 @@ class StorageManager {
 
   getGlobalManifest() {
     try {
-      return JSON.parse(
-        localStorage.getItem(this.globalManifestKey) || "null",
-      );
+      return JSON.parse(localStorage.getItem(this.globalManifestKey) || "null");
     } catch {
       return null;
     }
@@ -478,3 +516,86 @@ class StorageManager {
 }
 
 const storageManager = new StorageManager();
+
+// Patch: add backup methods to StorageManager prototype
+StorageManager.prototype.exportBackup = async function () {
+  const idbRecords = await this.idb.exportAllRecords();
+
+  const localStorageSnapshot = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    const isAppKey =
+      key.startsWith(this.manifestKey) ||
+      key === this.usersKey ||
+      key === this.globalManifestKey ||
+      key === "lastActiveUser" ||
+      key.startsWith("lastCASFileInfo_") ||
+      key.startsWith("hiddenFolios_") ||
+      key.startsWith("investorName_") ||
+      key === ManifestManager.SEARCH_KEYS_KEY ||
+      key === ManifestManager.SEARCH_KEYS_VERSION_KEY;
+    if (isAppKey) {
+      localStorageSnapshot[key] = localStorage.getItem(key);
+    }
+  }
+
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    appName: "MyMFDashboard",
+    idbRecords,
+    localStorage: localStorageSnapshot,
+  };
+};
+
+StorageManager.prototype.downloadBackup = async function () {
+  const backup = await this.exportBackup();
+  const json = JSON.stringify(backup, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const date = new Date().toISOString().split("T")[0];
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `my-mf-dashboard-backup-${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+};
+
+StorageManager.prototype.importBackup = async function (backup) {
+  if (!backup || backup.appName !== "MyMFDashboard") {
+    throw new Error("Invalid backup file — not a MyMFDashboard backup.");
+  }
+  if (!backup.version || backup.version < 1) {
+    throw new Error("Unrecognised backup version.");
+  }
+  if (Array.isArray(backup.idbRecords) && backup.idbRecords.length > 0) {
+    await this.idb.importAllRecords(backup.idbRecords);
+  }
+  if (backup.localStorage && typeof backup.localStorage === "object") {
+    for (const [key, value] of Object.entries(backup.localStorage)) {
+      if (value !== null && value !== undefined) {
+        localStorage.setItem(key, value);
+      }
+    }
+  }
+};
+
+StorageManager.prototype.importBackupFile = async function (file) {
+  if (!file) throw new Error("No file provided.");
+  const text = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = () => reject(new Error("Failed to read backup file."));
+    reader.readAsText(file);
+  });
+  let backup;
+  try {
+    backup = JSON.parse(text);
+  } catch {
+    throw new Error("Backup file is not valid JSON.");
+  }
+  await this.importBackup(backup);
+};
