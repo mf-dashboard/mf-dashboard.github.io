@@ -12448,6 +12448,21 @@ function calculateFamilyMetrics(allUserData) {
               OTHER: "PURCHASE",
             };
 
+            // Pre-compute a Set of "date|units" keys for SIP Purchase Reversal redemptions.
+            // The paired corrective PURCHASE on the same date for the same units must also
+            // be excluded — otherwise the re-issued purchase gets double-counted in FIFO.
+            const reversalKeys = new Set(
+              scheme.transactions
+                .filter(
+                  (t) =>
+                    t.type === "REDEMPTION" &&
+                    typeof t.description === "string" &&
+                    /reversal/i.test(t.description) &&
+                    /sip\s*purchase/i.test(t.description),
+                )
+                .map((t) => `${t.date}|${parseFloat(t.units || 0)}`),
+            );
+
             const filteredTxns = scheme.transactions
               .filter((t) => {
                 if (["STAMP_DUTY_TAX", "STT_TAX", "MISC"].includes(t.type))
@@ -12457,6 +12472,25 @@ function calculateFamilyMetrics(allUserData) {
                   const units = parseFloat(t.units || 0);
                   const nav = parseFloat(t.nav || 0);
                   return units > 0 && nav > 0;
+                }
+                // Skip SIP Purchase Reversal transactions typed as REDEMPTION.
+                // These are always paired with a corrective PURCHASE entry that follows,
+                // so including them as redemptions would corrupt FIFO cost basis and unit counts.
+                if (
+                  t.type === "REDEMPTION" &&
+                  typeof t.description === "string" &&
+                  /reversal/i.test(t.description) &&
+                  /sip\s*purchase/i.test(t.description)
+                ) {
+                  return false;
+                }
+                // Skip the corrective PURCHASE that was issued alongside a reversal.
+                // It shares the same date and unit count as the reversal redemption.
+                if (
+                  t.type === "PURCHASE" &&
+                  reversalKeys.has(`${t.date}|${parseFloat(t.units || 0)}`)
+                ) {
+                  return false;
                 }
                 return true;
               })
@@ -13251,7 +13285,7 @@ function displayFamilyUserBreakdown(userBreakdown) {
     card.innerHTML = `
       <h4>
         <i class="fa-solid fa-user"></i> ${displayName}
-        <span class="family-holdings-pill">${data.holdings} funds</span>
+        <span class="family-holdings-pill">${data.holdings} fund${data.holdings === 1 ? "" : "s"}</span>
       </h4>
       <div class="family-user-stats">
         <div class="family-stat-row">
@@ -13372,7 +13406,10 @@ function updateCompactFamilyDashboard(metrics) {
     const isProfit = data.unrealizedGain >= 0;
     const pnlClass = isProfit ? "positive" : "negative";
     const pnlSign = isProfit ? "+" : "-";
-    const barWidth = Math.round((data.currentValue / totalFamilyValue) * 100);
+    const barWidth = Math.max(
+      4,
+      Math.round((data.currentValue / totalFamilyValue) * 100),
+    );
     const av = avatarStyles[idx % avatarStyles.length];
 
     const item = document.createElement("div");
@@ -13509,6 +13546,20 @@ function populateUserList(users) {
   });
 }
 
+// Resets the URL hash to #main before a reload, so the user lands on the
+// main tab instead of restoring whatever tab was active before the reload
+// (which may no longer be valid/relevant after a user switch, delete, or
+// data import).
+function resetHashToMain() {
+  if (window.location.hash && window.location.hash !== "#main") {
+    history.replaceState(
+      null,
+      "",
+      window.location.pathname + window.location.search + "#main",
+    );
+  }
+}
+
 function switchToUser(userName) {
   if (!userName || userName === currentUser) return;
 
@@ -13521,7 +13572,13 @@ function switchToUser(userName) {
 
   console.log("Switching to user:", userName);
 
+  showSimpleSplash(`Switching to ${investorName}…`);
+
   toggleFamilyDashboard();
+
+  // Reset the hash so the reload lands on #main for the newly switched-to
+  // user, rather than restoring whatever tab the previous user was on.
+  resetHashToMain();
 
   setTimeout(() => {
     location.reload();
@@ -13594,17 +13651,26 @@ async function deleteSingleUser(userName) {
     populateUserList(allUsers);
     updateCurrentUserDisplay();
 
-    hideSimpleSplash();
-    showToast(`User ${investorName} deleted successfully`, "success");
-
     toggleFamilyDashboard();
     invalidateFamilyDashboardCache();
 
     // Reload if current user was deleted
     if (wasCurrentUser || allUsers.length === 0) {
+      if (currentUser) {
+        showSimpleSplash(`Switching to ${getStoredInvestorName(currentUser)}…`);
+      } else {
+        showSimpleSplash("Reloading…");
+      }
+      showToast(`User ${investorName} deleted successfully`, "success");
+      resetHashToMain();
       setTimeout(() => {
         location.reload();
-      }, 500);
+      }, 1000);
+    } else {
+      setTimeout(() => {
+        hideSimpleSplash();
+      }, 1000);
+      showToast(`User ${investorName} deleted successfully`, "success");
     }
   } catch (err) {
     hideSimpleSplash();
@@ -13656,6 +13722,8 @@ async function deleteAllUsers() {
 
     invalidateFamilyDashboardCache();
 
+    showSimpleSplash("Reloading…");
+    resetHashToMain();
     setTimeout(() => {
       location.reload();
     }, 500);
@@ -13734,9 +13802,11 @@ async function clearAllCacheAndReload() {
     }
 
     console.log("✅ All cache cleared — hard reloading");
-    // Hard reload bypassing cache
+    // Hard reload bypassing cache (also strip any #hash so we land on #main)
     window.location.href =
-      window.location.href.split("?")[0] + "?nocache=" + Date.now();
+      window.location.href.split("?")[0].split("#")[0] +
+      "?nocache=" +
+      Date.now();
   } catch (err) {
     hideSimpleSplash();
     console.error("❌ Clear cache error:", err);
@@ -13786,6 +13856,7 @@ function importBackup() {
       await storageManager.importBackupFile(file);
       hideSimpleSplash();
       showToast("Backup imported! Reloading…", "success");
+      resetHashToMain();
       setTimeout(() => location.reload(), 800);
     } catch (err) {
       hideSimpleSplash();
@@ -13982,6 +14053,7 @@ function saveFolioChanges(userName) {
 
   // If current user, reload portfolio
   if (userName === currentUser) {
+    resetHashToMain();
     setTimeout(() => {
       location.reload();
     }, 500);
@@ -15814,7 +15886,7 @@ function showUploadSection() {
 
   // Disable all tabs except CAS upload
   disableAllTabsExceptUpload();
-  switchDashboardTab("cas-upload-tab");
+  switchDashboardTab("manage-data");
 
   const hideCards = ["update-stats", "update-nav"];
   const showCard = "instructions-card";
@@ -15846,7 +15918,7 @@ function disableAllTabsExceptUpload() {
     .querySelectorAll(".sidebar-menu-item, .topbar-cas-btn")
     .forEach((btn) => {
       if (!btn) return;
-      if (!btn.classList.contains("cas-upload-tab-button")) {
+      if (!btn.classList.contains("manage-data-button")) {
         btn.disabled = true;
         btn.style.opacity = "0.5";
         btn.style.cursor = "not-allowed";
@@ -16300,7 +16372,7 @@ window.switchDashboardTab = function (tabId) {
     "expense-impact": "Expense Impact",
     "health-score": "Portfolio Health",
     "family-dashboard": "Family Dashboard",
-    "cas-upload-tab": "Manage Data",
+    "manage-data": "Manage Data",
     "tax-planning": "Tax Planning",
   };
   const titleEl = document.querySelector(".dashboard-title");
@@ -16311,7 +16383,7 @@ window.switchDashboardTab = function (tabId) {
   // Sync active state on sidebar-footer CAS button (mobile)
   const footerCasBtn = document.querySelector(".sidebar-footer-cas-btn");
   if (footerCasBtn) {
-    footerCasBtn.classList.toggle("active", tabId === "cas-upload-tab");
+    footerCasBtn.classList.toggle("active", tabId === "manage-data");
   }
 };
 

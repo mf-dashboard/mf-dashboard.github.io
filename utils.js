@@ -1107,8 +1107,8 @@ function showSimpleSplash(message = "Please wait…") {
         }
         .fss-pill {
           display: flex; align-items: center; gap: 12px;
-          background: var(--card-bg, #16161e);
-          border: 1px solid var(--border-color, rgba(255,255,255,0.08));
+          background: #16161e;
+          border: 1px solid rgba(255,255,255,0.08);
           border-radius: 50px;
           padding: 14px 24px;
           box-shadow: 0 16px 48px rgba(0,0,0,0.45);
@@ -1123,7 +1123,7 @@ function showSimpleSplash(message = "Please wait…") {
         @keyframes fss-spin { to { transform: rotate(360deg); } }
         .fss-label {
           font-size: 13px; font-weight: 500;
-          color: var(--text-primary, #e8e8f0);
+          color: #e8e8f0;
           white-space: nowrap;
         }
       </style>
