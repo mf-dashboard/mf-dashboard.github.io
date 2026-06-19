@@ -31,7 +31,7 @@
       data-cf-beacon='{"token": "4d8174ccb12041b3a010d11343f45f18"}'
     ></script> -->
     <!-- End Cloudflare Web Analytics -->
-    <link rel="stylesheet" href="styles.css?v=20260617" />
+    <link rel="stylesheet" href="styles.css?v=20260618" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -51,12 +51,12 @@
       href="/img/apple-touch-icon.png"
     />
 
-    <meta name="theme-color" content="#181b2f" />
+    <meta name="theme-color" content="#13141f" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260617" />
+    <link rel="manifest" href="/manifest.json?v=20260618" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -696,35 +696,43 @@
           <div class="compact-dashboard" id="compactDashboard">
             <div class="compact-summary-card">
               <div class="compact-header">
-                <h3>HOLDINGS (<span id="compactHoldingsCount">0</span>)</h3>
+                <h3>
+                  Portfolio · <span id="compactHoldingsCount">0</span> holdings
+                </h3>
                 <h2 class="compact-total-value">
                   ₹<span id="compactTotalValue">0</span>
                 </h2>
+                <div class="compact-1d-change positive" id="compact1DReturns">
+                  ₹0 today (0%)
+                </div>
               </div>
 
               <div class="compact-stats">
-                <div class="compact-stat-row">
-                  <span class="stat-label">1D Returns</span>
-                  <span class="stat-value positive" id="compact1DReturns"
-                    >₹0 (0%)</span
-                  >
-                </div>
-
-                <div class="compact-stat-row">
-                  <span class="stat-label">P&L</span>
-                  <span class="stat-value positive" id="compactTotalReturns"
-                    >₹0 (0%)</span
-                  >
-                </div>
-
                 <div class="compact-stat-row">
                   <span class="stat-label">Invested</span>
                   <span class="stat-value" id="compactInvested">₹0</span>
                 </div>
 
+                <div class="compact-stat-row">
+                  <span class="stat-label">Total P&amp;L</span>
+                  <div class="stat-value-line">
+                    <span class="stat-value positive" id="compactTotalReturns"
+                      >₹0</span
+                    >
+                    <span class="stat-sub positive" id="compactTotalReturnsPct"
+                      >(0%)</span
+                    >
+                  </div>
+                </div>
+
                 <div class="compact-stat-row" id="compactXIRRRow">
                   <span class="stat-label">XIRR</span>
                   <span class="stat-value" id="compactXIRR">0%</span>
+                </div>
+
+                <div class="compact-stat-row" id="compactAlphaRow">
+                  <span class="stat-label">Alpha · 3Y vs N500</span>
+                  <span class="stat-value" id="compactAlpha">--</span>
                 </div>
               </div>
             </div>
@@ -994,8 +1002,8 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260617"></script>
-    <script src="utils.js?v=20260617"></script>
-    <script src="scripts.js?v=20260617"></script>
+    <script src="indexeddb-helper.js?v=20260618"></script>
+    <script src="utils.js?v=20260618"></script>
+    <script src="scripts.js?v=20260618"></script>
   </body>
 </html>

@@ -381,7 +381,7 @@ function buildDoughnutChart(canvasId, labels, data, totalValue = 0) {
 
   // Neutral gap between slices — matches card background so segments feel
   // cleanly separated without any coloured border artifact.
-  const gapColor = isDark ? "#22252f" : "#ffffff";
+  const gapColor = isDark ? "#1c1f2e" : "#ffffff";
 
   const centerTextCfg = {
     display: true,

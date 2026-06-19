@@ -65,6 +65,28 @@ let pendingFolioChanges = {};
 let tabHistory = ["main"];
 let historyPointer = 0;
 
+function getInitialTabFromHash() {
+  const dashboard = document.getElementById("dashboard");
+  if (!dashboard) return "main";
+
+  const summaryDisabledTabs = [
+    "charts",
+    "transactions",
+    "capital-gains",
+    "past-holding",
+  ];
+  const validTabIds = Array.from(
+    dashboard.querySelectorAll(":scope > section[id]"),
+  )
+    .map((s) => s.id)
+    .filter((id) => !isSummaryCAS || !summaryDisabledTabs.includes(id));
+
+  const requestedTab = window.location.hash.slice(1);
+  return requestedTab && validTabIds.includes(requestedTab)
+    ? requestedTab
+    : "main";
+}
+
 // Backend configuration
 const BACKEND_SERVER =
   window.location.hostname === "localhost" ||
@@ -74,6 +96,14 @@ const BACKEND_SERVER =
 
 console.log("🔧 Backend Server:", BACKEND_SERVER);
 const DEBUG_MODE = false;
+
+// Bump this whenever a new field is added to mfStats that requires a fresh
+// full stats pull (i.e. data that won't exist in users' cached IndexedDB
+// copies). Bumping this forces an immediate full update — bypassing the
+// 6 AM gate and the 7-day cadence — the next time the app loads, and also
+// resets the 7-day weekly-update counter.
+const STATS_SCHEMA_VERSION = 1;
+const STATS_SCHEMA_VERSION_KEY = "statsSchemaVersion";
 
 // Distinct color palette for composition bars and charts
 // Two variants: light mode (deeper, richer) and dark mode (brighter, more vivid)
@@ -673,7 +703,7 @@ async function processPortfolio(skipAnalytics = false) {
     initializeTransactionSections();
     updateCompactDashboard();
     updateCompactPastDashboard();
-    switchDashboardTab("main");
+    switchDashboardTab(getInitialTabFromHash());
   });
 
   // Calculate daily valuations asynchronously (non-blocking)
@@ -1133,7 +1163,7 @@ function processSummaryCAS() {
     calculateAndDisplayPortfolioAnalytics();
     updateCompactDashboard();
     updateCompactPastDashboard();
-    switchDashboardTab("main");
+    switchDashboardTab(getInitialTabFromHash());
   });
 }
 
@@ -5227,7 +5257,16 @@ function _openOverlapFundSheetMobile(slot) {
   const currentKey = slot === "A" ? _overlapFundA : _overlapFundB;
   const otherKey = slot === "A" ? _overlapFundB : _overlapFundA;
 
-  closeOverlapFundSheet();
+  // If a sheet is already open (switching slot A -> B), just remove the old
+  // DOM immediately — do NOT touch history here. We'll only push once below.
+  const existingOverlay = document.getElementById("overlapFundSheetOverlay");
+  const alreadyHasHistoryEntry =
+    existingOverlay &&
+    window.history.state &&
+    window.history.state.sheet === "ocd";
+  if (existingOverlay) {
+    existingOverlay.remove();
+  }
   lockBodyScroll();
 
   const overlay = document.createElement("div");
@@ -5316,6 +5355,12 @@ function _openOverlapFundSheetMobile(slot) {
 
   overlay.dataset.slot = slot;
   requestAnimationFrame(() => sheet.classList.add("ocd-sheet--open"));
+
+  // Dedicated history entry for the sheet — only push if we don't already
+  // have one (i.e. this isn't a slot A->B switch while the sheet was open).
+  if (!alreadyHasHistoryEntry) {
+    window.history.pushState({ sheet: "ocd" }, "", window.location.href);
+  }
 }
 
 function filterOverlapFundSheet() {
@@ -5363,7 +5408,7 @@ function _refreshOverlapTriggers() {
     <i class="fa-solid fa-chevron-down ocd-chevron"></i>`;
 }
 
-function closeOverlapFundSheet() {
+function closeOverlapFundSheet(fromPopState) {
   const overlay = document.getElementById("overlapFundSheetOverlay");
   if (!overlay) return;
   const sheet = overlay.querySelector(".ocd-sheet");
@@ -5375,6 +5420,16 @@ function closeOverlapFundSheet() {
     overlay.remove();
     unlockBodyScroll();
   }, 280);
+
+  // If closed via UI (tap outside / select fund), not via back button,
+  // pop the dedicated {sheet:"ocd"} entry we pushed when it opened.
+  if (
+    !fromPopState &&
+    window.history.state &&
+    window.history.state.sheet === "ocd"
+  ) {
+    window.history.back();
+  }
 }
 function displayOverlapAnalysis() {
   const container = document.getElementById("overlapContent");
@@ -6609,7 +6664,7 @@ function updateCurrentValue1DIndicator() {
   tag.className =
     "one-day-subtext " +
     (isPositive ? "one-day-subtext--pos" : "one-day-subtext--neg");
-  tag.textContent = `${triangle} 1D: ₹${absRupees} (${sign}${absPct}%)`;
+  tag.textContent = `${triangle} ₹${absRupees} (${sign}${absPct}%) today`;
   subtext.appendChild(tag);
 }
 
@@ -11459,12 +11514,14 @@ function updateCompactDashboard() {
     compactTotalValue: document.getElementById("compactTotalValue"),
     compactInvested: document.getElementById("compactInvested"),
     compactXIRR: document.getElementById("compactXIRR"),
+    compactAlpha: document.getElementById("compactAlpha"),
     compactTotalReturns: document.getElementById("compactTotalReturns"),
+    compactTotalReturnsPct: document.getElementById("compactTotalReturnsPct"),
     compact1DReturns: document.getElementById("compact1DReturns"),
   };
 
   const missingEls = Object.entries(elements)
-    .filter(([, v]) => v === null)
+    .filter(([k, v]) => v === null && k !== "compactAlpha")
     .map(([k]) => k);
   if (missingEls.length > 0) {
     console.warn(
@@ -11482,9 +11539,33 @@ function updateCompactDashboard() {
   elements.compactInvested.textContent = "₹" + formatNumber(summary.costPrice);
   elements.compactXIRR.textContent =
     summary.activeXirr !== null ? summary.activeXirr.toFixed(2) + "%" : "--";
+  elements.compactXIRR.className =
+    "stat-value " + (summary.activeXirr >= 0 ? "positive" : "negative");
 
   const compactXIRRRow = document.getElementById("compactXIRRRow");
+  const compactAlphaRow = document.getElementById("compactAlphaRow");
   if (compactXIRRRow) compactXIRRRow.style.display = isSummaryCAS ? "none" : "";
+  if (compactAlphaRow)
+    compactAlphaRow.style.display = isSummaryCAS ? "none" : "";
+
+  // Populate 3Y alpha vs Nifty 500
+  if (elements.compactAlpha) {
+    const benchmarks = getPortfolioBenchmarks();
+    const analytics = calculatePortfolioAnalytics();
+    const alpha3y = calculatePortfolioAlpha(
+      analytics.weightedReturns,
+      benchmarks,
+    ).vsNifty500.alpha3y;
+    if (alpha3y == null || isNaN(alpha3y)) {
+      elements.compactAlpha.textContent = "--";
+      elements.compactAlpha.className = "stat-value";
+    } else {
+      const sign = alpha3y >= 0 ? "+" : "";
+      elements.compactAlpha.textContent = `${sign}${parseFloat(alpha3y).toFixed(2)}%`;
+      elements.compactAlpha.className =
+        "stat-value " + (alpha3y >= 0 ? "positive" : "negative");
+    }
+  }
 
   // Rebalance grid: last visible row spans full width if total visible count is odd
   const compactStats = document.querySelector(".compact-stats");
@@ -11506,14 +11587,19 @@ function updateCompactDashboard() {
       : 0;
 
   const pnlSign = summary.unrealizedGain >= 0 ? "+" : "-";
-  elements.compactTotalReturns.textContent = `₹${formatNumber(Math.abs(summary.unrealizedGain))} (${pnlSign}${Math.abs(totalReturnPercent)}%)`;
-  elements.compactTotalReturns.className =
-    "stat-value " + (summary.unrealizedGain >= 0 ? "positive" : "negative");
+  const pnlClass = summary.unrealizedGain >= 0 ? "positive" : "negative";
+  elements.compactTotalReturns.textContent = `₹${formatNumber(Math.abs(summary.unrealizedGain))}`;
+  elements.compactTotalReturns.className = "stat-value " + pnlClass;
+  if (elements.compactTotalReturnsPct) {
+    elements.compactTotalReturnsPct.textContent = `(${pnlSign}${Math.abs(totalReturnPercent)}%)`;
+    elements.compactTotalReturnsPct.className = "stat-sub " + pnlClass;
+  }
 
   const oneDayReturns = calculateOneDayReturns();
-  elements.compact1DReturns.textContent = oneDayReturns.text;
-  elements.compact1DReturns.className =
-    "stat-value " + (oneDayReturns.value >= 0 ? "positive" : "negative");
+  const odSign = oneDayReturns.value >= 0 ? "▲ " : "▼ ";
+  const odClass = oneDayReturns.value >= 0 ? "positive" : "negative";
+  elements.compact1DReturns.textContent = `${odSign}${oneDayReturns.text} today`;
+  elements.compact1DReturns.className = "compact-1d-change " + odClass;
 
   // Update the compact header subtitle to show breakdown
   updateCompactHeaderSubtitle(mfValue);
@@ -11623,32 +11709,26 @@ function updateCompactPastDashboard() {
 
   const totalFunds = pastFunds.length;
 
+  const pastPnlClass = totalRealizedGain >= 0 ? "positive" : "negative";
+  const pastPnlSign = totalRealizedGain >= 0 ? "+" : "-";
   container.innerHTML = `
     <div class="compact-summary-card">
+      <div class="compact-header">
+        <h3>Past holdings · ${totalFunds} funds</h3>
+        <h2 class="compact-total-value">₹${formatNumber(totalWithdrawn)}</h2>
+        <div class="compact-1d-change" style="color:var(--text-tertiary);">Total withdrawn</div>
+      </div>
       <div class="compact-stats">
         <div class="compact-stat-row">
-          <span class="stat-label">Total Funds</span>
-          <span class="stat-value">${totalFunds}</span>
-        </div>
-
-        <div class="compact-stat-row">
-          <span class="stat-label">Total Invested</span>
+          <span class="stat-label">Invested</span>
           <span class="stat-value">₹${formatNumber(totalInvested)}</span>
         </div>
-
         <div class="compact-stat-row">
-          <span class="stat-label">Total Withdrawn</span>
-          <span class="stat-value">₹${formatNumber(totalWithdrawn)}</span>
-        </div>
-
-        <div class="compact-stat-row">
-          <span class="stat-label">P&L</span>
-          <span class="stat-value ${
-            totalRealizedGain >= 0 ? "positive" : "negative"
-          }">
-            ₹${formatNumber(Math.abs(totalRealizedGain))} 
-            (${parseFloat(realizedGainPercent).toFixed(2)}%)
-          </span>
+          <span class="stat-label">Realised P&amp;L</span>
+          <div class="stat-value-line">
+            <span class="stat-value ${pastPnlClass}">₹${formatNumber(Math.abs(totalRealizedGain))}</span>
+            <span class="stat-sub ${pastPnlClass}">(${pastPnlSign}${Math.abs(parseFloat(realizedGainPercent).toFixed(2))}%)</span>
+          </div>
         </div>
       </div>
     </div>
@@ -12845,7 +12925,7 @@ function displayFamilySummaryCards(metrics) {
   const odClass =
     od && od.rupees >= 0 ? "one-day-subtext--pos" : "one-day-subtext--neg";
   const odSubtextHTML = od
-    ? `<span class="one-day-subtext ${odClass}">${odTriangle} 1D: ₹${formatNumber(Math.abs(Math.round(od.rupees)))} (${odSign}${Math.abs(od.percent).toFixed(2)}%)</span>`
+    ? `<span class="one-day-subtext ${odClass}">${odTriangle} ₹${formatNumber(Math.abs(Math.round(od.rupees)))} (${odSign}${Math.abs(od.percent).toFixed(2)}%) today</span>`
     : `<span class="one-day-subtext" style="color:var(--text-tertiary)">Combined Portfolio Value</span>`;
 
   container.innerHTML = `
@@ -13211,52 +13291,61 @@ function updateCompactFamilyDashboard(metrics) {
 
   const displayValue = metrics.totalCurrentValue;
 
+  const familyMemberCount = Object.keys(metrics.userBreakdown).length;
+  const pnlSign = metrics.totalUnrealizedGain >= 0 ? "+" : "-";
+  const pnlClass = metrics.totalUnrealizedGain >= 0 ? "positive" : "negative";
+  const od = metrics.total1DChange;
+  const odLine = od
+    ? `<div class="compact-1d-change ${od.rupees >= 0 ? "positive" : "negative"}">${od.rupees >= 0 ? "▲ " : "▼ "}₹${formatNumber(Math.abs(Math.round(od.rupees)))} today (${od.rupees >= 0 ? "+" : ""}${od.percent.toFixed(2)}%)</div>`
+    : "";
+
+  // Calculate 3Y alpha vs Nifty 500 for family
+  let familyAlphaText = "--";
+  let familyAlphaClass = "stat-value";
+  if (metrics.weightedReturns) {
+    const benchmarks = getPortfolioBenchmarks();
+    const alpha3y = calculatePortfolioAlpha(metrics.weightedReturns, benchmarks)
+      .vsNifty500.alpha3y;
+    if (alpha3y != null && !isNaN(alpha3y)) {
+      const sign = alpha3y >= 0 ? "+" : "";
+      familyAlphaText = `${sign}${parseFloat(alpha3y).toFixed(2)}%`;
+      familyAlphaClass =
+        "stat-value " + (alpha3y >= 0 ? "positive" : "negative");
+    }
+  }
+
   container.innerHTML = `
     <div class="compact-summary-card">
       <div class="compact-header">
-        <h3>FAMILY PORTFOLIO (<span>${
-          Object.keys(metrics.userBreakdown).length
-        }</span> MEMBERS)</h3>
+        <h3>Family portfolio · ${familyMemberCount} members</h3>
         <h2 class="compact-total-value">₹${formatNumber(displayValue)}</h2>
+        ${odLine}
       </div>
 
       <div class="compact-stats">
         <div class="compact-stat-row">
-          <span class="stat-label">Total Invested</span>
+          <span class="stat-label">Invested</span>
           <span class="stat-value">₹${formatNumber(metrics.totalCost)}</span>
         </div>
         <div class="compact-stat-row">
-          <span class="stat-label">P&L</span>
-          <span class="stat-value ${
-            metrics.totalUnrealizedGain >= 0 ? "positive" : "negative"
-          }">
-            ${metrics.totalUnrealizedGain >= 0 ? "+" : ""}₹${formatNumber(
-              Math.abs(metrics.totalUnrealizedGain),
-            )} 
-            (${
-              metrics.totalUnrealizedGain >= 0 ? "+" : ""
-            }${unrealizedGainPercent}%)
-          </span>
+          <span class="stat-label">Total P&amp;L</span>
+          <div class="stat-value-line">
+            <span class="stat-value ${pnlClass}">₹${formatNumber(Math.abs(metrics.totalUnrealizedGain))}</span>
+            <span class="stat-sub ${pnlClass}">(${pnlSign}${unrealizedGainPercent}%)</span>
+          </div>
         </div>
-          ${(() => {
-            const od = metrics.total1DChange;
-            if (!od) return "";
-            const odSign = od.rupees >= 0 ? "+" : "-";
-            return `<div class="compact-stat-row">
-            <span class="stat-label">1D Change</span>
-            <span class="stat-value ${od.rupees >= 0 ? "positive" : "negative"}">
-              ₹${formatNumber(Math.abs(Math.round(od.rupees)))} (${odSign}${Math.abs(od.percent).toFixed(2)}%)
-            </span>
-            </div>`;
-          })()}
-        <div class="compact-stat-row">
+        <div class="compact-stat-row" id="compactFamilyXIRRRow">
           <span class="stat-label">Total Unique Holdings</span>
           <span class="stat-value">${metrics.totalHoldings}</span>
         </div>
+        <div class="compact-stat-row" id="compactFamilyAlphaRow">
+          <span class="stat-label">Alpha · 3Y vs N500</span>
+          <span class="${familyAlphaClass}" id="compactFamilyAlpha">${familyAlphaText}</span>
+        </div>
       </div>
-    </div>
 
-    <div class="compact-family-breakdown" id="compactFamilyBreakdown"></div>
+      <div class="compact-members" id="compactFamilyBreakdown"></div>
+    </div>
   `;
 
   const breakdownContainer = document.getElementById("compactFamilyBreakdown");
@@ -13264,54 +13353,43 @@ function updateCompactFamilyDashboard(metrics) {
     (a, b) => b[1].currentValue - a[1].currentValue,
   );
 
-  sortedUsers.forEach(([userName, data]) => {
+  const totalFamilyValue = metrics.totalCurrentValue || 1;
+
+  // Avatar background colours cycling through accent palette
+  const avatarStyles = [
+    { bg: "rgba(102,126,234,0.15)", color: "#534AB7" },
+    { bg: "rgba(16,185,129,0.15)", color: "#065f46" },
+    { bg: "rgba(245,158,11,0.15)", color: "#92400e" },
+    { bg: "rgba(239,68,68,0.12)", color: "#991b1b" },
+    { bg: "rgba(118,75,162,0.15)", color: "#6b21a8" },
+  ];
+
+  sortedUsers.forEach(([userName, data], idx) => {
     const gainPercent =
       data.cost > 0 ? ((data.unrealizedGain / data.cost) * 100).toFixed(2) : 0;
     const displayName = getStoredInvestorName(userName).split(" ")[0];
-
+    const initials = displayName.slice(0, 2).toUpperCase();
     const isProfit = data.unrealizedGain >= 0;
-    const gainSign = isProfit ? "+" : "-";
-    const pnlText = `₹${formatNumber(Math.abs(data.unrealizedGain))} (${gainSign}${Math.abs(gainPercent)}%)`;
-
-    const oneDayChange = data.oneDayChange;
-    const oneDayPositive = oneDayChange ? oneDayChange.rupees >= 0 : false;
-    const oneDayText = oneDayChange
-      ? `₹${formatNumber(Math.abs(oneDayChange.rupees))} (${oneDayPositive ? "+" : ""}${oneDayChange.percent.toFixed(2)}%)`
-      : null;
+    const pnlClass = isProfit ? "positive" : "negative";
+    const pnlSign = isProfit ? "+" : "-";
+    const barWidth = Math.round((data.currentValue / totalFamilyValue) * 100);
+    const av = avatarStyles[idx % avatarStyles.length];
 
     const item = document.createElement("div");
-    item.className = "compact-holding-item chi-hero";
-
+    item.className = "compact-member-row";
     item.innerHTML = `
-      <div class="chi-accent ${isProfit ? "chi-accent--gain" : "chi-accent--loss"}"></div>
-      <div class="chi-body">
-        <div class="chi-top">
-          <div class="chi-left">
-            <div class="chi-name"><i class="fa-solid fa-user" style="font-size:10px;opacity:0.6;margin-right:4px;"></i>${displayName}</div>
-            <div class="chi-stats-line">
-              <span class="chi-stat-pill chi-stat-pill--neutral">
-                <span class="chi-stat-label">Holdings</span>
-                <span class="chi-stat-value">${data.holdings}</span>
-              </span>
-              ${
-                oneDayText
-                  ? `<span class="chi-stat-pill ${oneDayPositive ? "chi-stat-pill--pos" : "chi-stat-pill--neg"}">
-                <span class="chi-stat-label">1D</span>
-                <span class="chi-stat-value">${oneDayText}</span>
-              </span>`
-                  : ""
-              }
-            </div>
-          </div>
-          <div class="chi-right">
-            <div class="chi-current ${isProfit ? "chi-current--gain" : "chi-current--loss"}">₹${formatNumber(data.currentValue)}</div>
-            <div class="chi-invested">₹${formatNumber(data.cost)}</div>
-            <div class="chi-pnl ${isProfit ? "chi-val--pos" : "chi-val--neg"}">${pnlText}</div>
-          </div>
+      <div class="compact-member-avatar" style="background:${av.bg};color:${av.color};">${initials}</div>
+      <div class="compact-member-info">
+        <div class="compact-member-name">${displayName}</div>
+        <div class="compact-member-bar-track">
+          <div class="compact-member-bar-fill" style="width:${barWidth}%"></div>
         </div>
       </div>
+      <div class="compact-member-value">
+        <div class="compact-member-amt">₹${formatNumber(data.currentValue)}</div>
+        <div class="compact-member-pnl ${pnlClass}">${pnlSign}${Math.abs(gainPercent)}%</div>
+      </div>
     `;
-
     breakdownContainer.appendChild(item);
   });
 }
@@ -15549,6 +15627,33 @@ async function checkAndPerformAutoUpdates() {
     return;
   }
 
+  // Stats schema check runs immediately, bypassing the 6 AM gate — if a new
+  // field was added server-side that requires a full re-pull, the user
+  // shouldn't have to wait until tomorrow morning to get it.
+  const storedSchemaVersion = parseInt(
+    localStorage.getItem(STATS_SCHEMA_VERSION_KEY) || "0",
+    10,
+  );
+  const schemaIsStale = storedSchemaVersion < STATS_SCHEMA_VERSION;
+
+  if (schemaIsStale) {
+    console.log(
+      `🆕 Stats schema outdated (have v${storedSchemaVersion}, need v${STATS_SCHEMA_VERSION}) — forcing immediate full update`,
+    );
+    const updated = await updateFullMFStats();
+    if (updated) {
+      // updateAllUsersStats already calls storageManager.updateLastFullUpdate()
+      // per user internally, which resets the 7-day weekly-update counter.
+      localStorage.setItem(
+        STATS_SCHEMA_VERSION_KEY,
+        String(STATS_SCHEMA_VERSION),
+      );
+      console.log("Portfolio statistics updated due to schema change!");
+      return; // Full update includes NAV, so skip NAV-only update
+    }
+    console.log("⚠️ Schema-triggered full update failed, will retry next load");
+  }
+
   // Only auto-update after 6 AM
   if (!isAfter6AM()) {
     console.log("⏰ Auto-updates only run after 6 AM");
@@ -15902,7 +16007,7 @@ function toggleFamilyDashboard() {
 
 // THEME
 function initializeTheme() {
-  const savedTheme = localStorage.getItem("theme") || "dark";
+  const savedTheme = localStorage.getItem("theme") || "light";
   document.documentElement.setAttribute("data-theme", savedTheme);
   updateThemeUI(savedTheme);
 }
@@ -16130,7 +16235,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         }
 
         dashboard.classList.add("active");
-        switchDashboardTab("main");
+        switchDashboardTab(getInitialTabFromHash());
 
         setTimeout(async () => {
           await checkAndPerformAutoUpdates();
@@ -16177,7 +16282,7 @@ window.switchDashboardTab = function (tabId) {
     window.history.pushState(
       { tab: tabId, pointer: historyPointer },
       "",
-      window.location.pathname,
+      window.location.pathname + "#" + tabId,
     );
   }
 
@@ -16210,7 +16315,78 @@ window.switchDashboardTab = function (tabId) {
   }
 };
 
+// ── "Press back again to exit" ──────────────────────────────────────────
+// IMPORTANT: a popstate handler CANNOT intercept/cancel the back press that
+// takes the user past the oldest entry in our history stack — the browser
+// has already left the page by the time JS would run. So we keep a
+// permanent sentinel entry below "main". The first back press from main
+// lands on the sentinel (still inside our page -> popstate fires -> we show
+// the toast and push "main" back on top). Only a second press, while the
+// sentinel is still showing, is allowed to actually exit.
+let _exitPending = false;
+let _exitToastTimeout = null;
+
+function _showExitToast() {
+  if (typeof showToast === "function") {
+    showToast("Press back again to exit", "info");
+  } else {
+    let el = document.getElementById("_exitToastBanner");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "_exitToastBanner";
+      el.style.cssText =
+        "position:fixed;bottom:80px;left:50%;transform:translateX(-50%);" +
+        "background:#333;color:#fff;padding:10px 20px;border-radius:20px;" +
+        "font-size:14px;z-index:99999;pointer-events:none;transition:opacity .3s;";
+      document.body.appendChild(el);
+    }
+    el.textContent = "Press back again to exit";
+    el.style.opacity = "1";
+    setTimeout(() => {
+      el.style.opacity = "0";
+    }, 2000);
+  }
+}
+
 window.addEventListener("popstate", function (event) {
+  // ── 0. OCD bottom sheet — check DOM presence directly, not just state shape.
+  // This must run before anything else: if the sheet is open, back ALWAYS
+  // just closes it, no matter what event.state looks like.
+  if (document.getElementById("overlapFundSheetOverlay")) {
+    closeOverlapFundSheet(true);
+    return;
+  }
+
+  // ── 1. Sentinel hit: user pressed back while resting on main ───────────
+  if (!event.state || event.state.sentinel) {
+    if (_exitPending) {
+      // Second back press at the sentinel -> let it through, app exits.
+      clearTimeout(_exitToastTimeout);
+      _exitPending = false;
+      return;
+    }
+    // First press -> show toast, restore "main" on top of the sentinel so
+    // the user keeps seeing the dashboard, not a blank/previous page.
+    _exitPending = true;
+    _showExitToast();
+    _exitToastTimeout = setTimeout(() => {
+      _exitPending = false;
+    }, 2000);
+    window.history.pushState(
+      { tab: "main", pointer: 0 },
+      "",
+      window.location.pathname + "#main",
+    );
+    return;
+  }
+
+  // (sheet already handled in step 0 above)
+  if (event.state.sheet === "ocd") {
+    closeOverlapFundSheet(true);
+    return;
+  }
+
+  // ── 3. Modals — each just closes on back ────────────────────────────────
   const allTimeModal = document.getElementById("allTimeTransactionsModal");
   const activeModal = document.getElementById("activeTransactionsModal");
   const fundTxModal = document.getElementById("fundTransactionModal");
@@ -16233,120 +16409,107 @@ window.addEventListener("popstate", function (event) {
     closeCommonHoldingDetailModal();
     return;
   }
-
   if (overlapDetailModal) {
     closeOverlapDetailModal();
     return;
   }
-
   if (allOverlapPairsModal) {
     closeAllOverlapPairsModal();
     return;
   }
-
   if (allCommonHoldingsModal) {
     closeAllCommonHoldingsModal();
     return;
   }
-
   if (allTimeModal) {
     closeAllTimeTransactions();
     return;
   }
-
   if (activeModal) {
     closeActiveTransactions();
     return;
   }
-
   if (fundTxModal) {
     closeFundTransactionModal();
     return;
   }
-
   if (fundHoldingsModal) {
     closeFundHoldingsModal();
     return;
   }
-
   if (portfolioHoldingsModal) {
     closePortfolioHoldingsModal();
     return;
   }
-
   if (familyHoldingsModal) {
     closeFamilyHoldingsModal();
     return;
   }
-
   if (fundDetailsModal) {
     closeFundDetailsModal();
     return;
   }
 
-  if (allTimeModal) {
-    closeAllTimeTransactions();
-    return;
-  }
+  // ── 4. Tab navigation ────────────────────────────────────────────────────
+  if (event.state.pointer !== undefined) {
+    const newPointer = event.state.pointer;
+    const targetTab = tabHistory[newPointer] || "main";
 
-  if (activeModal) {
-    closeActiveTransactions();
-    return;
-  }
-
-  if (fundTxModal) {
-    closeFundTransactionModal();
-    return;
-  }
-
-  if (fundHoldingsModal) {
-    closeFundHoldingsModal();
-    return;
-  }
-
-  if (portfolioHoldingsModal) {
-    closePortfolioHoldingsModal();
-    return;
-  }
-
-  if (event.state && event.state.pointer !== undefined) {
-    historyPointer = event.state.pointer;
-    const targetTab = tabHistory[historyPointer] || "main";
-
+    historyPointer = newPointer;
     window.isPopStateNavigation = true;
     switchDashboardTab(targetTab);
     window.isPopStateNavigation = false;
 
-    requestAnimationFrame(() => {
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
-    });
-  } else {
-    const currentTab = document.querySelector(
-      ".dashboard section.active-tab",
-    )?.id;
-    if (currentTab && currentTab !== "main") {
-      window.isPopStateNavigation = true;
-      switchDashboardTab("main");
-      window.isPopStateNavigation = false;
-
-      requestAnimationFrame(() => {
-        window.scrollTo({
-          top: 0,
-          behavior: "smooth",
-        });
-      });
+    if (window.location.hash.slice(1) !== targetTab) {
+      window.history.replaceState(
+        event.state,
+        "",
+        window.location.pathname + "#" + targetTab,
+      );
     }
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
   }
 });
 
-window.history.replaceState(
-  { tab: "main", pointer: 0 },
-  "",
-  window.location.pathname,
-);
+{
+  // The real, original navigation entry (whatever was loaded before this
+  // script ran) is left completely untouched — we never call replaceState
+  // on it. Chromium browsers (Chrome/Edge) apply an anti-hijacking
+  // heuristic: if a page calls replaceState on its own entry immediately
+  // at load (no user gesture in between) and the user later presses back,
+  // the browser can skip that rewritten entry entirely and jump straight
+  // past it. That's exactly what was happening with the old {sentinel:true}
+  // replaceState call — it silently vanished on back, so the very first
+  // back press blew straight past it.
+  //
+  // Instead: just pushState "main" on top of the original entry. The
+  // popstate handler's existing `!event.state` check already treats a
+  // null state as the floor, so going back to this never-modified entry
+  // behaves exactly like hitting the old sentinel — but can't be skipped,
+  // because we never rewrote it.
+  const initialTab = (window.location.hash || "#main").slice(1) || "main";
+
+  tabHistory = ["main"];
+  historyPointer = 0;
+
+  window.history.pushState(
+    { tab: "main", pointer: 0 },
+    "",
+    window.location.pathname + "#main",
+  );
+
+  if (initialTab !== "main") {
+    tabHistory.push(initialTab);
+    historyPointer = 1;
+    window.history.pushState(
+      { tab: initialTab, pointer: 1 },
+      "",
+      window.location.pathname + "#" + initialTab,
+    );
+  }
+}
 
 // ============================================
 // FULL PAGE SCREENSHOT
@@ -16376,7 +16539,19 @@ async function takeFullPageScreenshot() {
     // --- Directly patch every backdrop-filter element via inline styles ---
     // html2canvas reads computed/inline styles, so CSS class overrides can
     // arrive too late or be ignored. Inline style is the only reliable fix.
-    const solidBg = isDark ? "#22252f" : "#ffffff";
+    const pageBg = isDark ? [19, 20, 31] : [248, 250, 252]; // #13141f / #f8fafc
+
+    // Composite rgba(r,g,b,a) over the page background → fully opaque equivalent
+    function solidifyRgba(computedColor) {
+      const m = computedColor.match(
+        /rgba\(\s*([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\s*\)/,
+      );
+      if (!m) return null;
+      const [r, g, b, a] = [+m[1], +m[2], +m[3], +m[4]];
+      const [br, bg, bb] = pageBg;
+      return `rgb(${Math.round(a * r + (1 - a) * br)}, ${Math.round(a * g + (1 - a) * bg)}, ${Math.round(a * b + (1 - a) * bb)})`;
+    }
+
     const patchSelectors = [
       ".summary-cards",
       ".upload-section",
@@ -16385,6 +16560,9 @@ async function takeFullPageScreenshot() {
       ".chart-section",
       ".compact-dashboard",
       ".compact-summary-card",
+      ".compact-header",
+      ".compact-stat-row",
+      ".compact-members",
       ".modal-content",
       ".portfolio-analytics-section",
       ".transaction-section",
@@ -16401,13 +16579,28 @@ async function takeFullPageScreenshot() {
           backdropFilter: el.style.backdropFilter,
           webkitBackdropFilter: el.style.webkitBackdropFilter,
           background: el.style.background,
+          borderTopColor: el.style.borderTopColor,
+          borderRightColor: el.style.borderRightColor,
+          borderBottomColor: el.style.borderBottomColor,
+          borderLeftColor: el.style.borderLeftColor,
         };
         el.style.backdropFilter = "none";
         el.style.webkitBackdropFilter = "none";
-        // Only solidify if the computed background is semi-transparent
-        const computedBg = getComputedStyle(el).backgroundColor;
+        // Solidify semi-transparent background
+        const cs = getComputedStyle(el);
+        const computedBg = cs.backgroundColor;
         if (computedBg.startsWith("rgba")) {
-          el.style.background = solidBg;
+          const opaque = solidifyRgba(computedBg);
+          if (opaque) el.style.background = opaque;
+        }
+        // Solidify semi-transparent borders (html2canvas renders rgba borders incorrectly)
+        for (const side of ["Top", "Right", "Bottom", "Left"]) {
+          const prop = `border${side}Color`;
+          const computedBorder = cs[prop];
+          if (computedBorder && computedBorder.startsWith("rgba")) {
+            const opaque = solidifyRgba(computedBorder);
+            if (opaque) el.style[prop] = opaque;
+          }
         }
         patched.push({ el, prev });
       });
@@ -16423,7 +16616,7 @@ async function takeFullPageScreenshot() {
     );
 
     const canvas = await html2canvas(document.body, {
-      backgroundColor: isDark ? "#0f0f14" : "#f8f9fa",
+      backgroundColor: isDark ? "#13141f" : "#f8fafc",
       scale: 2,
       useCORS: true,
       allowTaint: true,
@@ -16456,6 +16649,10 @@ async function takeFullPageScreenshot() {
       el.style.backdropFilter = prev.backdropFilter;
       el.style.webkitBackdropFilter = prev.webkitBackdropFilter;
       el.style.background = prev.background;
+      el.style.borderTopColor = prev.borderTopColor;
+      el.style.borderRightColor = prev.borderRightColor;
+      el.style.borderBottomColor = prev.borderBottomColor;
+      el.style.borderLeftColor = prev.borderLeftColor;
     });
     document.body.classList.remove("screenshot-mode");
     if (btn) {
