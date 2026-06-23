@@ -31,7 +31,13 @@
       data-cf-beacon='{"token": "4d8174ccb12041b3a010d11343f45f18"}'
     ></script> -->
     <!-- End Cloudflare Web Analytics -->
-    <link rel="stylesheet" href="styles.css?v=20260619" />
+    <link rel="stylesheet" href="styles.css?v=20260623c" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
@@ -51,12 +57,12 @@
       href="/img/apple-touch-icon.png"
     />
 
-    <meta name="theme-color" content="#13141f" />
+    <meta name="theme-color" content="#1C1A17" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260619" />
+    <link rel="manifest" href="/manifest.json?v=20260623" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -80,33 +86,52 @@
               title="Expand/Collapse menu"
               onclick="toggleSidebar()"
             >
-              <i class="fa-solid fa-table-columns"></i>
+              <i class="fa-solid fa-bars"></i>
             </button>
             <h1 class="dashboard-title">Dashboard</h1>
           </div>
           <div class="theme-container">
-            <button
-              class="manage-data-button topbar-cas-btn"
-              onclick="switchDashboardTab('manage-data')"
-              title="Manage Data"
-            >
-              <i class="fa-solid fa-upload"></i>
-              <span>Manage Data</span>
+            <!-- User + NAV chips (desktop/tablet only) -->
+            <div class="topbar-meta" id="topbarMeta">
+              <span class="topbar-user-chip" id="topbarUserChip">
+                <span class="topbar-avatar" id="topbarAvatar">--</span>
+                <span class="topbar-user-name" id="topbarUserName"></span>
+              </span>
+              <span class="topbar-nav-chip" id="topbarNavChip">
+                <i class="fa-solid fa-rotate"></i>
+                <span id="topbarNavDate">--</span>
+              </span>
+            </div>
+            <div class="topbar-divider topbar-divider--meta"></div>
+
+            <!-- ⋮ menu — always visible -->
+            <button class="topbar-overflow-btn" id="topbarOverflowBtn" onclick="toggleTopbarOverflow()" title="More options">
+              <i class="fa-solid fa-ellipsis-vertical"></i>
             </button>
-            <button
-              id="screenshotBtnDesktop"
-              class="screenshot-btn"
-              onclick="takeFullPageScreenshot()"
-              title="Take screenshot"
-            >
-              <i class="fa-solid fa-camera"></i>
+          </div>
+
+          <!-- Overflow menu -->
+          <div class="topbar-overflow-menu" id="topbarOverflowMenu">
+            <!-- User + NAV shown only on mobile (chips not visible in topbar) -->
+            <div class="topbar-overflow-meta topbar-overflow-meta--mobile">
+              <span class="topbar-user-chip topbar-user-chip--sm" id="topbarUserChipMobile">
+                <span class="topbar-avatar" id="topbarAvatarMobile">--</span>
+                <span id="topbarUserNameMobile"></span>
+              </span>
+              <span class="topbar-nav-chip topbar-nav-chip--sm" id="topbarNavChipMobile">
+                <i class="fa-solid fa-rotate"></i>
+                <span id="topbarNavDateMobile">--</span>
+              </span>
+            </div>
+            <button class="topbar-overflow-item" onclick="switchDashboardTab('manage-data');closeTopbarOverflow()">
+              <i class="fa-solid fa-upload"></i> Manage Data
             </button>
-            <button
-              class="theme-toggle"
-              onclick="toggleTheme()"
-              title="Toggle Dark Mode"
-            >
+            <button class="topbar-overflow-item" onclick="takeFullPageScreenshot();closeTopbarOverflow()">
+              <i class="fa-solid fa-camera"></i> Screenshot
+            </button>
+            <button class="topbar-overflow-item" onclick="toggleTheme();closeTopbarOverflow()">
               <i class="fa-solid fa-moon" id="themeIconDesktop"></i>
+              <span id="themeToggleLabel">Dark Mode</span>
             </button>
           </div>
         </div>
@@ -122,8 +147,13 @@
         <nav class="app-sidebar" id="appSidebar">
           <div class="sidebar-header">
             <div class="sidebar-brand">
-              <i class="fa-solid fa-chart-pie sidebar-brand-icon"></i>
-              <span class="sidebar-brand-text">My MF Dashboard</span>
+              <div class="sidebar-brand-icon-box">
+                <i class="fa-solid fa-chart-pie"></i>
+              </div>
+              <div class="sidebar-brand-labels">
+                <span class="sidebar-brand-text">My MF Dashboard</span>
+                <span class="sidebar-brand-sub">Portfolio Intelligence</span>
+              </div>
             </div>
             <button class="mobile-menu-close" onclick="closeMobileMenu()">
               <i class="fa-solid fa-xmark"></i>
@@ -197,19 +227,30 @@
               </button>
             </div>
 
-            <!-- Analysis -->
+            <!-- Analytics -->
             <div class="sidebar-group">
-              <div class="sidebar-group-label">Analysis</div>
+              <div class="sidebar-group-label">Analytics</div>
               <button
                 class="sidebar-menu-item charts-button"
                 onclick="
                   switchDashboardTab('charts');
                   closeMobileMenu();
                 "
-                title="Charts"
+                title="Performance"
               >
                 <i class="fa-solid fa-chart-line"></i>
-                <span>Charts</span>
+                <span>Performance</span>
+              </button>
+              <button
+                class="sidebar-menu-item portfolio-composition-button"
+                onclick="
+                  switchDashboardTab('portfolio-composition');
+                  closeMobileMenu();
+                "
+                title="Portfolio Composition"
+              >
+                <i class="fa-solid fa-chart-pie"></i>
+                <span>Portfolio Composition</span>
               </button>
               <button
                 class="sidebar-menu-item overlap-analysis-button"
@@ -235,9 +276,9 @@
               </button>
             </div>
 
-            <!-- Tax & Gains -->
+            <!-- Tax -->
             <div class="sidebar-group">
-              <div class="sidebar-group-label">Tax &amp; Gains</div>
+              <div class="sidebar-group-label">Tax</div>
               <button
                 class="sidebar-menu-item capital-gains-button"
                 onclick="
@@ -262,9 +303,9 @@
               </button>
             </div>
 
-            <!-- Other -->
+            <!-- Family -->
             <div class="sidebar-group">
-              <div class="sidebar-group-label">Other</div>
+              <div class="sidebar-group-label">Family</div>
               <button
                 class="sidebar-menu-item family-dashboard-button"
                 onclick="
@@ -276,18 +317,8 @@
                 <i class="fa-solid fa-users"></i>
                 <span>Family Dashboard</span>
               </button>
-              <button
-                class="sidebar-menu-item manage-data-button"
-                onclick="
-                  switchDashboardTab('manage-data');
-                  closeMobileMenu();
-                "
-                title="Manage Data"
-              >
-                <i class="fa-solid fa-upload"></i>
-                <span>Manage Data</span>
-              </button>
             </div>
+
           </div>
         </nav>
         <section id="manage-data">
@@ -303,7 +334,7 @@
               <!-- Upload CAS row -->
               <div class="cas-panel-row">
                 <div class="cas-row-meta">
-                  <span class="cas-row-icon">📄</span>
+                  <span class="cas-row-icon"><i class="fa-solid fa-file-lines"></i></span>
                   <div>
                     <div class="cas-row-title">Upload New CAS</div>
                     <div class="cas-row-sub">
@@ -361,21 +392,26 @@
                 </div>
                 <div class="cas-row-action">
                   <div class="user-list-container" id="userListContainer"></div>
-                  <button
-                    type="button"
-                    id="deleteAllUsersBtn"
-                    class="danger-btn cas-row-btn"
-                    onclick="deleteAllUsers()"
-                  >
-                    <i class="fa-solid fa-trash"></i> Delete All Users
-                  </button>
+                  <div class="user-action-bar">
+                    <div class="user-action-bar-primary">
+                      <button type="button" id="userSettingsBtn" class="cas-row-btn user-action-icon-btn" title="Settings" onclick="showFolioManagementModal(currentUser)">
+                        <i class="fa-solid fa-gear"></i>
+                      </button>
+                      <button type="button" id="deleteUserBtn" class="danger-btn cas-row-btn user-action-icon-btn" title="Delete User" onclick="deleteSingleUser(currentUser)">
+                        <i class="fa-solid fa-trash"></i>
+                      </button>
+                    </div>
+                    <button type="button" id="deleteAllUsersBtn" class="danger-btn cas-row-btn" onclick="deleteAllUsers()">
+                      <i class="fa-solid fa-trash"></i> Delete All Users
+                    </button>
+                  </div>
                 </div>
               </div>
 
               <!-- Update NAV row -->
               <div class="cas-panel-row">
                 <div class="cas-row-meta">
-                  <span class="cas-row-icon">🔄</span>
+                  <span class="cas-row-icon"><i class="fa-solid fa-rotate"></i></span>
                   <div>
                     <div class="cas-row-title">Update NAV</div>
                     <div class="cas-row-sub">
@@ -402,7 +438,7 @@
               <!-- Update Stats row -->
               <div class="cas-panel-row">
                 <div class="cas-row-meta">
-                  <span class="cas-row-icon">📊</span>
+                  <span class="cas-row-icon"><i class="fa-solid fa-database"></i></span>
                   <div>
                     <div class="cas-row-title">Update Fund Statistics</div>
                     <div class="cas-row-sub">
@@ -429,19 +465,19 @@
               <!-- Clear Cache row -->
               <div class="cas-panel-row cas-panel-row--last">
                 <div class="cas-row-meta">
-                  <span class="cas-row-icon">🗑️</span>
+                  <span class="cas-row-icon"><i class="fa-solid fa-trash"></i></span>
                   <div>
                     <div class="cas-row-title">Clear Cache</div>
                     <div class="cas-row-sub">
                       Wipe all local data and reload the app fresh
                     </div>
                     <div class="cas-row-info clear-cache-checklist">
-                      <span>✅ localStorage</span>
-                      <span>✅ sessionStorage</span>
-                      <span>✅ IndexedDB</span>
-                      <span>✅ Cache Storage</span>
-                      <span>✅ Cookies</span>
-                      <span>✅ Service Workers</span>
+                      <span><i class="fa-solid fa-check"></i> localStorage</span>
+                      <span><i class="fa-solid fa-check"></i> sessionStorage</span>
+                      <span><i class="fa-solid fa-check"></i> IndexedDB</span>
+                      <span><i class="fa-solid fa-check"></i> Cache Storage</span>
+                      <span><i class="fa-solid fa-check"></i> Cookies</span>
+                      <span><i class="fa-solid fa-check"></i> Service Workers</span>
                     </div>
                   </div>
                 </div>
@@ -463,7 +499,7 @@
                 id="debugCASInjectRow"
               >
                 <div class="cas-row-meta">
-                  <span class="cas-row-icon">🐛</span>
+                  <span class="cas-row-icon"><i class="fa-solid fa-bug"></i></span>
                   <div>
                     <div class="cas-row-title">
                       Inject Parsed CAS
@@ -521,7 +557,7 @@
             <div class="cas-panel cas-panel--instructions">
               <!-- Desktop: shown as panel header -->
               <div class="cas-panel-header">
-                <span class="cas-panel-header-icon">📋</span>
+                <i class="fa-solid fa-clipboard cas-panel-header-icon"></i>
                 <span class="cas-panel-header-title"
                   >How to Get Your CAS File</span
                 >
@@ -533,7 +569,7 @@
               >
                 <div class="cas-row-meta cas-instructions-meta">
                   <!-- Mobile: title shown here; hidden on desktop via CSS -->
-                  <span class="cas-row-icon">📋</span>
+                  <span class="cas-row-icon"><i class="fa-solid fa-clipboard"></i></span>
                   <div class="cas-row-title">How to Get Your CAS File</div>
                 </div>
                 <div class="cas-row-action cas-instructions-action">
@@ -594,7 +630,7 @@
                       all users.
                     </div>
                     <div class="cas-row-info">
-                      💡 Use this before clearing cache or switching devices
+                      <i class="fa-solid fa-lightbulb"></i> Use this before clearing cache or switching devices
                     </div>
                   </div>
                 </div>
@@ -623,7 +659,7 @@
                       overwritten; other users are left untouched.
                     </div>
                     <div class="cas-row-info">
-                      ⚠️ Only import backups exported from this app
+                      <i class="fa-solid fa-triangle-exclamation"></i> Only import backups exported from this app
                     </div>
                   </div>
                 </div>
@@ -642,6 +678,38 @@
           <!-- /.backup panel -->
         </section>
         <section id="main">
+          <!-- ── Mobile-only summary card (Dashboard tab) ── -->
+          <div class="compact-dashboard" id="mainMobileSummary">
+            <div class="compact-summary-card">
+              <div class="compact-header">
+                <h3><span id="mainHoldingsCount">0</span> <span id="mainHoldingsLabel">Active Holdings</span></h3>
+                <div class="compact-total-value">₹<span id="mainTotalValue">0</span></div>
+                <div id="main1DReturns" class="compact-1d-change">--</div>
+              </div>
+              <div class="compact-stats">
+                <div class="compact-stat-row">
+                  <span class="stat-label">Invested</span>
+                  <span class="stat-value" id="mainInvested">--</span>
+                </div>
+                <div class="compact-stat-row">
+                  <span class="stat-label">Unrealised P&amp;L</span>
+                  <div class="stat-value-line">
+                    <span class="stat-value" id="mainTotalReturns">--</span>
+                    <span class="stat-sub" id="mainTotalReturnsPct"></span>
+                  </div>
+                </div>
+                <div class="compact-stat-row" id="mainXIRRRow">
+                  <span class="stat-label">XIRR</span>
+                  <span class="stat-value" id="mainXIRR">--</span>
+                </div>
+                <div class="compact-stat-row" id="mainAlphaRow">
+                  <span class="stat-label">3Y Alpha vs Nifty 500</span>
+                  <span class="stat-value" id="mainAlpha">--</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ── 5-cell summary strip ── -->
           <div class="summary-cards">
             <div class="card">
               <h3>Current Value</h3>
@@ -649,188 +717,308 @@
               <div class="subtext" id="currentValueSubtext"></div>
             </div>
             <div class="card">
-              <h3>Current Cost</h3>
+              <h3>Invested</h3>
               <div class="value">₹<span id="costBasis">0</span></div>
-              <div class="subtext">Cost of Current MF Holdings</div>
+              <div class="subtext">
+                <span id="totalHoldings">0</span> active holdings
+              </div>
             </div>
             <div class="card">
-              <h3>Unrealized P&L</h3>
+              <h3>Unrealised P&amp;L</h3>
               <div class="value" id="unrealizedGain">₹0</div>
               <div class="subtext" id="unrealizedGainPercent">
                 0% | XIRR: --
               </div>
             </div>
             <div class="card">
-              <h3>Current Holdings</h3>
-              <div class="value" id="totalHoldings">0</div>
-              <div class="subtext">
-                With <span id="avgHoldingDays"></span> Avg. holding days
-              </div>
-            </div>
-            <div class="card hidden">
-              <h3>Avg. Holding Days</h3>
-              <div class="value" id="avgHoldingDays">0</div>
-              <div class="subtext">Average Holding Period</div>
-            </div>
-            <div class="card hidden">
-              <h3>All-Time Invested</h3>
-              <div class="value">₹<span id="totalInvested">0</span></div>
-              <div class="subtext">Total Investment Till Date</div>
-            </div>
-            <div class="card hidden">
-              <h3>All-Time Withdrawn</h3>
-              <div class="value">₹<span id="totalWithdrawn">0</span></div>
-              <div class="subtext">Total Redemptions Made Till Date</div>
+              <h3>All-Time P&amp;L</h3>
+              <div class="value" id="overallGain">₹0</div>
+              <div class="subtext" id="overallGainPercent">XIRR: --</div>
             </div>
             <div class="card">
-              <h3>All-Time P&L</h3>
-              <div class="value" id="overallGain">₹0</div>
-              <div class="subtext" id="overallGainPercent">0% | XIRR: --</div>
+              <h3>Avg. Holding</h3>
+              <div class="value" id="avgHoldingDays">--</div>
+              <div class="subtext">days</div>
             </div>
-            <div class="card hidden">
-              <h3>Realized P&L</h3>
-              <div class="value" id="realizedGain">₹0</div>
-              <div class="subtext" id="realizedGainPercent">0%</div>
+            <!-- Hidden compat spine — scripts.js targets these IDs -->
+            <div style="display: none" aria-hidden="true">
+              <div class="card">
+                <span id="totalInvested">0</span>
+                <span id="totalWithdrawn">0</span>
+              </div>
+              <div class="card">
+                <div class="value" id="realizedGain">₹0</div>
+                <div id="realizedGainPercent">0%</div>
+              </div>
             </div>
           </div>
+
+          <!-- ── Portfolio Overview (3-col) ── -->
+          <div class="dash-section-divider">Portfolio Overview</div>
+          <div class="dash-main-grid">
+            <!-- Health snippet -->
+            <div class="dash-section-card" id="dashHealthCard">
+              <div class="dash-section-card-header">
+                <span class="dash-section-card-title">Portfolio Health</span>
+                <button
+                  class="dash-section-link"
+                  onclick="switchDashboardTab('health-score')"
+                >
+                  Details →
+                </button>
+              </div>
+              <div id="dashHealthSnippet" class="dash-health-snippet">
+                <div class="dash-snippet-loading">
+                  <div class="chart-spinner"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Returns vs Benchmark (3-cell) -->
+            <div class="dash-section-card" id="dashReturnsCard">
+              <div class="dash-section-card-header">
+                <span class="dash-section-card-title"
+                  >Returns vs Benchmark</span
+                >
+                <span class="dash-section-card-sub">Nifty 50 &amp; 500</span>
+              </div>
+              <div id="dashReturnsSnippet" class="dash-returns-snippet">
+                <div class="dash-snippet-loading">
+                  <div class="chart-spinner"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Asset Allocation (segmented bar, compact) -->
+            <div class="dash-section-card" id="dashAllocationCard">
+              <div class="dash-section-card-header">
+                <span class="dash-section-card-title">Asset Allocation</span>
+                <button
+                  class="dash-section-link"
+                  onclick="switchDashboardTab('portfolio-composition')"
+                >
+                  Full breakdown →
+                </button>
+              </div>
+              <div id="dashAllocationBar" class="dash-allocation-bar">
+                <div class="dash-snippet-loading">
+                  <div class="chart-spinner"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Insights at a glance (3 colored-border cards) ── -->
+          <div class="dash-section-divider">Insights at a glance</div>
+          <div class="dash-insights-row" id="dashInsightsCard">
+            <div class="dash-snippet-loading">
+              <div class="chart-spinner"></div>
+            </div>
+          </div>
+
+          <!-- ── Milestones & Monthly Flow ── -->
+          <div class="dash-section-divider">Portfolio Journey</div>
+          <div class="dash-milestone-grid">
+            <div class="dash-section-card" id="dashMilestonesCard">
+              <div class="dash-section-card-header">
+                <span class="dash-section-card-title">Milestones</span>
+                <span class="dash-section-card-sub" id="dashMilestonesSub"></span>
+              </div>
+              <div id="dashMilestonesList">
+                <div class="dash-snippet-loading"><div class="chart-spinner"></div></div>
+              </div>
+            </div>
+            <div class="dash-section-card" id="dashFlowCard">
+              <div class="dash-section-card-header">
+                <span class="dash-section-card-title">Monthly Flow</span>
+                <span class="dash-section-card-sub" id="dashFlowSub">Last 6 months</span>
+              </div>
+              <div id="dashFlowContent">
+                <div class="dash-snippet-loading"><div class="chart-spinner"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Holdings intelligence ── -->
+          <div class="dash-section-divider">Holdings Intelligence</div>
+          <div class="dash-section-card" id="dashHoldingsCard">
+            <div class="dash-section-card-header">
+              <span class="dash-section-card-title">Top Holdings</span>
+              <button
+                class="dash-section-link"
+                id="dashHoldingsViewAllBtn"
+                onclick="switchDashboardTab('current-holding')"
+              >
+                View all →
+              </button>
+            </div>
+            <div id="dashHoldingsTable" class="dash-holdings-table">
+              <div class="dash-snippet-loading">
+                <div class="chart-spinner"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section id="portfolio-composition">
+          <div class="portfolio-analytics-section">
+            <h4>Portfolio Composition</h4>
+            <div class="analytics-grid">
+              <div class="analytics-card loading" id="assetAllocationCard">
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">Asset Allocation</span>
+                  <span class="analytics-card-sub" id="assetAllocationSub"></span>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="assetAllocationChart"></canvas>
+                  </div>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="amcCard">
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">AMC Split</span>
+                  <span class="analytics-card-sub" id="amcSub"></span>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="amcChart"></canvas>
+                  </div>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="marketCapCard">
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">Equity Split</span>
+                  <span class="analytics-card-sub" id="marketCapSub"></span>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="marketCapChart"></canvas>
+                  </div>
+                </div>
+              </div>
+              <div id="debtDistributionCard" class="analytics-card loading">
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">Debt Split</span>
+                  <span class="analytics-card-sub" id="debtDistributionSub"></span>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="debtDistributionChart"></canvas>
+                  </div>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="sectorCard">
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">Equity Sectors</span>
+                  <span class="analytics-card-sub" id="sectorSub"></span>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="sectorChart"></canvas>
+                  </div>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="debtSectorCard">
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">Debt Sectors</span>
+                  <span class="analytics-card-sub" id="debtSectorSub"></span>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="debtSectorChart"></canvas>
+                  </div>
+                </div>
+              </div>
+              <div class="analytics-card loading" id="holdingsCard">
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">Top Equity Holdings</span>
+                  <span class="analytics-card-sub" id="holdingsSub"></span>
+                  <button class="holdings-eye-btn" title="View Holdings" onclick="showAllPortfolioHoldings()">
+                    <i class="fa-solid fa-eye"></i>
+                  </button>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="holdingsChart"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="current-holding">
           <div class="compact-dashboard" id="compactDashboard">
             <div class="compact-summary-card">
               <div class="compact-header">
-                <h3>
-                  Portfolio · <span id="compactHoldingsCount">0</span> holdings
-                </h3>
-                <h2 class="compact-total-value">
-                  ₹<span id="compactTotalValue">0</span>
-                </h2>
-                <div class="compact-1d-change positive" id="compact1DReturns">
-                  ₹0 today (0%)
-                </div>
+                <h3><span id="compactHoldingsCount">0</span> Active Holdings</h3>
+                <div class="compact-total-value">₹<span id="compactTotalValue">0</span></div>
+                <div id="compact1DReturns" class="compact-1d-change">--</div>
               </div>
-
               <div class="compact-stats">
                 <div class="compact-stat-row">
                   <span class="stat-label">Invested</span>
-                  <span class="stat-value" id="compactInvested">₹0</span>
+                  <span class="stat-value" id="compactInvested">--</span>
                 </div>
-
                 <div class="compact-stat-row">
-                  <span class="stat-label">Total P&amp;L</span>
+                  <span class="stat-label">Unrealised P&amp;L</span>
                   <div class="stat-value-line">
-                    <span class="stat-value positive" id="compactTotalReturns"
-                      >₹0</span
-                    >
-                    <span class="stat-sub positive" id="compactTotalReturnsPct"
-                      >(0%)</span
-                    >
+                    <span class="stat-value" id="compactTotalReturns">--</span>
+                    <span class="stat-sub" id="compactTotalReturnsPct"></span>
                   </div>
                 </div>
-
                 <div class="compact-stat-row" id="compactXIRRRow">
                   <span class="stat-label">XIRR</span>
-                  <span class="stat-value" id="compactXIRR">0%</span>
+                  <span class="stat-value" id="compactXIRR">--</span>
                 </div>
-
                 <div class="compact-stat-row" id="compactAlphaRow">
-                  <span class="stat-label">Alpha · 3Y vs N500</span>
+                  <span class="stat-label">3Y Alpha vs Nifty 500</span>
                   <span class="stat-value" id="compactAlpha">--</span>
                 </div>
               </div>
             </div>
-
             <div class="compact-controls">
-              <button class="compact-filter-btn" onclick="toggleCompactSort()">
-                <span>Current Value</span>
-                <i class="fa-solid fa-sort"></i>
-              </button>
+              <span class="compact-controls-label">Sort by</span>
+              <div class="compact-sort-chips">
+                <button class="compact-filter-btn" onclick="toggleCompactSort()">
+                  <span>Current Value</span>
+                  <i class="fa-solid fa-arrow-right-arrow-left fa-xs"></i>
+                </button>
+              </div>
             </div>
-
             <div class="compact-holdings-list" id="compactHoldingsList"></div>
           </div>
-          <div class="portfolio-analytics-section">
-            <h4>Portfolio Insights</h4>
-            <div class="analytics-grid">
-              <div class="analytics-card loading" id="assetAllocationCard">
-                <h4>Asset Allocation</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
-                  </div>
-                  <canvas id="assetAllocationChart"></canvas>
-                </div>
-              </div>
-              <div class="analytics-card loading" id="amcCard">
-                <h4>AMC Split</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
-                  </div>
-                  <canvas id="amcChart"></canvas>
-                </div>
-              </div>
-              <div class="analytics-card loading" id="marketCapCard">
-                <h4>Equity Split</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
-                  </div>
-                  <canvas id="marketCapChart"></canvas>
-                </div>
-              </div>
-              <div id="debtDistributionCard" class="analytics-card loading">
-                <h4>Debt Split</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
-                  </div>
-                  <canvas id="debtDistributionChart"></canvas>
-                </div>
-              </div>
-              <div class="analytics-card loading" id="sectorCard">
-                <h4>Equity Sectors</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
-                  </div>
-                  <canvas id="sectorChart"></canvas>
-                </div>
-              </div>
-              <div class="analytics-card loading" id="debtSectorCard">
-                <h4>Debt Sectors</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
-                  </div>
-                  <canvas id="debtSectorChart"></canvas>
-                </div>
-              </div>
-              <div class="analytics-card loading" id="holdingsCard">
-                <h4>
-                  Top Equity Holdings
-                  <button
-                    class="holdings-eye-btn"
-                    title="View Holdings"
-                    onclick="showAllPortfolioHoldings()"
-                  >
-                    <i class="fa-solid fa-eye"></i>
-                  </button>
-                </h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
-                  </div>
-                  <canvas id="holdingsChart"></canvas>
-                </div>
-              </div>
-            </div>
-            <div class="weighted-returns-section">
-              <h4>Portfolio Returns vs Nifty 50 & Nifty 500</h4>
-              <div class="returns-grid" id="weightedReturnsContainer"></div>
-            </div>
-          </div>
-        </section>
-        <section id="current-holding">
           <div class="folio-section">
             <div class="folio-grid" id="currentFolioGrid"></div>
+          </div>
+          <div class="hc-section" id="holdingsChartsSection" style="display:none;">
+            <div class="hc-card">
+              <div class="hc-header">
+                <span class="hc-title">Portfolio Allocation</span>
+                <span class="hc-sub">By current value</span>
+              </div>
+              <div id="holdingsAllocBars"></div>
+            </div>
+            <div class="hc-card">
+              <div class="hc-header">
+                <span class="hc-title">Performance vs Benchmark</span>
+                <span class="hc-sub">All funds indexed to 100 at period start</span>
+              </div>
+              <div class="hc-chips" id="perfChipRow"></div>
+              <div class="hc-chart-wrap" id="perfChartWrap">
+                <div class="chart-loading"><div class="chart-spinner"></div></div>
+                <canvas id="holdingsPerfChart" role="img" aria-label="Line chart comparing fund returns against Nifty 50 and Nifty 500">Performance data unavailable.</canvas>
+              </div>
+              <div class="hc-returns-row" id="perfReturnsRow"></div>
+              <div class="hc-bw-row" id="perfBestWorstRow"></div>
+            </div>
           </div>
         </section>
         <section id="past-holding">
@@ -842,14 +1030,14 @@
         <section id="charts">
           <div class="chart-section">
             <div class="section-header">
-              <h3>📊 Portfolio History</h3>
+              <h3><i class="fa-solid fa-chart-line"></i> Portfolio History</h3>
               <p class="section-subtitle">
                 Your Portfolio Journey - Investments & Withdrawals
               </p>
             </div>
             <div class="chart-tabs">
               <button class="tab-btn active" onclick="switchTab('growth')">
-                Portfolio Growth
+                <span class="label-full">Portfolio Growth</span><span class="label-short">Growth</span>
               </button>
               <button class="tab-btn" onclick="switchTab('investment')">
                 Investment
@@ -858,7 +1046,7 @@
                 Withdrawal
               </button>
               <button class="tab-btn" onclick="switchTab('netinvest')">
-                Net Investment
+                <span class="label-full">Net Investment</span><span class="label-short">Net</span>
               </button>
             </div>
 
@@ -871,6 +1059,10 @@
             <div class="stats-grid hidden" id="statsGrid"></div>
           </div>
           <div id="monthlySummarySection"></div>
+          <div class="weighted-returns-section">
+            <div class="dash-section-divider">Portfolio Returns vs Nifty 50 &amp; Nifty 500</div>
+            <div class="returns-grid" id="weightedReturnsContainer"></div>
+          </div>
         </section>
         <section id="transactions">
           <div id="transactionCalendarSection"></div>
@@ -896,7 +1088,7 @@
         <section id="family-dashboard">
           <div class="compact-dashboard" id="compactFamilyDashboard"></div>
           <div class="family-header">
-            <h2>👨‍👩‍👧‍👦 Family Portfolio Dashboard</h2>
+            <h2><i class="fa-solid fa-users"></i> Family Portfolio Dashboard</h2>
             <p class="family-subtitle">
               Aggregated view across all family members
             </p>
@@ -905,105 +1097,112 @@
           <div class="summary-cards" id="familySummaryCards"></div>
 
           <div class="portfolio-analytics-section">
-            <h4>Family Portfolio Insights</h4>
+            <div class="dash-section-divider">Family Portfolio Insights</div>
             <div class="analytics-grid">
-              <div
-                class="analytics-card loading"
-                id="familyAssetAllocationCard"
-              >
-                <h4>Asset Allocation</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
+              <div class="analytics-card loading" id="familyAssetAllocationCard">
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">Asset Allocation</span>
+                  <span class="analytics-card-sub" id="familyAssetAllocationSub"></span>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="familyAssetAllocationChart"></canvas>
                   </div>
-                  <canvas id="familyAssetAllocationChart"></canvas>
                 </div>
               </div>
               <div class="analytics-card loading" id="familyAmcCard">
-                <h4>AMC Split</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">AMC Split</span>
+                  <span class="analytics-card-sub" id="familyAmcSub"></span>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="familyAmcChart"></canvas>
                   </div>
-                  <canvas id="familyAmcChart"></canvas>
                 </div>
               </div>
               <div class="analytics-card loading" id="familyMarketCapCard">
-                <h4>Equity Split</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">Equity Split</span>
+                  <span class="analytics-card-sub" id="familyMarketCapSub"></span>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="familyMarketCapChart"></canvas>
                   </div>
-                  <canvas id="familyMarketCapChart"></canvas>
                 </div>
               </div>
-              <div
-                class="analytics-card loading"
-                id="familyDebtDistributionCard"
-              >
-                <h4>Debt Split</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
+              <div class="analytics-card loading" id="familyDebtDistributionCard">
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">Debt Split</span>
+                  <span class="analytics-card-sub" id="familyDebtDistributionSub"></span>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="familyDebtDistributionChart"></canvas>
                   </div>
-                  <canvas id="familyDebtDistributionChart"></canvas>
                 </div>
               </div>
               <div class="analytics-card loading" id="familySectorCard">
-                <h4>Equity Sectors</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">Equity Sectors</span>
+                  <span class="analytics-card-sub" id="familySectorSub"></span>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="familySectorChart"></canvas>
                   </div>
-                  <canvas id="familySectorChart"></canvas>
                 </div>
               </div>
               <div class="analytics-card loading" id="familyDebtSectorCard">
-                <h4>Debt Sectors</h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">Debt Sectors</span>
+                  <span class="analytics-card-sub" id="familyDebtSectorSub"></span>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="familyDebtSectorChart"></canvas>
                   </div>
-                  <canvas id="familyDebtSectorChart"></canvas>
                 </div>
               </div>
               <div class="analytics-card loading" id="familyHoldingsCard">
-                <h4>
-                  Top Equity Holdings
-                  <button
-                    class="holdings-eye-btn"
-                    title="View Holdings"
-                    onclick="showAllFamilyHoldings()"
-                  >
+                <div class="analytics-card-header">
+                  <span class="analytics-card-title">Top Equity Holdings</span>
+                  <span class="analytics-card-sub" id="familyHoldingsSub"></span>
+                  <button class="holdings-eye-btn" title="View Holdings" onclick="showAllFamilyHoldings()">
                     <i class="fa-solid fa-eye"></i>
                   </button>
-                </h4>
-                <div class="chart-wrapper">
-                  <div class="chart-loading">
-                    <div class="chart-spinner"></div>
+                </div>
+                <div class="analytics-card-body">
+                  <div class="chart-wrapper">
+                    <div class="chart-loading"><div class="chart-spinner"></div></div>
+                    <canvas id="familyHoldingsChart"></canvas>
                   </div>
-                  <canvas id="familyHoldingsChart"></canvas>
                 </div>
               </div>
             </div>
 
             <div class="weighted-returns-section">
-              <h4>Portfolio Returns vs Nifty 50 & Nifty 500</h4>
+              <div class="dash-section-divider">Portfolio Returns vs Nifty 50 & Nifty 500</div>
               <div
                 class="returns-grid"
                 id="familyWeightedReturnsContainer"
               ></div>
             </div>
-            <h4 class="family-user-breakdown-heading">
-              Family Holdings Breakdown
-            </h4>
+            <div class="dash-section-divider family-user-breakdown-heading">Family Holdings Breakdown</div>
             <div id="familyUserBreakdown"></div>
           </div>
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260619"></script>
-    <script src="utils.js?v=20260619"></script>
-    <script src="scripts.js?v=20260619"></script>
+    <script src="indexeddb-helper.js?v=20260623"></script>
+    <script src="utils.js?v=20260623c"></script>
+    <script src="scripts.js?v=20260623c"></script>
   </body>
 </html>

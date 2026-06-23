@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file script.js
  * @description Main application logic for my-mf-dashboard
  * @author Pabitra Swain https://github.com/the-sdet
@@ -42,7 +42,7 @@ const PORTFOLIO_BENCHMARKS = {
     name: "Nifty 500",
   },
   nifty50: {
-    isin: "INF247L01AE7",
+    isin: "INF789F01XA0",
     name: "Nifty 50",
   },
 };
@@ -50,8 +50,6 @@ const PORTFOLIO_BENCHMARKS = {
 // Chart instances
 let projectionChartInstance = null;
 
-const default6M = 10000;
-const default12M = 7000;
 
 // Compact dashboard state
 let compactDisplayMode = "xirr";
@@ -74,6 +72,7 @@ function getInitialTabFromHash() {
     "transactions",
     "capital-gains",
     "past-holding",
+    "portfolio-composition",
   ];
   const validTabIds = Array.from(
     dashboard.querySelectorAll(":scope > section[id]"),
@@ -102,39 +101,38 @@ const DEBUG_MODE = false;
 // copies). Bumping this forces an immediate full update — bypassing the
 // 6 AM gate and the 7-day cadence — the next time the app loads, and also
 // resets the 7-day weekly-update counter.
-const STATS_SCHEMA_VERSION = 1;
+const STATS_SCHEMA_VERSION = 2;
 const STATS_SCHEMA_VERSION_KEY = "statsSchemaVersion";
 
-// Distinct color palette for composition bars and charts
-// Two variants: light mode (deeper, richer) and dark mode (brighter, more vivid)
+// Warm Financial Intelligence palette — mirrors the CSS tbc-fill nth-child rules
 const CHART_COLORS_LIGHT = [
-  "#2563ae", // blue
-  "#16a34a", // green
-  "#d97706", // amber
-  "#dc2626", // red
-  "#7c3aed", // violet
-  "#0891b2", // cyan
-  "#be185d", // pink
-  "#65a30d", // lime
-  "#9f580a", // orange-brown
-  "#1d4ed8", // indigo
-  "#059669", // emerald
-  "#b45309", // warm amber
+  "#9A6B46", // warm brown (accent)
+  "#3D78C0", // steel blue
+  "#2F8F5B", // muted green
+  "#C9872D", // warm amber
+  "#9068A8", // muted purple
+  "#C65A52", // dusty red
+  "#5A8F82", // teal
+  "#8B7355", // warm olive
+  "#4A7FA5", // slate blue
+  "#6B8E6E", // sage green
+  "#A0704A", // terracotta
+  "#3D7A6A", // deep teal
 ];
 
 const CHART_COLORS_DARK = [
-  "#60a5fa", // blue-400
-  "#4ade80", // green-400
-  "#fbbf24", // amber-400
-  "#f87171", // red-400
-  "#a78bfa", // violet-400
-  "#22d3ee", // cyan-400
-  "#f472b6", // pink-400
-  "#a3e635", // lime-400
-  "#fb923c", // orange-400
-  "#818cf8", // indigo-400
-  "#34d399", // emerald-400
-  "#fcd34d", // yellow-300
+  "#C4906A", // warm brown
+  "#6AAEE8", // steel blue
+  "#45C07E", // muted green
+  "#E4A040", // warm amber
+  "#B48ECF", // muted purple
+  "#E07870", // dusty red
+  "#7ABCAD", // teal
+  "#B09A78", // warm olive
+  "#6BAACC", // slate blue
+  "#8BB08E", // sage green
+  "#C8866A", // terracotta
+  "#5AADA0", // deep teal
 ];
 
 function isDarkMode() {
@@ -146,46 +144,44 @@ function getCompositionColor(index, total) {
   return palette[index % palette.length];
 }
 
-// Colours that match the tbc-fill CSS nth-child palette used by
-// Fund House, Sector, and Holdings text-bar charts.  Asset Allocation
-// and Market Cap bars use this so all four panels share the same hues.
+// Mirrors CSS tbc-fill nth-child rules — keep in sync with styles.css
 const TBC_COLORS = [
-  "#7086FF",
-  "#B388FF",
-  "#4DA3FF",
-  "#5EDB8A",
-  "#FF7AA8",
-  "#FFD166",
-  "#9B8CFF",
-  "#FF6E6E",
-  "#4FD1C5",
-  "#F6C453",
+  "#9A6B46",
+  "#3D78C0",
+  "#2F8F5B",
+  "#C9872D",
+  "#9068A8",
+  "#C65A52",
+  "#5A8F82",
+  "#8B7355",
+  "#4A7FA5",
+  "#6B8E6E",
 ];
 
 const TBC_COLORS_LIGHT = [
-  "#818CF8",
-  "#A78BFA",
-  "#60A5FA",
-  "#86EFAC",
-  "#FB7185",
-  "#FCD34D",
-  "#C4B5FD",
-  "#F87171",
-  "#6EE7B7",
-  "#FBBF24",
+  "#9A6B46",
+  "#3D78C0",
+  "#2F8F5B",
+  "#C9872D",
+  "#9068A8",
+  "#C65A52",
+  "#5A8F82",
+  "#8B7355",
+  "#4A7FA5",
+  "#6B8E6E",
 ];
 
 const TBC_COLORS_DARK = [
-  "#7086FF",
-  "#B388FF",
-  "#4DA3FF",
-  "#5EDB8A",
-  "#FF7AA8",
-  "#FFD166",
-  "#9B8CFF",
-  "#FF6E6E",
-  "#4FD1C5",
-  "#F6C453",
+  "#C4906A",
+  "#6AAEE8",
+  "#45C07E",
+  "#E4A040",
+  "#B48ECF",
+  "#E07870",
+  "#7ABCAD",
+  "#B09A78",
+  "#6BAACC",
+  "#8BB08E",
 ];
 
 function getDoughnutColors(count, labels = []) {
@@ -195,7 +191,7 @@ function getDoughnutColors(count, labels = []) {
 
   return Array.from({ length: count }, (_, i) => {
     if (labels[i]?.toLowerCase() === "others") {
-      return isDark ? "#FF6E6E" : "#F87171";
+      return isDark ? "#E07870" : "#C65A52";
     }
     return palette[i % palette.length];
   });
@@ -703,6 +699,13 @@ async function processPortfolio(skipAnalytics = false) {
     initializeTransactionSections();
     updateCompactDashboard();
     updateCompactPastDashboard();
+    renderDashboardHealthSnippet();
+    renderDashboardReturnsSnippet();
+    renderDashboardInsightsStrip();
+    renderDashboardAllocationBar();
+    renderDashboardHoldingsTable();
+    renderDashboardMilestonesCard();
+    renderDashboardMonthlyFlowCard();
     switchDashboardTab(getInitialTabFromHash());
   });
 
@@ -712,6 +715,9 @@ async function processPortfolio(skipAnalytics = false) {
       const portfolioValuation = await calculatePortfolioDailyValuation();
 
       window.portfolioValuationHistory = portfolioValuation;
+
+      // Re-render milestones now that past crossing dates are available
+      renderDashboardMilestonesCard();
 
       initializeCharts();
 
@@ -1163,6 +1169,13 @@ function processSummaryCAS() {
     calculateAndDisplayPortfolioAnalytics();
     updateCompactDashboard();
     updateCompactPastDashboard();
+    renderDashboardHealthSnippet();
+    renderDashboardReturnsSnippet();
+    renderDashboardInsightsStrip();
+    renderDashboardAllocationBar();
+    renderDashboardHoldingsTable();
+    renderDashboardMilestonesCard();
+    renderDashboardMonthlyFlowCard();
     switchDashboardTab(getInitialTabFromHash());
   });
 }
@@ -1524,6 +1537,9 @@ function calculateadvancedMetrics(fund) {
       unrealizedGainPercentage: folioUnrealizedGainPercentage,
       averageHoldingDays: folioAverageHoldingDays,
       cashflows: folioCashflows[folio],
+      remainingLots: folioRemainingUnits > 0.001
+        ? unitQueue.map(b => ({ units: b.units, nav: b.nav, purchaseDate: b.purchaseDate }))
+        : [],
     };
 
     if (folioRemainingUnits > 0.001) {
@@ -2460,25 +2476,46 @@ function calculateMonthlySummary() {
     let totalBuy = 0;
     let totalSell = 0;
 
-    Object.values(monthlyData).forEach((data) => {
+    const monthlyBuys = [];
+    const monthlySells = [];
+    const monthlyNets = Object.values(monthlyData).map((data) => {
       totalBuy += data.investment;
       totalSell += data.withdrawal;
+      monthlyBuys.push(data.investment);
+      monthlySells.push(data.withdrawal);
+      return data.investment - data.withdrawal;
     });
 
     const monthCount = Object.keys(monthlyData).length;
     const avgNetInflow = (totalBuy - totalSell) / monthCount;
-    const inflow =
-      avgNetInflow < 0
-        ? monthCount == 6
-          ? default6M
-          : default12M
-        : avgNetInflow;
+
+    const median = (arr) => {
+      const s = [...arr].sort((a, b) => a - b);
+      const m = Math.floor(s.length / 2);
+      return s.length % 2 === 0 ? (s[m - 1] + s[m]) / 2 : s[m];
+    };
+
+    // Median is robust to large one-off redemptions or lump-sum buys
+    const medianNetInflow = median(monthlyNets);
+    const medianBuy = median(monthlyBuys);
+    const medianSell = median(monthlySells);
+
+    // Use median as the projection inflow; floor at 0 (negative median = consistent net withdrawer)
+    const inflow = Math.max(0, medianNetInflow);
+
+    // Flag when mean and median diverge significantly (outlier month detected)
+    const hasOutlier = medianNetInflow > 1000 &&
+      Math.abs(avgNetInflow - medianNetInflow) / medianNetInflow > 0.3;
 
     return {
       avgBuy: totalBuy / monthCount,
       avgSell: totalSell / monthCount,
-      avgNetInflow: avgNetInflow,
-      inflow: inflow,
+      avgNetInflow,
+      medianBuy,
+      medianSell,
+      medianNetInflow,
+      inflow,
+      hasOutlier,
     };
   }
 
@@ -2583,71 +2620,64 @@ function calculateAndDisplayPortfolioAnalytics() {
   }
 }
 
-// ============================================================
-// ASSET CLASS CLASSIFICATION (per holding from fund holdings)
-// ============================================================
-function getAssetClass(holding) {
-  const instrument = (holding.instrument_name || "").toLowerCase().trim();
-  const company = (holding.company_name || "").toLowerCase().trim();
-  const nature = (holding.nature_name || "").toLowerCase().trim();
+/**
+ * Classify an underlying MF/FoF holding into an asset bucket using company name.
+ * Used by resolveAssetAllocation when the API key is "mutual fund" (FoF structures).
+ * Priority: Commodity → Global Equity → Debt → Domestic Equity (default).
+ */
+function classifyMFHoldingByCompany(companyName) {
+  const c = (companyName || "").toLowerCase();
 
-  // Gold
-  if (company.includes("gold etf") || instrument.includes("gold")) {
-    return "Gold";
-  }
-  // Silver
-  if (company.includes("silver etf") || instrument.includes("silver")) {
-    return "Silver";
-  }
-  // REITs + InvITs
+  // Commodity
+  if (c.includes("gold")) return "gold";
+  if (c.includes("silver")) return "silver";
+
+  // Global Equity — clear non-India index/geography signals
   if (
-    nature === "realest" ||
-    instrument.includes("reit") ||
-    instrument.includes("real estate investment trust") ||
-    instrument.includes("invit")
-  ) {
-    return "Real Estate";
-  }
-  // Hedged Equity (Futures)
-  if (instrument === "futures") {
-    return "Hedged Equity";
-  }
-  // Global Equity (Foreign Equity)
+    c.includes("s&p") ||
+    c.includes("nasdaq") ||
+    c.includes("dow jones") ||
+    c.includes("global") ||
+    c.includes("international") ||
+    c.includes("world") ||
+    c.includes("overseas") ||
+    c.includes("foreign") ||
+    c.includes("europe") ||
+    c.includes("japan") ||
+    c.includes("china") ||
+    c.includes("asia") ||
+    c.includes("us equity") ||
+    c.includes("ftse") ||
+    c.includes("emerging market")
+  )
+    return "global equity";
+
+  // Debt — instrument category keywords
   if (
-    instrument.includes("foreign") ||
-    instrument.includes("forgn") ||
-    instrument === "ads/adr" ||
-    instrument === "foreign mf"
-  ) {
-    return "Global Equity";
-  }
-  // Debt
-  if (
-    nature === "debt" ||
-    [
-      "certificate of deposit",
-      "commercial paper",
-      "treasury bills",
-      "goi sec",
-      "sdl",
-      "debenture",
-    ].includes(instrument)
-  ) {
-    return "Debt";
-  }
-  // Cash & cash equivalents
-  if (
-    nature === "cash" ||
-    ["reverse repo", "cash margin", "net payables"].includes(instrument)
-  ) {
-    return "Cash";
-  }
-  // Domestic Equity
-  if (["equity", "eq"].includes(nature) && instrument === "equity") {
-    return "Domestic Equity";
-  }
-  // Everything else: Mutual Funds, ETFs, Futures, Derivatives, Unknown
-  return "Other";
+    c.includes("g-sec") ||
+    c.includes("gsec") ||
+    c.includes("gilt") ||
+    c.includes("bond") ||
+    c.includes("debt") ||
+    c.includes("liquid") ||
+    c.includes("overnight") ||
+    c.includes("money market") ||
+    c.includes("treasury") ||
+    c.includes("credit risk") ||
+    c.includes("banking and psu") ||
+    c.includes("ultra short") ||
+    c.includes("low duration") ||
+    c.includes("short duration") ||
+    c.includes("medium duration") ||
+    c.includes("long duration") ||
+    c.includes("constant maturity") ||
+    c.includes("corporate bond") ||
+    c.includes("floater")
+  )
+    return "debt";
+
+  // Default: treat as domestic equity
+  return "domestic equity";
 }
 
 /**
@@ -2709,14 +2739,53 @@ function resolveAssetAllocation(fundAsset, holdings, weight) {
 
     // ── EQUITY: split Domestic vs Global via holdings ──────────────────────
     if (keyLower.includes("equity")) {
-      const equityHoldings = safeHoldings.filter(
-        (h) => (h.nature_name || "").toUpperCase() === "EQUITY",
-      );
+      const isGlobalHolding = (h) => {
+        const nat = (h.nature_name || "").toUpperCase();
+        const inst = (h.instrument_name || "").toLowerCase();
+        return (
+          nat === "GLOBAL_MF" ||
+          inst.includes("foreign") ||
+          inst === "ads/adr" ||
+          inst === "foreign mf"
+        );
+      };
+
+      const equityHoldings = safeHoldings.filter((h) => {
+        const nat = (h.nature_name || "").toUpperCase();
+        return nat === "EQUITY" || isGlobalHolding(h);
+      });
 
       if (equityHoldings.length === 0) {
-        // No granular data — treat everything as domestic
-        buckets["domestic equity"] =
-          (buckets["domestic equity"] || 0) + allocPct;
+        // Check for MF/FoF holdings — split by company name classification
+        const mfEquityHoldings = safeHoldings.filter((h) => {
+          const corpus = parseFloat(h.corpus_per || 0);
+          if (corpus <= 0) return false;
+          const nat = (h.nature_name || "").toUpperCase();
+          const inst = (h.instrument_name || "").toLowerCase();
+          return (
+            nat === "MF" ||
+            inst === "mutual fund" ||
+            inst === "foreign mutual funds"
+          );
+        });
+
+        if (mfEquityHoldings.length === 0) {
+          buckets["domestic equity"] =
+            (buckets["domestic equity"] || 0) + allocPct;
+          return;
+        }
+
+        const mfTotal = mfEquityHoldings.reduce(
+          (sum, h) => sum + parseFloat(h.corpus_per || 0),
+          0,
+        );
+
+        mfEquityHoldings.forEach((h) => {
+          const corpus = parseFloat(h.corpus_per || 0);
+          const bucket = classifyMFHoldingByCompany(h.company_name);
+          buckets[bucket] =
+            (buckets[bucket] || 0) + (corpus / mfTotal) * allocPct;
+        });
         return;
       }
 
@@ -2726,7 +2795,7 @@ function resolveAssetAllocation(fundAsset, holdings, weight) {
       equityHoldings.forEach((h) => {
         const corpus = parseFloat(h.corpus_per || 0);
         if (corpus <= 0) return;
-        if (h.instrument_name === "Foreign - Equity") {
+        if (isGlobalHolding(h)) {
           globalCorpus += corpus;
         } else {
           domesticCorpus += corpus;
@@ -2758,7 +2827,13 @@ function resolveAssetAllocation(fundAsset, holdings, weight) {
     if (keyLower.includes("commodit")) {
       const commodityHoldings = safeHoldings.filter((h) => {
         const inst = (h.instrument_name || "").toLowerCase();
-        return inst.includes("gold") || inst.includes("silver");
+        const comp = (h.company_name || "").toLowerCase();
+        return (
+          inst.includes("gold") ||
+          inst.includes("silver") ||
+          comp.includes("gold etf") ||
+          comp.includes("silver etf")
+        );
       });
 
       if (commodityHoldings.length === 0) {
@@ -2774,7 +2849,8 @@ function resolveAssetAllocation(fundAsset, holdings, weight) {
         const corpus = parseFloat(h.corpus_per || 0);
         if (corpus <= 0) return;
         const inst = (h.instrument_name || "").toLowerCase();
-        if (inst.includes("silver")) {
+        const comp = (h.company_name || "").toLowerCase();
+        if (inst.includes("silver") || comp.includes("silver etf")) {
           silverCorpus += corpus;
         } else {
           goldCorpus += corpus;
@@ -2796,6 +2872,39 @@ function resolveAssetAllocation(fundAsset, holdings, weight) {
         buckets["silver"] =
           (buckets["silver"] || 0) + (silverCorpus / commTotal) * allocPct;
       }
+      return;
+    }
+
+    // ── MUTUAL FUND / FoF: classify underlying MF holdings by company name ────
+    if (keyLower.includes("mutual fund")) {
+      const mfHoldings = safeHoldings.filter((h) => {
+        const corpus = parseFloat(h.corpus_per || 0);
+        if (corpus <= 0) return false;
+        const nat = (h.nature_name || "").toUpperCase();
+        const inst = (h.instrument_name || "").toLowerCase();
+        return (
+          nat === "MF" ||
+          inst === "mutual fund" ||
+          inst === "foreign mutual funds"
+        );
+      });
+
+      if (mfHoldings.length === 0) {
+        buckets["other"] = (buckets["other"] || 0) + allocPct;
+        return;
+      }
+
+      const totalCorpus = mfHoldings.reduce(
+        (sum, h) => sum + parseFloat(h.corpus_per || 0),
+        0,
+      );
+
+      mfHoldings.forEach((h) => {
+        const corpus = parseFloat(h.corpus_per || 0);
+        const bucket = classifyMFHoldingByCompany(h.company_name);
+        buckets[bucket] =
+          (buckets[bucket] || 0) + (corpus / totalCorpus) * allocPct;
+      });
       return;
     }
 
@@ -2966,17 +3075,8 @@ function renderMarketCapGroupedLegend(
       .join("");
 
   container.innerHTML = `
-    <div class="donut-section-title">Domestic</div>
-    ${renderItems(domestic)}
-
-    ${
-      other.length
-        ? `
-      <div class="donut-section-title">Other</div>
-      ${renderItems(other)}
-    `
-        : ""
-    }
+    ${domestic.length ? `<div class="donut-section-title">Domestic</div>${renderItems(domestic)}` : ""}
+    ${other.length   ? `<div class="donut-section-title">Other</div>${renderItems(other)}`    : ""}
   `;
 }
 
@@ -3362,6 +3462,11 @@ function aggregateDailyValuations(allDailyValuations) {
   );
 }
 
+function setAnalyticsCardSub(subId, text) {
+  const el = document.getElementById(subId);
+  if (el) el.textContent = text;
+}
+
 // DISPLAY FUNCTIONS - ANALYTICS
 function displayAssetAllocation(assetAllocation) {
   const preferred = [
@@ -3436,6 +3541,7 @@ function displayAssetAllocation(assetAllocation) {
       totalValue,
     );
 
+    setAnalyticsCardSub("assetAllocationSub", `₹${formatNumber(Math.round(totalValue))}`);
     container.classList.remove("loading");
   }, 50);
 }
@@ -3510,6 +3616,7 @@ function displayMarketCapSplit(marketCap, assetAllocation, totalValue) {
       equityRupees,
     );
 
+    setAnalyticsCardSub("marketCapSub", `${sortedLabels.length} segments`);
     setTimeout(() => {
       container.classList.remove("loading");
     }, 150);
@@ -3569,12 +3676,14 @@ function displayDebtDistribution(debtDist, assetAllocation, totalValue) {
     debtRupees,
   );
 
+  setAnalyticsCardSub("debtDistributionSub", `${labels.length} instruments`);
   container.classList.remove("loading");
 }
 
 /**
  * Family-dashboard equivalent of displayDebtDistribution.
  */
+
 function displayFamilyDebtDistribution(metrics) {
   const container = document.getElementById("familyDebtDistributionCard");
   if (!container) return;
@@ -3607,11 +3716,9 @@ function displayFamilyDebtDistribution(metrics) {
     wrapper.innerHTML = '<canvas id="familyDebtDistributionChart"></canvas>';
   }
 
-  // Derive debt rupee total from assetAllocation (source of truth)
   const debtPct = metrics.assetAllocation?.["debt"] || 0;
   const debtRupees = metrics.totalCurrentValue * (debtPct / 100);
 
-  // Normalize raw portfolio-wide weights to within-debt percentages
   const rawSum = rawData.reduce((s, v) => s + v, 0);
   const normalisedData = rawData.map((v) => (v / rawSum) * 100);
 
@@ -3622,6 +3729,7 @@ function displayFamilyDebtDistribution(metrics) {
     debtRupees,
   );
 
+  setAnalyticsCardSub("familyDebtDistributionSub", `${labels.length} instruments`);
   container.classList.remove("loading");
 }
 
@@ -3657,11 +3765,9 @@ function displayFamilyDebtSectorSplit(metrics) {
 
   card.classList.remove("hidden");
 
-  // Derive debt rupee total from assetAllocation (source of truth)
   const debtPct = metrics.assetAllocation?.["debt"] || 0;
   const debtSectorRupees = metrics.totalCurrentValue * (debtPct / 100);
 
-  // Normalize raw portfolio-wide weights to within-debt percentages
   const rawSumDS = sortedData.reduce((s, v) => s + v, 0);
   const normalisedDS = sortedData.map((v) => (v / rawSumDS) * 100);
   buildDoughnutChart(
@@ -3670,6 +3776,7 @@ function displayFamilyDebtSectorSplit(metrics) {
     normalisedDS,
     debtSectorRupees,
   );
+  setAnalyticsCardSub("familyDebtSectorSub", `${sortedLabels.filter(l => l !== "Others").length} instruments`);
   card.classList.remove("loading");
 }
 
@@ -3722,6 +3829,7 @@ function displayFamilyHoldingsSplit(metrics) {
     normalisedData,
     equityRupees,
   );
+  setAnalyticsCardSub("familyHoldingsSub", `${entries.length} stocks`);
   holdingsCard.classList.remove("loading");
 }
 
@@ -3770,6 +3878,7 @@ function displaySectorSplit(sectorObj, assetAllocation, totalValue) {
   const normalisedData = sortedRaw.map((v) => (v / rawSum) * 100);
 
   buildDoughnutChart("sectorChart", sortedLabels, normalisedData, equityRupees);
+  setAnalyticsCardSub("sectorSub", `${sortedLabels.filter(l => l !== "Others").length} sectors`);
   sectorCard.classList.remove("loading");
 }
 
@@ -3814,6 +3923,7 @@ function displayDebtSectorSplit(debtSectorObj, assetAllocation, totalValue) {
     normalisedData,
     debtRupees,
   );
+  setAnalyticsCardSub("debtSectorSub", `${sortedLabels.filter(l => l !== "Others").length} instruments`);
   card.classList.remove("loading");
 }
 
@@ -3843,6 +3953,7 @@ function displayAMCSplit(amcObj, totalValue) {
   }
 
   buildDoughnutChart("amcChart", sortedLabels, sortedData, totalValue);
+  setAnalyticsCardSub("amcSub", `${sortedLabels.filter(l => l !== "Others").length} AMCs`);
   document.getElementById("amcCard")?.classList.remove("loading");
 }
 function displayHoldingsSplit(holdingsObj, assetAllocation, totalValue) {
@@ -3894,6 +4005,7 @@ function displayHoldingsSplit(holdingsObj, assetAllocation, totalValue) {
     normalisedData,
     equityRupees,
   );
+  setAnalyticsCardSub("holdingsSub", `${entries.length} stocks`);
   document.getElementById("holdingsCard")?.classList.remove("loading");
 }
 
@@ -4039,7 +4151,7 @@ function displayCapitalGains() {
   html += `
     <div class="capital-gains-section">
       <div class="section-header">
-        <h3>📅 Financial Year-wise Breakdown</h3>
+        <div class="dash-section-divider dash-section-divider--first">Financial Year-wise Breakdown</div>
         <p class="section-subtitle">Historical capital gains across all financial years</p>
       </div>
       <div class="cg-pill-bar" id="capitalGainsYearPills">
@@ -4069,7 +4181,7 @@ function displayCapitalGains() {
   html += `
     <div class="capital-gains-section alltime-section">
       <div class="section-header">
-        <h3>🏆 All-Time Summary</h3>
+        <div class="dash-section-divider">All-Time Summary</div>
         <p class="section-subtitle">Complete history of capital gains</p>
       </div>`;
 
@@ -4088,90 +4200,44 @@ function displayCapitalGains() {
     });
     const atTotalGains = atTotalSTCG + atTotalLTCG;
 
-    html += `
-      <div class="cg-alltime-hero">
-        <div class="folio-card-hero">
-          <div class="folio-card-hero-cell ${atTotalLTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">Long Term</span>
-            <span class="folio-card-hero-value ${atTotalLTCG >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(atTotalLTCG))}</span>
-            <span class="folio-card-hero-sub">LTCG</span>
-          </div>
-          <div class="folio-card-hero-cell ${atTotalSTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">Short Term</span>
-            <span class="folio-card-hero-value ${atTotalSTCG >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(atTotalSTCG))}</span>
-            <span class="folio-card-hero-sub">STCG</span>
-          </div>
-          <div class="folio-card-hero-cell ${atTotalGains >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">Total Gains</span>
-            <span class="folio-card-hero-value ${atTotalGains >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(atTotalGains))}</span>
-            <span class="folio-card-hero-sub">All time</span>
-          </div>
-          <div class="folio-card-hero-cell folio-card-hero-cell--xirr">
-            <span class="folio-card-hero-label">Total Redeemed</span>
-            <span class="folio-card-hero-value">₹${formatNumber(atTotalRedeemed)}</span>
-            <span class="folio-card-hero-sub">All categories</span>
-          </div>
-        </div>
-      </div>
-      <div class="gains-summary-grid alltime-summary-grid">`;
+    html += `<div class="cg-year-cat-grid">`;
 
-    ["equity", "debt", "hybrid"].forEach((cat) => {
-      const data = capitalGainsData.allTime[cat];
-      const totalGains = data.stcg + data.ltcg;
-      const totalRedeemed = data.stcgRedeemed + data.ltcgRedeemed;
-      if (totalGains !== 0 || totalRedeemed !== 0) {
-        const catIcons = { equity: "📈", debt: "🏦", hybrid: "⚖️" };
-        html += `
-        <div class="gains-summary-card folio-card">
-          <div class="folio-card-header">
-            <span class="folio-card-name-header">${catIcons[cat]} ${cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
+    const catIconsAt = { equity: '<i class="fa-solid fa-chart-line"></i>', hybrid: '<i class="fa-solid fa-scale-balanced"></i>', debt: '<i class="fa-solid fa-building-columns"></i>' };
+    const catLabelAt = { equity: "Equity", hybrid: "Hybrid", debt: "Debt" };
+    ["equity", "hybrid", "debt"].forEach((cat) => {
+      const data = capitalGainsData.allTime[cat] || {
+        stcg: 0,
+        ltcg: 0,
+        stcgRedeemed: 0,
+        ltcgRedeemed: 0,
+      };
+      const totalGains = (data.stcg || 0) + (data.ltcg || 0);
+      const totalRedeemed = (data.stcgRedeemed || 0) + (data.ltcgRedeemed || 0);
+      html += `
+        <div class="cg-year-cat-card">
+          <div class="cg-cat-header">
+            <span class="cg-cat-icon">${catIconsAt[cat]}</span>
+            <span class="cg-cat-name">${catLabelAt[cat]}</span>
           </div>
-          <div class="folio-card-hero">
-            <div class="folio-card-hero-cell ${data.ltcg >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-              <span class="folio-card-hero-label">LTCG</span>
-              <span class="folio-card-hero-value ${data.ltcg >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(data.ltcg))}</span>
-            </div>
-            <div class="folio-card-hero-cell ${data.stcg >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-              <span class="folio-card-hero-label">STCG</span>
-              <span class="folio-card-hero-value ${data.stcg >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(data.stcg))}</span>
-            </div>
-            <div class="folio-card-hero-cell ${totalGains >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-              <span class="folio-card-hero-label">Total Gains</span>
-              <span class="folio-card-hero-value ${totalGains >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(totalGains))}</span>
-            </div>
+          <div class="cg-cat-rows">
+            <div class="cg-cat-row"><span class="cg-cat-row-label">LTCG</span><span class="cg-cat-row-value ${data.ltcg >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(data.ltcg || 0))}</span></div>
+            <div class="cg-cat-row"><span class="cg-cat-row-label">STCG</span><span class="cg-cat-row-value ${data.stcg >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(data.stcg || 0))}</span></div>
+            <div class="cg-cat-row cg-cat-row--total"><span class="cg-cat-row-label">Total gains</span><span class="cg-cat-row-value ${totalGains >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(totalGains))}</span></div>
+            <div class="cg-cat-row cg-cat-row--sub"><span class="cg-cat-row-label">Redeemed</span><span class="cg-cat-row-value">₹${formatNumber(totalRedeemed)}</span></div>
           </div>
-          <div class="folio-card-chips-row">
-            <div class="folio-card-meta-chip">
-              <span class="folio-card-meta-label">Redeemed</span>
-              <span class="folio-card-meta-value">₹${formatNumber(totalRedeemed)}</span>
-            </div>
-            <div class="folio-card-meta-chip">
-              <span class="folio-card-meta-label">STCG Redeemed</span>
-              <span class="folio-card-meta-value">₹${formatNumber(data.stcgRedeemed)}</span>
-            </div>
-            <div class="folio-card-meta-chip">
-              <span class="folio-card-meta-label">LTCG Redeemed</span>
-              <span class="folio-card-meta-value">₹${formatNumber(data.ltcgRedeemed)}</span>
-            </div>
-          </div>
-        </div>
-      `;
-      }
+        </div>`;
     });
 
-    html += `
-        </div>
-      </div>
-    `;
+    html += `</div></div>`;
   }
 
   // All-time detailed transactions
   if (allTransactions.length > 0) {
     html += `
-      <div class="capital-gains-section">
-        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+      <div class="cg-year-transactions">
+        <div class="cg-year-tx-header">
           <div>
-            <h3>📋 All-Time Detailed Transactions</h3>
+            <span class="cg-year-tx-title">All-Time Detailed Transactions</span>
             <p class="section-subtitle">Complete breakdown of all redemption transactions</p>
           </div>
           <button class="cg-dl-btn" onclick="downloadCapitalGainsReport()">
@@ -4297,164 +4363,125 @@ function showYearGains(fy) {
 function showYearGainsWithTransactions(fy) {
   const yearData = capitalGainsData.byYear[fy];
 
-  // Update button states
   document.querySelectorAll(".cg-pill").forEach((btn) => {
     btn.classList.remove("active");
-    if (btn.textContent.trim() === fy) {
-      btn.classList.add("active");
-    }
+    if (btn.textContent.trim() === fy) btn.classList.add("active");
   });
 
+  const display = document.getElementById("yearGainsDisplay");
+  if (!display) return;
+
   if (!yearData) {
-    const display = document.getElementById("yearGainsDisplay");
-    if (display) {
-      display.innerHTML = `
-        <div class="cg-no-data-banner">
-          <i class="fa-solid fa-calendar-xmark"></i>
-          <span>DATA NOT AVAILABLE</span>
-          <p>No redemption transactions found for ${fy}</p>
-        </div>`;
-    }
+    display.innerHTML = `
+      <div class="cg-no-data-banner">
+        <i class="fa-solid fa-calendar-xmark"></i>
+        <span>DATA NOT AVAILABLE</span>
+        <p>No redemption transactions found for ${fy}</p>
+      </div>`;
     return;
   }
 
-  const display = document.getElementById("yearGainsDisplay");
-
-  // Get transactions for this FY
   const allTransactions = getCapitalGainsTransactions();
   const fyTransactions = allTransactions.filter((tx) => tx.fy === fy);
 
-  // Compute totals for hero row
-  let totalSTCG = 0,
-    totalLTCG = 0,
-    totalRedeemed = 0;
-  ["equity", "debt", "hybrid"].forEach((cat) => {
-    const d = yearData[cat];
-    totalSTCG += d.stcg || 0;
-    totalLTCG += d.ltcg || 0;
-    totalRedeemed += (d.stcgRedeemed || 0) + (d.ltcgRedeemed || 0);
-  });
-  const totalGains = totalSTCG + totalLTCG;
-
-  const gainsClass = totalGains >= 0 ? "gain" : "loss";
-  const stcgClass = totalSTCG >= 0 ? "gain" : "loss";
-  const ltcgClass = totalLTCG >= 0 ? "gain" : "loss";
-
-  // Build category cards
+  // ── Category summary cards (Equity / Hybrid / Debt) ──────────────────
   const catMeta = {
     equity: {
-      icon: "📈",
-      stcgPeriod: "< 1Y",
-      ltcgPeriod: "≥ 1Y",
+      icon: '<i class="fa-solid fa-chart-line"></i>',
+      label: "Equity",
+      stcgPeriod: "STCG <1Y",
+      ltcgPeriod: "LTCG ≥1Y (12.5% >₹1.25L)",
       stcgTax: "20%",
-      ltcgTax: "12.5% (>₹1.25L)",
-    },
-    debt: {
-      icon: "🏦",
-      stcgPeriod: "< 2Y",
-      ltcgPeriod: "≥ 2Y",
-      stcgTax: "As per slab",
-      ltcgTax: "As per slab",
     },
     hybrid: {
-      icon: "⚖️",
-      stcgPeriod: "< 2Y",
-      ltcgPeriod: "≥ 2Y",
+      icon: '<i class="fa-solid fa-scale-balanced"></i>',
+      label: "Hybrid",
+      stcgPeriod: "STCG <2Y",
+      ltcgPeriod: "LTCG ≥2Y (12.5%)",
       stcgTax: "As per slab",
-      ltcgTax: "12.5%",
+    },
+    debt: {
+      icon: '<i class="fa-solid fa-building-columns"></i>',
+      label: "Debt",
+      stcgPeriod: "STCG <2Y",
+      ltcgPeriod: "LTCG ≥2Y (As per slab)",
+      stcgTax: "As per slab",
     },
   };
 
   let categoryCardsHtml = "";
-  ["equity", "debt", "hybrid"].forEach((cat) => {
-    const d = yearData[cat];
+  ["equity", "hybrid", "debt"].forEach((cat) => {
+    const d = yearData[cat] || {
+      stcg: 0,
+      ltcg: 0,
+      stcgRedeemed: 0,
+      ltcgRedeemed: 0,
+    };
     const m = catMeta[cat];
-    const catSTCG = d.stcg || 0;
-    const catLTCG = d.ltcg || 0;
-    const catTotal = catSTCG + catLTCG;
+    const catTotal = (d.stcg || 0) + (d.ltcg || 0);
     const catRedeemed = (d.stcgRedeemed || 0) + (d.ltcgRedeemed || 0);
-    const hasAny = catTotal !== 0 || catRedeemed !== 0;
-
-    if (!hasAny) return;
-
-    const catTotalClass = catTotal >= 0 ? "gain" : "loss";
-    const stcgHasData = d.stcg !== 0 || d.stcgRedeemed !== 0;
-    const ltcgHasData = d.ltcg !== 0 || d.ltcgRedeemed !== 0;
-
     categoryCardsHtml += `
       <div class="cg-year-cat-card">
-        <div class="folio-card-header">
-          <span class="folio-card-name-header">${m.icon} ${cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
+        <div class="cg-cat-header">
+          <span class="cg-cat-icon">${m.icon}</span>
+          <span class="cg-cat-name">${m.label}</span>
         </div>
-        <div class="folio-card-hero">
-          <div class="folio-card-hero-cell ${catLTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">LTCG ${m.ltcgPeriod}</span>
-            <span class="folio-card-hero-value ${ltcgHasData ? (catLTCG >= 0 ? "gain" : "loss") : ""}">₹${formatNumber(Math.abs(ltcgHasData ? catLTCG : 0))}</span>
-            <span class="folio-card-hero-sub">Tax: ${m.ltcgTax}</span>
+        <div class="cg-cat-rows">
+          <div class="cg-cat-row">
+            <span class="cg-cat-row-label">${m.stcgPeriod}</span>
+            <span class="cg-cat-row-value ${d.stcg >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(d.stcg || 0))}</span>
           </div>
-          <div class="folio-card-hero-cell ${catSTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">STCG ${m.stcgPeriod}</span>
-            <span class="folio-card-hero-value ${stcgHasData ? (catSTCG >= 0 ? "gain" : "loss") : ""}">₹${formatNumber(Math.abs(stcgHasData ? catSTCG : 0))}</span>
-            <span class="folio-card-hero-sub">Tax: ${m.stcgTax}</span>
+          <div class="cg-cat-row">
+            <span class="cg-cat-row-label">${m.ltcgPeriod}</span>
+            <span class="cg-cat-row-value ${d.ltcg >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(d.ltcg || 0))}</span>
           </div>
-          <div class="folio-card-hero-cell ${catTotal >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">Total Gains</span>
-            <span class="folio-card-hero-value ${catTotalClass}">₹${formatNumber(Math.abs(catTotal))}</span>
-            <span class="folio-card-hero-sub">Redeemed ₹${formatNumber(catRedeemed)}</span>
+          <div class="cg-cat-row cg-cat-row--total">
+            <span class="cg-cat-row-label">Total gains</span>
+            <span class="cg-cat-row-value ${catTotal >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(catTotal))}</span>
+          </div>
+          <div class="cg-cat-row cg-cat-row--sub">
+            <span class="cg-cat-row-label">Redeemed</span>
+            <span class="cg-cat-row-value">₹${formatNumber(catRedeemed)}</span>
           </div>
         </div>
-      </div>
-    `;
+      </div>`;
   });
 
   let html = `
-    <div class="cg-year-display">
-      <div class="cg-year-hero">
-        <div class="folio-card-hero">
-          <div class="folio-card-hero-cell ${totalLTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">Long Term</span>
-            <span class="folio-card-hero-value ${ltcgClass}">₹${formatNumber(Math.abs(totalLTCG))}</span>
-            <span class="folio-card-hero-sub">LTCG</span>
-          </div>
-          <div class="folio-card-hero-cell ${totalSTCG >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">Short Term</span>
-            <span class="folio-card-hero-value ${stcgClass}">₹${formatNumber(Math.abs(totalSTCG))}</span>
-            <span class="folio-card-hero-sub">STCG</span>
-          </div>
-          <div class="folio-card-hero-cell ${totalGains >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-            <span class="folio-card-hero-label">Total Gains</span>
-            <span class="folio-card-hero-value ${gainsClass}">₹${formatNumber(Math.abs(totalGains))}</span>
-            <span class="folio-card-hero-sub">STCG + LTCG</span>
-          </div>
-          <div class="folio-card-hero-cell folio-card-hero-cell--xirr">
-            <span class="folio-card-hero-label">Total Redeemed</span>
-            <span class="folio-card-hero-value">₹${formatNumber(totalRedeemed)}</span>
-            <span class="folio-card-hero-sub">All categories</span>
-          </div>
-        </div>
-      </div>
-      <div class="cg-year-cat-grid">
-        ${categoryCardsHtml || `<p class="no-data">No redemptions in ${fy}</p>`}
-      </div>
-    </div>
+    <div class="cg-year-cat-grid">${categoryCardsHtml}</div>
+    ${buildITR2Cards(fyTransactions, fy)}
+    ${buildQuarterlyTable(fyTransactions, fy)}
   `;
 
-  // Add detailed transactions table for this FY
   if (fyTransactions.length > 0) {
     html += `
-    <div class="cg-year-transactions">
-      <div class="cg-year-tx-header">
-        <span class="cg-year-tx-title">Detailed Transactions — ${fy}</span>
-        <button class="cg-dl-btn" onclick="downloadFYCapitalGainsReport('${fy}')">
-          <i class="fa-solid fa-download"></i> Download ${fy}
-        </button>
-      </div>
-      ${createFYTransactionTable(fyTransactions)}
-    </div>
-  `;
+      <div class="cg-year-transactions">
+        <div class="cg-year-tx-header">
+          <div>
+            <span class="cg-year-tx-title">Detailed transactions — ${fy}</span>
+            <p class="section-subtitle">Complete breakdown of all redemption transactions for ${fy}</p>
+          </div>
+          <button class="cg-dl-btn" onclick="downloadFYCapitalGainsReport('${fy}')">
+            <i class="fa-solid fa-download"></i> Download ${fy} →
+          </button>
+        </div>
+        ${createFYTransactionTable(fyTransactions)}
+      </div>`;
   }
 
   display.innerHTML = html;
+
+  requestAnimationFrame(() => {
+    display.querySelectorAll('.gains-trans').forEach(container => {
+      const firstRow = container.querySelector('tbody tr');
+      if (!firstRow) return;
+      const rowH = firstRow.getBoundingClientRect().height;
+      const theadH = container.querySelector('thead')?.getBoundingClientRect().height ?? 0;
+      container.style.scrollPaddingTop = theadH + 'px';
+      const maxRows = Math.floor((600 - theadH) / rowH);
+      if (maxRows > 0) container.style.maxHeight = (theadH + maxRows * rowH) + 'px';
+    });
+  });
 }
 function getCapitalGainsTransactions() {
   const transactions = [];
@@ -4545,6 +4572,7 @@ function getCapitalGainsTransactions() {
               redemptionValue: redemptionValue,
               stcg: isSTCG ? gainFromBatch : 0,
               ltcg: isSTCG ? 0 : gainFromBatch,
+              term: isSTCG ? "STCG" : "LTCG",
               holdingDays: holdingDays,
               fy: getFinancialYear(saleDate),
             });
@@ -4553,7 +4581,7 @@ function getCapitalGainsTransactions() {
       });
   });
 
-  // Sort by redemption date descending (newest first)
+  // Sort by Sell Date descending (newest first)
   transactions.sort(
     (a, b) => new Date(b.redemptionDate) - new Date(a.redemptionDate),
   );
@@ -4569,33 +4597,33 @@ function createFYTransactionTable(transactions) {
         <table class="gains-table">
           <thead>
             <tr>
-              <th data-sort="scheme">Scheme Name</th>
-              <th data-sort="folio">Folio</th>
-              <th data-sort="category">Category</th>
-              <th data-sort="qty">Qty</th>
-              <th data-sort="purchaseDate">Purchase Date</th>
-              <th data-sort="purchaseNav">Purchase NAV</th>
-              <th data-sort="redemptionDate">Redemption Date</th>
-              <th data-sort="redemptionNav">Redemption NAV</th>
-              <th data-sort="purchaseNav">Purchase Value</th>
-              <th data-sort="redemptionNav">Redemption Value</th>
-              <th data-sort="holdingDays">Holding (Days)</th>
-              <th data-sort="stcg">STCG</th>
-              <th data-sort="ltcg">LTCG</th>
+              <th>Fund</th>
+              <th>Folio</th>
+              <th>Taxation</th>
+              <th>Type</th>
+              <th>Qty</th>
+              <th>Buy Date</th>
+              <th>Buy NAV</th>
+              <th>Sell Date</th>
+              <th>Sell NAV</th>
+              <th>Buy Value</th>
+              <th>Sell Value</th>
+              <th>Holding</th>
+              <th>Gain</th>
             </tr>
           </thead>
           <tbody>
   `;
 
   transactions.forEach((tx) => {
-    const stcgClass = tx.stcg >= 0 ? "gain" : "loss";
-    const ltcgClass = tx.ltcg >= 0 ? "gain" : "loss";
-
+    const gain = (tx.stcg || 0) + (tx.ltcg || 0);
+    const gainClass = gain >= 0 ? "gain" : "loss";
     html += `
       <tr>
         <td>${tx.scheme}</td>
         <td>${tx.folio}</td>
         <td>${tx.category}</td>
+        <td>${tx.term || (tx.stcg !== 0 ? "STCG" : "LTCG")}</td>
         <td>${tx.qty.toFixed(3)}</td>
         <td>${tx.purchaseDate}</td>
         <td>₹${tx.purchaseNav.toFixed(4)}</td>
@@ -4604,12 +4632,7 @@ function createFYTransactionTable(transactions) {
         <td>₹${tx.purchaseValue.toFixed(4)}</td>
         <td>₹${tx.redemptionValue.toFixed(4)}</td>
         <td>${tx.holdingDays}</td>
-        <td class="${stcgClass}">${
-          "₹" + formatNumber(tx.stcg !== 0 ? tx.stcg : 0)
-        }</td>
-        <td class="${ltcgClass}">${
-          "₹" + formatNumber(tx.ltcg !== 0 ? tx.ltcg : 0)
-        }</td>
+        <td class="${gainClass}">₹${formatNumber(gain)}</td>
       </tr>
     `;
   });
@@ -4643,17 +4666,17 @@ function downloadCapitalGainsReport() {
   Object.keys(groupedByFY).forEach((fy) => {
     const data = groupedByFY[fy].map((tx) => ({
       // "Financial Year": tx.fy,
-      "Scheme Name": tx.scheme,
+      Fund: tx.scheme,
       Folio: tx.folio,
       Category: tx.category,
       Quantity: parseFloat(tx.qty.toFixed(3)),
-      "Purchase Date": new Date(tx.purchaseDate),
-      "Purchase NAV": parseFloat(tx.purchaseNav.toFixed(4)),
-      "Redemption Date": new Date(tx.redemptionDate),
-      "Redemption NAV": parseFloat(tx.redemptionNav.toFixed(4)),
+      "Buy Date": new Date(tx.purchaseDate),
+      "Buy NAV": parseFloat(tx.purchaseNav.toFixed(4)),
+      "Sell Date": new Date(tx.redemptionDate),
+      "Sell NAV": parseFloat(tx.redemptionNav.toFixed(4)),
       "Holding Days": tx.holdingDays,
-      "Purchase Value": parseFloat(tx.purchaseValue.toFixed(4)),
-      "Redemption Value": parseFloat(tx.redemptionValue.toFixed(4)),
+      "Buy Value": parseFloat(tx.purchaseValue.toFixed(4)),
+      "Sell Value": parseFloat(tx.redemptionValue.toFixed(4)),
       STCG: tx.stcg !== 0 ? parseFloat(tx.stcg.toFixed(2)) : 0,
       LTCG: tx.ltcg !== 0 ? parseFloat(tx.ltcg.toFixed(2)) : 0,
     }));
@@ -4662,17 +4685,17 @@ function downloadCapitalGainsReport() {
 
     // Set column widths
     ws["!cols"] = [
-      { wch: 40 }, // Scheme Name
+      { wch: 40 }, // Fund
       { wch: 15 }, // Folio
       { wch: 12 }, // Category
       { wch: 12 }, // Quantity
-      { wch: 15 }, // Purchase Date
-      { wch: 15 }, // Purchase NAV
-      { wch: 15 }, // Redemption Date
-      { wch: 15 }, // Redemption NAV
+      { wch: 15 }, // Buy Date
+      { wch: 15 }, // Buy NAV
+      { wch: 15 }, // Sell Date
+      { wch: 15 }, // Sell NAV
       { wch: 12 }, // Holding Days
-      { wch: 15 }, // Purchase Value
-      { wch: 15 }, // Redemption Value
+      { wch: 15 }, // Buy Value
+      { wch: 15 }, // Sell Value
       { wch: 15 }, // STCG
       { wch: 15 }, // LTCG
     ];
@@ -4700,50 +4723,364 @@ function downloadFYCapitalGainsReport(fy) {
     return;
   }
 
-  const data = fyTransactions.map((tx) => ({
-    // "Financial Year": tx.fy,
-    "Scheme Name": tx.scheme,
-    Folio: tx.folio,
-    Category: tx.category,
-    Quantity: parseFloat(tx.qty.toFixed(3)),
-    "Purchase Date": new Date(tx.purchaseDate),
-    "Purchase NAV": parseFloat(tx.purchaseNav.toFixed(4)),
-    "Redemption Date": new Date(tx.redemptionDate),
-    "Redemption NAV": parseFloat(tx.redemptionNav.toFixed(4)),
-    "Holding Days": tx.holdingDays,
-    "Purchase Value": parseFloat(tx.purchaseValue.toFixed(4)),
-    "Redemption Value": parseFloat(tx.redemptionValue.toFixed(4)),
-    STCG: tx.stcg !== 0 ? parseFloat(tx.stcg.toFixed(2)) : 0,
-    LTCG: tx.ltcg !== 0 ? parseFloat(tx.ltcg.toFixed(2)) : 0,
-  }));
+  const EXEMPTION = 125000;
+  const categories = ["Equity", "Hybrid", "Debt"];
+  const fyStartYear = parseInt(fy.split(" ")[1].split("-")[0]);
+  const qLabels = [
+    "Upto 15/6",
+    "16/6-15/9",
+    "16/9-15/12",
+    "16/12-15/3",
+    "16/3-31/3",
+  ];
 
-  const ws = XLSX.utils.json_to_sheet(data);
-  ws["!cols"] = [
+  // ── Sheet 1: ITR2 Summary ────────────────────────────────────────────
+  // Build ITR2 aggregate rows
+  const itr2Agg = {};
+  categories.forEach((cat) => {
+    itr2Agg[cat] = {
+      STCG: { cost: 0, consideration: 0 },
+      LTCG: { cost: 0, consideration: 0 },
+    };
+  });
+  fyTransactions.forEach((tx) => {
+    const a = itr2Agg[tx.category]?.[tx.term];
+    if (a) {
+      a.cost += tx.purchaseValue;
+      a.consideration += tx.redemptionValue;
+    }
+  });
+
+  const itr2Rows = [];
+  categories.forEach((cat) => {
+    ["STCG", "LTCG"].forEach((term) => {
+      const { cost, consideration } = itr2Agg[cat][term];
+      const net = consideration - cost;
+      const info = ITR2_SCHEDULE[`${cat}-${term}`];
+      const isEqLTCG = cat === "Equity" && term === "LTCG";
+      const exemption = isEqLTCG && net > 0 ? Math.min(EXEMPTION, net) : 0;
+      itr2Rows.push({
+        Category: cat,
+        Type: term,
+        "Schedule CG Item": info.schedule,
+        "Tax Rate": info.rate,
+        "Full Value of Consideration": parseFloat(consideration.toFixed(2)),
+        "Cost of Acquisition": parseFloat(cost.toFixed(2)),
+        ...(isEqLTCG
+          ? { "1.25L Exemption": parseFloat(exemption.toFixed(2)) }
+          : {}),
+        "Net Gain": parseFloat(
+          (isEqLTCG ? Math.max(0, net - exemption) : net).toFixed(2),
+        ),
+      });
+    });
+  });
+
+  // Build quarterly rows
+  const qGains = {
+    "Equity STCG @20%": new Array(5).fill(0),
+    "Equity LTCG @12.5%": new Array(5).fill(0),
+    "Hybrid @ slab rate": new Array(5).fill(0),
+    "Debt @ slab rate": new Array(5).fill(0),
+  };
+  fyTransactions.forEach((tx) => {
+    const qIdx = getCGQuarterIndex(new Date(tx.redemptionDate), fyStartYear);
+    if (qIdx < 0) return;
+    const gain = (tx.stcg || 0) + (tx.ltcg || 0);
+    if (tx.category === "Equity" && tx.term === "STCG")
+      qGains["Equity STCG @20%"][qIdx] += gain;
+    else if (tx.category === "Equity" && tx.term === "LTCG")
+      qGains["Equity LTCG @12.5%"][qIdx] += gain;
+    else if (tx.category === "Hybrid")
+      qGains["Hybrid @ slab rate"][qIdx] += gain;
+    else if (tx.category === "Debt") qGains["Debt @ slab rate"][qIdx] += gain;
+  });
+
+  const qRows = [];
+  // blank separator row
+  qRows.push({ "Gain Type": "" });
+  qRows.push({ "Gain Type": "Quarter-wise Accrual (Schedule CG Section F)" });
+  qRows.push(
+    Object.fromEntries([
+      ["Gain Type", "Gain Type"],
+      ...qLabels.map((l, i) => [l, l]),
+    ]),
+  );
+  Object.entries(qGains).forEach(([label, vals]) => {
+    qRows.push(
+      Object.fromEntries([
+        ["Gain Type", label],
+        ...qLabels.map((l, i) => [l, parseFloat(vals[i].toFixed(2))]),
+      ]),
+    );
+  });
+  const qTotals = qLabels.map((_, i) =>
+    Object.values(qGains).reduce((s, v) => s + v[i], 0),
+  );
+  qRows.push(
+    Object.fromEntries([
+      ["Gain Type", "Quarter Total"],
+      ...qLabels.map((l, i) => [l, parseFloat(qTotals[i].toFixed(2))]),
+    ]),
+  );
+
+  const sheet1Data = [
+    { "Gain Type": `ITR2-ready figures — ${fy}` },
+    {
+      "Gain Type": "Category",
+      "Upto 15/6": "Type",
+      "16/6-15/9": "Schedule",
+      "16/9-15/12": "Tax Rate",
+      "16/12-15/3": "Consideration",
+      "16/3-31/3": "Cost",
+      "": "Net Gain",
+    },
+    ...itr2Rows.map((r) => ({
+      "Gain Type": r.Category,
+      "Upto 15/6": r.Type,
+      "16/6-15/9": r["Schedule CG Item"],
+      "16/9-15/12": r["Tax Rate"],
+      "16/12-15/3": r["Full Value of Consideration"],
+      "16/3-31/3": r["Cost of Acquisition"],
+      "": r["Net Gain"],
+    })),
+    ...qRows,
+  ];
+
+  // Use separate simple sheets approach
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: ITR2 figures + quarterly (two separate tables)
+  const ws1 = XLSX.utils.aoa_to_sheet([
+    [`ITR2-ready figures — ${fy}`],
+    [],
+    [
+      "Category",
+      "Type",
+      "Schedule CG",
+      "Tax Rate",
+      "Consideration",
+      "Cost of Acquisition",
+      "1.25L Exemption (Equity LTCG)",
+      "Net Gain",
+    ],
+    ...itr2Rows.map((r) => [
+      r.Category,
+      r.Type,
+      r["Schedule CG Item"],
+      r["Tax Rate"],
+      r["Full Value of Consideration"],
+      r["Cost of Acquisition"],
+      r["1.25L Exemption"] ?? "",
+      r["Net Gain"],
+    ]),
+    [],
+    [`Quarter-wise Accrual (Schedule CG · Section F) — ${fy}`],
+    [],
+    ["Gain Type", ...qLabels],
+    ...Object.entries(qGains).map(([label, vals]) => [
+      label,
+      ...vals.map((v) => parseFloat(v.toFixed(2))),
+    ]),
+    ["Quarter Total", ...qTotals.map((v) => parseFloat(v.toFixed(2)))],
+  ]);
+  ws1["!cols"] = [
+    { wch: 35 },
+    { wch: 10 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 22 },
+    { wch: 14 },
+  ];
+  XLSX.utils.book_append_sheet(wb, ws1, "ITR2 Summary");
+
+  // Sheet 2: Full transactions
+  const txData = fyTransactions.map((tx) => ({
+    Fund: tx.scheme,
+    Folio: tx.folio,
+    Taxation: tx.category,
+    Type: tx.term || (tx.stcg !== 0 ? "STCG" : "LTCG"),
+    Quantity: parseFloat(tx.qty.toFixed(3)),
+    "Buy Date": new Date(tx.purchaseDate),
+    "Buy NAV": parseFloat(tx.purchaseNav.toFixed(4)),
+    "Sell Date": new Date(tx.redemptionDate),
+    "Sell NAV": parseFloat(tx.redemptionNav.toFixed(4)),
+    "Holding Days": tx.holdingDays,
+    "Buy Value": parseFloat(tx.purchaseValue.toFixed(2)),
+    "Sell Value": parseFloat(tx.redemptionValue.toFixed(2)),
+    Gain: parseFloat(((tx.stcg || 0) + (tx.ltcg || 0)).toFixed(2)),
+  }));
+  const ws2 = XLSX.utils.json_to_sheet(txData);
+  ws2["!cols"] = [
     { wch: 40 },
     { wch: 15 },
     { wch: 12 },
+    { wch: 8 },
+    { wch: 10 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
     { wch: 12 },
     { wch: 15 },
     { wch: 15 },
-    { wch: 15 },
-    { wch: 15 },
     { wch: 12 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 },
   ];
+  XLSX.utils.book_append_sheet(wb, ws2, "Transactions");
 
   const sheetName = fy.toLowerCase().replace(/[\s-]+/g, "_");
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
-
-  const filename = `capital_gains_${sheetName}_${
-    new Date().toISOString().split("T")[0]
-  }.xlsx`;
-  XLSX.writeFile(wb, filename);
-
+  XLSX.writeFile(
+    wb,
+    `capital_gains_${sheetName}_${new Date().toISOString().split("T")[0]}.xlsx`,
+  );
   showToast(`${fy} capital gains report downloaded!`, "success");
+}
+
+// ── ITR2 helpers ────────────────────────────────────────────────────────────
+const ITR2_SCHEDULE = {
+  "Equity-STCG": { schedule: "A2", rate: "20%" },
+  "Equity-LTCG": { schedule: "B3", rate: "12.5%" },
+  "Hybrid-STCG": { schedule: "A5", rate: "Slab" },
+  "Hybrid-LTCG": { schedule: "B8", rate: "12.5%" },
+  "Debt-STCG": { schedule: "A5", rate: "Slab" },
+  "Debt-LTCG": { schedule: "B8", rate: "Slab" },
+};
+
+function getCGQuarterIndex(saleDate, fyStartYear) {
+  const y = fyStartYear;
+  const n =
+    saleDate.getFullYear() * 10000 +
+    (saleDate.getMonth() + 1) * 100 +
+    saleDate.getDate();
+  if (n >= y * 10000 + 401 && n <= y * 10000 + 615) return 0;
+  if (n >= y * 10000 + 616 && n <= y * 10000 + 915) return 1;
+  if (n >= y * 10000 + 916 && n <= y * 10000 + 1215) return 2;
+  if (n >= y * 10000 + 1216 && n <= (y + 1) * 10000 + 315) return 3;
+  if (n >= (y + 1) * 10000 + 316 && n <= (y + 1) * 10000 + 331) return 4;
+  return -1;
+}
+
+function buildITR2Cards(fyTransactions, fy) {
+  const EXEMPTION = 125000;
+  const categories = ["Equity", "Hybrid", "Debt"];
+  const catIcons = { Equity: '<i class="fa-solid fa-chart-line"></i>', Hybrid: '<i class="fa-solid fa-scale-balanced"></i>', Debt: '<i class="fa-solid fa-building-columns"></i>' };
+  const agg = {};
+  categories.forEach((cat) => {
+    agg[cat] = {
+      STCG: { cost: 0, consideration: 0 },
+      LTCG: { cost: 0, consideration: 0 },
+    };
+  });
+  fyTransactions.forEach((tx) => {
+    const a = agg[tx.category]?.[tx.term];
+    if (!a) return;
+    a.cost += tx.purchaseValue;
+    a.consideration += tx.redemptionValue;
+  });
+
+  let cards = categories
+    .map((cat) => {
+      const d = agg[cat];
+      const rows = ["STCG", "LTCG"]
+        .map((term) => {
+          const { cost, consideration } = d[term];
+          const net = consideration - cost;
+          const info = ITR2_SCHEDULE[`${cat}-${term}`];
+          const isEqLTCG = cat === "Equity" && term === "LTCG";
+          const exemption = isEqLTCG && net > 0 ? Math.min(EXEMPTION, net) : 0;
+          const netDisplay = isEqLTCG ? Math.max(0, net - exemption) : net;
+          const rateLabel = info.rate === "Slab" ? "@ slab" : `@${info.rate}`;
+          return `
+        <div class="itr2-term-block">
+          <div class="itr2-term-head">
+            <span class="itr2-term-label">${term}</span>
+            <span class="itr2-badge">${info.schedule}</span>
+          </div>
+          <div class="itr2-row"><span>Consideration</span><span>₹${formatNumber(consideration)}</span></div>
+          <div class="itr2-row"><span>Cost</span><span>₹${formatNumber(cost)}</span></div>
+          ${isEqLTCG ? `<div class="itr2-row itr2-row--exempt"><span>1.25L exemption</span><span>−₹${formatNumber(exemption)}</span></div>` : ""}
+          <div class="itr2-row itr2-row--net ${net >= 0 ? "gain" : "loss"}">
+            <span>Net ${rateLabel}</span>
+            <span>${net < 0 ? "−" : ""}₹${formatNumber(Math.abs(netDisplay))}</span>
+          </div>
+        </div>`;
+        })
+        .join("");
+      return `<div class="itr2-cat-card"><div class="itr2-cat-head"><span>${catIcons[cat]}</span><span>${cat}</span></div>${rows}</div>`;
+    })
+    .join("");
+
+  return `
+    <div class="itr2-section">
+      <div class="section-header">
+        <div class="dash-section-divider">ITR2-ready figures — ${fy}</div>
+        <p class="section-subtitle">Cost of acquisition and consideration mapped to the tentative Schedule CG item to enter them in</p>
+      </div>
+      <div class="itr2-cards-grid">${cards}</div>
+    </div>`;
+}
+
+function buildQuarterlyTable(fyTransactions, fy) {
+  const fyStartYear = parseInt(fy.split(" ")[1].split("-")[0]);
+  const qLabels = [
+    "Upto 15/6",
+    "16/6–15/9",
+    "16/9–15/12",
+    "16/12–15/3",
+    "16/3–31/3",
+  ];
+  const rows = [
+    {
+      label: "Equity STCG @20%",
+      match: (tx) => tx.category === "Equity" && tx.term === "STCG",
+    },
+    {
+      label: "Equity LTCG @12.5%",
+      match: (tx) => tx.category === "Equity" && tx.term === "LTCG",
+    },
+    { label: "Hybrid @ slab rate", match: (tx) => tx.category === "Hybrid" },
+    { label: "Debt @ slab rate", match: (tx) => tx.category === "Debt" },
+  ];
+  const gains = rows.map(() => new Array(5).fill(0));
+  const qTotals = new Array(5).fill(0);
+
+  fyTransactions.forEach((tx) => {
+    const saleDate = new Date(tx.redemptionDate);
+    const qIdx = getCGQuarterIndex(saleDate, fyStartYear);
+    if (qIdx < 0) return;
+    const gain = (tx.stcg || 0) + (tx.ltcg || 0);
+    rows.forEach((r, ri) => {
+      if (r.match(tx)) {
+        gains[ri][qIdx] += gain;
+        qTotals[qIdx] += gain;
+      }
+    });
+  });
+
+  const rowsHtml = rows
+    .map(
+      (r, ri) =>
+        `<tr><td>${r.label}</td>${gains[ri].map((v) => `<td>${v !== 0 ? "₹" + formatNumber(v) : "₹0"}</td>`).join("")}</tr>`,
+    )
+    .join("");
+
+  return `
+    <div class="cg-quarterly-section">
+      <div class="section-header">
+        <div class="dash-section-divider">Quarter-wise accrual (Schedule CG · Section F)</div>
+      </div>
+      <div class="cg-quarterly-wrap">
+        <table class="cg-quarterly-table">
+          <thead><tr><th>Gain type</th>${qLabels.map((l) => `<th>${l}</th>`).join("")}</tr></thead>
+          <tbody>
+            ${rowsHtml}
+            <tr class="cg-q-total-row"><td><strong>Quarter total</strong></td>${qTotals.map((t) => `<td><strong>${t !== 0 ? "₹" + formatNumber(t) : "₹0"}</strong></td>`).join("")}</tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 // DISPLAY FUNCTIONS - ANALYSIS TABS
@@ -4779,8 +5116,8 @@ function renderOverlapVennSVG(overlapPercent) {
   const cx2 = centerX + distance / 2;
   return `
     <svg viewBox="0 0 256 140" class="overlap-venn-svg" xmlns="http://www.w3.org/2000/svg">
-      <circle class="overlap-venn-circle circle-a overlap-venn-start" cx="${cx1}" cy="${cy}" r="${r}" fill="#3b82f6" opacity="0.55"></circle>
-      <circle class="overlap-venn-circle circle-b overlap-venn-start" cx="${cx2}" cy="${cy}" r="${r}" fill="#93c5fd" opacity="0.55"></circle>
+      <circle class="overlap-venn-circle circle-a overlap-venn-start" cx="${cx1}" cy="${cy}" r="${r}" fill="#4482C9" opacity="0.55"></circle>
+      <circle class="overlap-venn-circle circle-b overlap-venn-start" cx="${cx2}" cy="${cy}" r="${r}" fill="#85B4E0" opacity="0.55"></circle>
     </svg>`;
 }
 function renderOverlapCalculatorResult(pairData) {
@@ -5595,7 +5932,7 @@ function displayExpenseImpact() {
   let html = `
     <div class="capital-gains-section">
       <div class="section-header">
-        <h3><i class="fa-solid fa-receipt" style="margin-right:6px;color:#667eea;"></i>Expense Ratio Impact</h3>
+        <h3><i class="fa-solid fa-receipt" style="margin-right:6px;color:#9A6B46;"></i>Expense Ratio Impact</h3>
         <p class="section-subtitle">Fund management fees on your portfolio</p>
       </div>
 
@@ -5682,58 +6019,35 @@ function displayHealthScore() {
     return;
   }
 
+  const isDark = document.documentElement.dataset.theme === "dark";
+  const successColor = isDark ? "#4dcc88" : "#2F8F5B";
+  const successBg = isDark ? "rgba(77, 204, 136, 0.14)" : "rgba(47, 143, 91, 0.12)";
+  const blueColor = isDark ? "#6aaee8" : "#4482C9";
+  const blueBg = isDark ? "rgba(106, 174, 232, 0.14)" : "rgba(68, 130, 201, 0.12)";
+  const warningColor = isDark ? "#e4a040" : "#C9872D";
+  const warningBg = isDark ? "rgba(228, 160, 64, 0.14)" : "rgba(201, 135, 45, 0.12)";
+  const dangerColor = isDark ? "#e07870" : "#C65A52";
+  const dangerBg = isDark ? "rgba(224, 120, 112, 0.14)" : "rgba(198, 90, 82, 0.12)";
+
   const getGrade = (score) => {
     if (score >= 85)
-      return {
-        grade: "A+",
-        color: "#10b981",
-        bg: "rgba(16,185,129,0.12)",
-        message: "Excellent",
-      };
+      return { grade: "A+", color: successColor, bg: successBg, message: "Excellent" };
     if (score >= 75)
-      return {
-        grade: "A",
-        color: "#10b981",
-        bg: "rgba(16,185,129,0.1)",
-        message: "Great",
-      };
+      return { grade: "A", color: successColor, bg: successBg, message: "Great" };
     if (score >= 65)
-      return {
-        grade: "B+",
-        color: "#3b82f6",
-        bg: "rgba(59,130,246,0.12)",
-        message: "Good",
-      };
+      return { grade: "B+", color: blueColor, bg: blueBg, message: "Good" };
     if (score >= 55)
-      return {
-        grade: "B",
-        color: "#3b82f6",
-        bg: "rgba(59,130,246,0.1)",
-        message: "Above Average",
-      };
+      return { grade: "B", color: blueColor, bg: blueBg, message: "Above Average" };
     if (score >= 45)
-      return {
-        grade: "C",
-        color: "#f59e0b",
-        bg: "rgba(245,158,11,0.12)",
-        message: "Average",
-      };
-    return {
-      grade: "D",
-      color: "#ef4444",
-      bg: "rgba(239,68,68,0.12)",
-      message: "Needs Improvement",
-    };
+      return { grade: "C", color: warningColor, bg: warningBg, message: "Average" };
+    return { grade: "D", color: dangerColor, bg: dangerBg, message: "Needs Improvement" };
   };
 
   const getDetailColor = (pct) =>
-    pct >= 80
-      ? "#10b981"
-      : pct >= 60
-        ? "#3b82f6"
-        : pct >= 40
-          ? "#f59e0b"
-          : "#ef4444";
+    pct >= 80 ? successColor
+    : pct >= 60 ? blueColor
+    : pct >= 40 ? warningColor
+    : dangerColor;
 
   const detailIcons = {
     diversification: "fa-solid fa-sitemap",
@@ -5756,14 +6070,24 @@ function displayHealthScore() {
         <span class="cg-section-subtitle">Data-driven assessment</span>
       </div>
 
-      <!-- Hero circle -->
+      <!-- Hero circle — SVG ring matching dashboard style -->
       <div class="health-hero-wrap">
-        <div class="health-score-circle" style="border-color:${result.color}; background:${result.bg}; color:${result.color};">
-          <span class="health-score-num">${scores.overall}</span>
-          <span class="health-score-denom">/100</span>
+        <div class="health-score-ring-wrap">
+          <svg viewBox="0 0 120 120" width="120" height="120">
+            <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(154,107,70,0.1)" stroke-width="10"/>
+            <circle cx="60" cy="60" r="48" fill="none"
+              style="stroke:${result.color}"
+              stroke-width="10"
+              stroke-linecap="round"
+              stroke-dasharray="${((scores.overall / 100) * 2 * Math.PI * 48).toFixed(2)} ${(2 * Math.PI * 48).toFixed(2)}"
+              stroke-dashoffset="0"
+              transform="rotate(-90 60 60)"/>
+          </svg>
+          <div class="health-score-ring-label">
+            <span class="health-score-num" style="color:${result.color}">${scores.overall}</span>
+          </div>
         </div>
-        <span class="health-grade-badge" style="background:${result.bg}; color:${result.color};">Grade ${result.grade}</span>
-        <span class="health-grade-label">${result.message}</span>
+        <span class="health-grade-badge" style="background:${result.bg}; color:${result.color};">${result.message}</span>
       </div>
 
       <!-- Detail rows -->
@@ -5916,7 +6240,7 @@ function renderTransactionCalendar() {
     <div class="monthly-summary-container">
       <div class="section-header section-header--with-pills">
         <div class="section-header-left">
-          <h3>📅 Transaction Calendar</h3>
+          <h3><i class="fa-solid fa-calendar-days"></i> Transaction Calendar</h3>
           <p class="section-subtitle">Days you invested (green) or withdrew (red)</p>
         </div>
         <div class="section-header-pills">
@@ -5997,74 +6321,77 @@ function displayMonthlySummaryAndProjections() {
   );
 
   let html = `
-    <div class="monthly-summary-container">
       <div class="section-header">
-        <h3>📊 Average Monthly Summary</h3>
+        <h3 style="padding-bottom:10px;border-bottom:1px solid var(--border-light);"><i class="fa-solid fa-calendar-week"></i> Average Monthly Summary</h3>
         <p class="section-subtitle">Your investment patterns over recent months</p>
       </div>
 
       <div class="gains-summary-grid alltime-summary-grid monthly-summary-cards">
 
-        <div class="gains-summary-card folio-card">
-          <div class="folio-card-header">
-            <span class="folio-card-name-header">📅 Last 6 Months</span>
-          </div>
-          <div class="folio-card-hero">
-            <div class="folio-card-hero-cell folio-card-hero-cell--pnl-gain">
-              <span class="folio-card-hero-label">Avg Buy</span>
-              <span class="folio-card-hero-value">₹${formatNumber(Math.round(summary.sixMonths.avgBuy))}</span>
-            </div>
-            <div class="folio-card-hero-cell folio-card-hero-cell--pnl-loss">
-              <span class="folio-card-hero-label">Avg Sell</span>
-              <span class="folio-card-hero-value">₹${formatNumber(Math.round(summary.sixMonths.avgSell))}</span>
-            </div>
-            <div class="folio-card-hero-cell ${summary.sixMonths.avgNetInflow >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-              <span class="folio-card-hero-label">Avg Net Inflow</span>
-              <span class="folio-card-hero-value ${summary.sixMonths.avgNetInflow >= 0 ? "gain" : "loss"}">
-                ${summary.sixMonths.avgNetInflow >= 0 ? "" : "-"}₹${formatNumber(Math.round(Math.abs(summary.sixMonths.avgNetInflow)))}
-              </span>
-            </div>
-          </div>
-          <div class="folio-card-chips-row">
-            <div class="folio-card-meta-chip">
-              <span class="folio-card-meta-label">Used for Projection</span>
-              <span class="folio-card-meta-value">₹${formatNumber(Math.round(summary.sixMonths.inflow))}/mo</span>
-            </div>
-          </div>
+        <div class="projection-table-card">
+          <h4><i class="fa-solid fa-calendar-days"></i> Last 6 Months</h4>
+          <table class="gains-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th class="num">Avg</th>
+                <th class="num accent">Typical <i class="fa-solid fa-circle-info" style="color:var(--accent);font-size:11px;padding-left:3px;" title="Median value — less affected by one-off large purchases or redemptions. Used for all projections.${summary.sixMonths.hasOutlier ? " Outlier month detected." : ""}"></i></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Buy</td>
+                <td class="num">₹${formatNumber(Math.round(summary.sixMonths.avgBuy))}</td>
+                <td class="num accent">₹${formatNumber(Math.round(summary.sixMonths.medianBuy))}</td>
+              </tr>
+              <tr>
+                <td>Sell</td>
+                <td class="num">₹${formatNumber(Math.round(summary.sixMonths.avgSell))}</td>
+                <td class="num accent">₹${formatNumber(Math.round(summary.sixMonths.medianSell))}</td>
+              </tr>
+              <tr>
+                <td>Net Inflow</td>
+                <td class="num ${summary.sixMonths.avgNetInflow >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.round(Math.abs(summary.sixMonths.avgNetInflow)))}</td>
+                <td class="num accent">₹${formatNumber(Math.round(summary.sixMonths.medianNetInflow))}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-        <div class="gains-summary-card folio-card">
-          <div class="folio-card-header">
-            <span class="folio-card-name-header">📅 Last 12 Months</span>
-          </div>
-          <div class="folio-card-hero">
-            <div class="folio-card-hero-cell folio-card-hero-cell--pnl-gain">
-              <span class="folio-card-hero-label">Avg Buy</span>
-              <span class="folio-card-hero-value">₹${formatNumber(Math.round(summary.twelveMonths.avgBuy))}</span>
-            </div>
-            <div class="folio-card-hero-cell folio-card-hero-cell--pnl-loss">
-              <span class="folio-card-hero-label">Avg Sell</span>
-              <span class="folio-card-hero-value">₹${formatNumber(Math.round(summary.twelveMonths.avgSell))}</span>
-            </div>
-            <div class="folio-card-hero-cell ${summary.twelveMonths.avgNetInflow >= 0 ? "folio-card-hero-cell--pnl-gain" : "folio-card-hero-cell--pnl-loss"}">
-              <span class="folio-card-hero-label">Avg Net Inflow</span>
-              <span class="folio-card-hero-value ${summary.twelveMonths.avgNetInflow >= 0 ? "gain" : "loss"}">
-                ${summary.twelveMonths.avgNetInflow >= 0 ? "" : "-"}₹${formatNumber(Math.round(Math.abs(summary.twelveMonths.avgNetInflow)))}
-              </span>
-            </div>
-          </div>
-          <div class="folio-card-chips-row">
-            <div class="folio-card-meta-chip">
-              <span class="folio-card-meta-label">Used for Projection</span>
-              <span class="folio-card-meta-value">₹${formatNumber(Math.round(summary.twelveMonths.inflow))}/mo</span>
-            </div>
-          </div>
+        <div class="projection-table-card">
+          <h4><i class="fa-solid fa-calendar-days"></i> Last 12 Months</h4>
+          <table class="gains-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th class="num">Avg</th>
+                <th class="num accent">Typical <i class="fa-solid fa-circle-info" style="color:var(--accent);font-size:11px;padding-left:3px;" title="Median value — less affected by one-off large purchases or redemptions. Used for all projections.${summary.twelveMonths.hasOutlier ? " Outlier month detected." : ""}"></i></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Buy</td>
+                <td class="num">₹${formatNumber(Math.round(summary.twelveMonths.avgBuy))}</td>
+                <td class="num accent">₹${formatNumber(Math.round(summary.twelveMonths.medianBuy))}</td>
+              </tr>
+              <tr>
+                <td>Sell</td>
+                <td class="num">₹${formatNumber(Math.round(summary.twelveMonths.avgSell))}</td>
+                <td class="num accent">₹${formatNumber(Math.round(summary.twelveMonths.medianSell))}</td>
+              </tr>
+              <tr>
+                <td>Net Inflow</td>
+                <td class="num ${summary.twelveMonths.avgNetInflow >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.round(Math.abs(summary.twelveMonths.avgNetInflow)))}</td>
+                <td class="num accent">₹${formatNumber(Math.round(summary.twelveMonths.medianNetInflow))}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
       </div>
 
       <div class="section-header" style="margin-top: 40px;">
-        <h3>🚀 Portfolio Projection</h3>
+        <h3 style="padding-bottom:10px;border-bottom:1px solid var(--border-light);"><i class="fa-solid fa-rocket"></i> Portfolio Projection</h3>
         <p class="section-subtitle">Future value based on your average monthly investment pattern</p>
       </div>
 
@@ -6122,7 +6449,7 @@ function displayMonthlySummaryAndProjections() {
 
       <div class="projection-tables" id="projectionTablesContainer">
         <div class="projection-table-card">
-          <h4>Based on 6M Average (₹${formatNumber(
+          <h4>Based on 6M Typical Investment (₹${formatNumber(
             Math.round(summary.sixMonths.inflow),
           )}/month)</h4>
           <table class="gains-table" id="projection6MTable">
@@ -6130,8 +6457,8 @@ function displayMonthlySummaryAndProjections() {
               <tr>
                 <th>Years</th>
                 <th>Future Value</th>
-                <th>Total Invested</th>
-                <th>Gains</th>
+                <th class="proj-hide-mobile">Total Invested</th>
+                <th class="proj-hide-mobile">Gains</th>
                 <th>Returns %</th>
               </tr>
             </thead>
@@ -6143,8 +6470,8 @@ function displayMonthlySummaryAndProjections() {
       <tr>
         <td><strong>${p.year} Years</strong></td>
         <td class="gain">₹${formatNumber(p.futureValue)}</td>
-        <td>₹${formatNumber(p.totalInvested)}</td>
-        <td class="gain">₹${formatNumber(p.gains)}</td>
+        <td class="proj-hide-mobile">₹${formatNumber(p.totalInvested)}</td>
+        <td class="proj-hide-mobile gain">₹${formatNumber(p.gains)}</td>
         <td class="gain">${p.gainsPercent}%</td>
       </tr>
     `;
@@ -6156,7 +6483,7 @@ function displayMonthlySummaryAndProjections() {
         </div>
 
         <div class="projection-table-card">
-          <h4>Based on 12M Average (₹${formatNumber(
+          <h4>Based on 12M Typical Investment (₹${formatNumber(
             Math.round(summary.twelveMonths.inflow),
           )}/month)</h4>
           <table class="gains-table" id="projection12MTable">
@@ -6164,8 +6491,8 @@ function displayMonthlySummaryAndProjections() {
               <tr>
                 <th>Years</th>
                 <th>Future Value</th>
-                <th>Total Invested</th>
-                <th>Gains</th>
+                <th class="proj-hide-mobile">Total Invested</th>
+                <th class="proj-hide-mobile">Gains</th>
                 <th>Returns %</th>
               </tr>
             </thead>
@@ -6177,8 +6504,8 @@ function displayMonthlySummaryAndProjections() {
       <tr>
         <td><strong>${p.year} Years</strong></td>
         <td class="gain">₹${formatNumber(p.futureValue)}</td>
-        <td>₹${formatNumber(p.totalInvested)}</td>
-        <td class="gain">₹${formatNumber(p.gains)}</td>
+        <td class="proj-hide-mobile">₹${formatNumber(p.totalInvested)}</td>
+        <td class="proj-hide-mobile gain">₹${formatNumber(p.gains)}</td>
         <td class="gain">${p.gainsPercent}%</td>
       </tr>
     `;
@@ -6198,8 +6525,8 @@ function displayMonthlySummaryAndProjections() {
               <tr>
                 <th>Years</th>
                 <th>Future Value</th>
-                <th>Total Invested</th>
-                <th>Gains</th>
+                <th class="proj-hide-mobile">Total Invested</th>
+                <th class="proj-hide-mobile">Gains</th>
                 <th>Returns %</th>
               </tr>
             </thead>
@@ -6211,8 +6538,8 @@ function displayMonthlySummaryAndProjections() {
       <tr>
         <td><strong>${p.year} Years</strong></td>
         <td class="gain">₹${formatNumber(p.futureValue)}</td>
-        <td>₹${formatNumber(p.totalInvested)}</td>
-        <td class="gain">₹${formatNumber(p.gains)}</td>
+        <td class="proj-hide-mobile">₹${formatNumber(p.totalInvested)}</td>
+        <td class="proj-hide-mobile gain">₹${formatNumber(p.gains)}</td>
         <td class="gain">${p.gainsPercent}%</td>
       </tr>
     `;
@@ -6222,7 +6549,6 @@ function displayMonthlySummaryAndProjections() {
           </tbody>
         </table>
       </div>
-    </div>
   `;
 
   container.innerHTML = html;
@@ -6298,10 +6624,10 @@ function renderProjectionChart(
       labels: labels,
       datasets: [
         {
-          label: `${formatLegendLabel(summary.sixMonths.inflow, "(6M Avg)")}`,
+          label: `${formatLegendLabel(summary.sixMonths.inflow, "(6M Typical)")}`,
           data: data6M,
-          borderColor: "#667eea",
-          backgroundColor: "rgba(102, 126, 234, 0.1)",
+          borderColor: "#9A6B46",
+          backgroundColor: "rgba(154, 107, 70, 0.1)",
           fill: false,
           tension: 0.4,
           borderWidth: 3,
@@ -6311,11 +6637,11 @@ function renderProjectionChart(
         {
           label: `${formatLegendLabel(
             summary.twelveMonths.inflow,
-            "(12M Avg)",
+            "(12M Typical)",
           )}`,
           data: data12M,
-          borderColor: "#10b981",
-          backgroundColor: "rgba(16, 185, 129, 0.1)",
+          borderColor: "#2F8F5B",
+          backgroundColor: "rgba(47, 143, 91, 0.1)",
           fill: false,
           tension: 0.4,
           borderWidth: 3,
@@ -6325,8 +6651,8 @@ function renderProjectionChart(
         {
           label: `${formatLegendLabel(customSIP, "(Custom)")}`,
           data: dataCustom,
-          borderColor: "#f59e0b",
-          backgroundColor: "rgba(245, 158, 11, 0.1)",
+          borderColor: "#C9872D",
+          backgroundColor: "rgba(201, 135, 45, 0.1)",
           fill: false,
           tension: 0.4,
           borderWidth: 3,
@@ -6548,14 +6874,13 @@ function updateProjections() {
 function updateSummaryCards(summary) {
   const combinedValue = summary.currentValue;
 
-  // summaryCardsContainer is absent on mobile (compact dashboard has no #main .summary-cards)
+  // Always update mobile compact views (hidden on desktop via CSS)
+  updateMainMobileSummary();
+  updateCompactDashboard();
+
   const summaryCardsContainer = document.querySelector("#main .summary-cards");
   const firstCard = summaryCardsContainer?.querySelector(".card:first-child");
-  if (!summaryCardsContainer || !firstCard) {
-    // Mobile view — update compact dashboard values and bail out of desktop card logic
-    updateCompactDashboard();
-    return;
-  }
+  if (!summaryCardsContainer || !firstCard) return;
 
   // Show Current Value card
   firstCard.innerHTML = `
@@ -6682,6 +7007,21 @@ function updateGainCard(valueId, percentId, gain, percent, xirr) {
   if (percentId === "overallGainPercent") {
     text = xirrText;
   }
+  // Unrealised P&L → show only absolute %, push XIRR to Avg. Holding subtext
+  else if (percentId === "unrealizedGainPercent") {
+    text = "Absolute: " + (gain >= 0 ? "+" : "") + percent + "%";
+    const avgSubtext = document
+      .getElementById("avgHoldingDays")
+      ?.parentElement?.querySelector(".subtext");
+    if (avgSubtext) {
+      if (xirr !== null) {
+        const xirrCls = xirr >= 0 ? "positive" : "negative";
+        avgSubtext.innerHTML = `<span class="avg-xirr-val ${xirrCls}">XIRR: ${xirr.toFixed(2)}%</span>`;
+      } else {
+        avgSubtext.textContent = "days";
+      }
+    }
+  }
   // Summary CAS case
   else if (isSummaryCAS) {
     text = "Absolute: " + (gain >= 0 ? "+" : "") + percent + "%";
@@ -6697,6 +7037,422 @@ function updateGainCard(valueId, percentId, gain, percent, xirr) {
   }
 
   document.getElementById(percentId).textContent = text;
+}
+
+// ── Holdings Charts ──────────────────────────────────────────────────────────
+let perfChartInstance = null;
+let perfChipData = [];       // module-level: persists visibility across period switches
+let perfActivePeriod = "3Y"; // default period
+
+const HC_COLORS = [
+  "#9a6b46","#3d78c0","#2f8f5b","#c9872d",
+  "#9068a8","#c65a52","#5a8f82","#8b7355",
+];
+const HC_DASHES = [
+  [], [6,3], [2,2], [8,4,2,4], [4,4], [2,4], [6,2], [3,3],
+];
+
+function shortFundName(name) {
+  return name
+    .replace(/\bMulti\s+Asset\s+Allocation\b/gi, "Multi Asset")
+    .replace(/\bLarge\s+[&and]+\s*Mid\s+Cap\b/gi, "L&MC")
+    .replace(/\bSmall\s+Cap\b/gi, "SC")
+    .replace(/\bMid\s+Cap\b/gi, "MC")
+    .replace(/\bLarge\s+Cap\b/gi, "LC")
+    .replace(/\bFlexi\s+Cap\b/gi, "FC")
+    .replace(/\bFocused\b/gi, "Focused")
+    .replace(/\s+Fund\s*$/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseNavHistDate(s) {
+  const parts = s.split("-");
+  if (parts.length !== 3) return null;
+  return new Date(+parts[2], +parts[1] - 1, +parts[0]); // DD-MM-YYYY
+}
+
+function getNavOnOrBefore(navHistory, targetDate) {
+  for (const e of navHistory) {
+    const d = parseNavHistDate(e.date);
+    if (d && d <= targetDate) return parseFloat(e.nav);
+  }
+  return null;
+}
+
+// Returns the start Date for a given period label, given the oldest available nav date
+function perfPeriodStart(period, oldestNavDate) {
+  const today = new Date();
+  if (period === "1Y")  return new Date(today.getFullYear() - 1,  today.getMonth(), today.getDate());
+  if (period === "2Y")  return new Date(today.getFullYear() - 2,  today.getMonth(), today.getDate());
+  if (period === "3Y")  return new Date(today.getFullYear() - 3,  today.getMonth(), today.getDate());
+  if (period === "5Y")  return new Date(today.getFullYear() - 5,  today.getMonth(), today.getDate());
+  if (period === "7Y")  return new Date(today.getFullYear() - 7,  today.getMonth(), today.getDate());
+  if (period === "10Y") return new Date(today.getFullYear() - 10, today.getMonth(), today.getDate());
+  return oldestNavDate; // Max
+}
+
+// Compute datasets + labels for a given startDate, using current chip visibility state
+function buildPerfDatasets(startDate, activeFunds) {
+  const today = new Date();
+  const labels = [];
+  const monthDates = [];
+  let cur = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  while (cur <= today) {
+    const monthEnd = new Date(cur.getFullYear(), cur.getMonth() + 1, 0);
+    const point = monthEnd > today ? today : monthEnd;
+    labels.push(point.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }));
+    monthDates.push(point);
+    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+  }
+
+  const datasets = [];
+  const sinceInfo = {}; // label -> "MMM 'YY" string for partial-history funds, null for full
+
+  activeFunds.forEach(([, fund], idx) => {
+    const navH = fund.navHistory;
+    if (!navH || navH.length < 2) return;
+
+    let baseNav = getNavOnOrBefore(navH, startDate);
+    let sinceDate = null;
+
+    if (!baseNav) {
+      // Fund doesn't have full period history — use its earliest available NAV
+      const oldestEntry = navH[navH.length - 1];
+      if (oldestEntry) {
+        const oldestDate = parseNavHistDate(oldestEntry.date);
+        if (oldestDate && oldestDate <= today) {
+          baseNav = parseFloat(oldestEntry.nav);
+          sinceDate = oldestDate;
+        }
+      }
+    }
+    if (!baseNav) return;
+
+    const color = HC_COLORS[idx % HC_COLORS.length];
+    const name = fund.schemeDisplay || fund.scheme || "Fund";
+    const chipEntry = perfChipData.find(c => c.label === name);
+
+    sinceInfo[name] = sinceDate
+      ? sinceDate.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }).replace(" ", " '")
+      : null;
+
+    const data = monthDates.map(d => {
+      if (sinceDate && d < sinceDate) return null;
+      const nav = getNavOnOrBefore(navH, d);
+      return nav != null ? Math.round((nav / baseNav) * 1000) / 10 : null;
+    });
+    datasets.push({
+      label: name,
+      data,
+      borderColor: color,
+      borderWidth: 2,
+      borderDash: HC_DASHES[idx % HC_DASHES.length],
+      pointRadius: 0,
+      tension: 0.3,
+      fill: false,
+      spanGaps: false,
+      hidden: chipEntry ? !chipEntry.visible : false,
+    });
+  });
+
+  const addBenchmark = (isin, label, color, dash) => {
+    const navH = mfStats?.[isin]?.nav_history;
+    if (!navH || navH.length < 2) return;
+    const baseNav = getNavOnOrBefore(navH, startDate);
+    if (!baseNav) return;
+    const chipEntry = perfChipData.find(c => c.label === label);
+    const data = monthDates.map(d => {
+      const nav = getNavOnOrBefore(navH, d);
+      return nav != null ? Math.round((nav / baseNav) * 1000) / 10 : null;
+    });
+    datasets.push({
+      label,
+      data,
+      borderColor: color,
+      borderWidth: 1.5,
+      borderDash: dash,
+      pointRadius: 0,
+      tension: 0.3,
+      fill: false,
+      spanGaps: false,
+      hidden: chipEntry ? !chipEntry.visible : false,
+    });
+    sinceInfo[label] = null;
+  };
+  addBenchmark(PORTFOLIO_BENCHMARKS.nifty50.isin, "Nifty 50", "#7A6C61", [4, 4]);
+  addBenchmark(PORTFOLIO_BENCHMARKS.nifty500.isin, "Nifty 500", "#B0A89E", [2, 3]);
+
+  return { labels, monthDates, datasets, sinceInfo };
+}
+
+function updatePerfBottomStats(labels, datasets, sinceInfo) {
+  const lastIdx = labels.length - 1;
+  const fmt = r => `${r >= 0 ? "+" : ""}${r.toFixed(1)}%`;
+
+  // returns row
+  const returnsRow = document.getElementById("perfReturnsRow");
+  if (returnsRow) {
+    returnsRow.innerHTML = perfChipData.map(c => {
+      const ds = datasets.find(d => d.label === c.label);
+      const val = ds?.data?.[lastIdx];
+      const ret = val != null ? val - 100 : null;
+      const cls = ret != null ? (ret >= 0 ? "positive" : "negative") : "";
+      const since = sinceInfo?.[c.label];
+      return `<span class="hc-ret-item">
+        <span class="hc-ret-dot" style="background:${c.color}"></span>
+        <span class="hc-ret-name"><span class="hc-chip-full">${c.label}</span><span class="hc-chip-short">${shortFundName(c.label)}</span></span>
+        <span class="hc-ret-val ${cls}">${ret != null ? fmt(ret) : "--"}</span>
+        ${since ? `<span class="hc-ret-since">since ${since}</span>` : ""}
+      </span>`;
+    }).join("");
+  }
+
+  // best / worst — only funds with full period history (sinceInfo[label] === null)
+  const periodYears = { "1Y":1,"2Y":2,"3Y":3,"5Y":5,"7Y":7,"10Y":10 }[perfActivePeriod] || null;
+  const annualized = (ret) => {
+    if (!periodYears || periodYears <= 1) return null;
+    const cagr = (Math.pow(1 + ret / 100, 1 / periodYears) - 1) * 100;
+    return `${cagr >= 0 ? "+" : ""}${cagr.toFixed(1)}% p.a.`;
+  };
+
+  const fundEntries = perfChipData
+    .filter(c => !c.isBenchmark && !sinceInfo?.[c.label])
+    .map(c => {
+      const ds = datasets.find(d => d.label === c.label);
+      const val = ds?.data?.[lastIdx];
+      return { ...c, ret: val != null ? val - 100 : null };
+    })
+    .filter(c => c.ret != null)
+    .sort((a, b) => b.ret - a.ret);
+
+  const bwRow = document.getElementById("perfBestWorstRow");
+  if (bwRow && fundEntries.length >= 2) {
+    const best = fundEntries[0];
+    const worst = fundEntries[fundEntries.length - 1];
+    const bestAnn = annualized(best.ret);
+    const worstAnn = annualized(worst.ret);
+    bwRow.innerHTML = `
+      <div class="hc-bw-card">
+        <span class="hc-bw-badge best">Best performer</span>
+        <div class="hc-bw-name" title="${best.label}">${best.label}</div>
+        <div class="hc-bw-ret positive">${fmt(best.ret)}${bestAnn ? `<span class="hc-bw-ann">${bestAnn} annualized</span>` : ""}</div>
+      </div>
+      <div class="hc-bw-card">
+        <span class="hc-bw-badge worst">Lowest return</span>
+        <div class="hc-bw-name" title="${worst.label}">${worst.label}</div>
+        <div class="hc-bw-ret ${worst.ret >= 0 ? "positive" : "negative"}">${fmt(worst.ret)}${worstAnn ? `<span class="hc-bw-ann">${worstAnn} annualized</span>` : ""}</div>
+      </div>`;
+  } else if (bwRow) {
+    bwRow.innerHTML = "";
+  }
+}
+
+function switchPerfPeriod(period, activeFunds, oldestNavDate) {
+  perfActivePeriod = period;
+
+  // update active state on period buttons
+  document.querySelectorAll(".hc-period-btn").forEach(btn => {
+    btn.classList.toggle("hc-period-btn--active", btn.dataset.period === period);
+  });
+
+  const perfWrap = document.getElementById("perfChartWrap");
+  if (perfWrap) perfWrap.classList.add("loading");
+
+  setTimeout(() => {
+    const startDate = perfPeriodStart(period, oldestNavDate);
+    const { labels, datasets, sinceInfo } = buildPerfDatasets(startDate, activeFunds);
+
+    if (perfChartInstance) {
+      perfChartInstance.data.labels = labels;
+      perfChartInstance.data.datasets = datasets;
+      perfChartInstance.update("none");
+    }
+
+    if (perfWrap) perfWrap.classList.remove("loading");
+    updatePerfBottomStats(labels, datasets, sinceInfo);
+  }, 0);
+}
+
+function renderHoldingsCharts() {
+  const section = document.getElementById("holdingsChartsSection");
+  if (!section || !fundWiseData || !portfolioData) return;
+
+  const activeFunds = Object.entries(fundWiseData)
+    .filter(([, f]) => (f.advancedMetrics?.currentValue || 0) > 0)
+    .sort((a, b) => (b[1].advancedMetrics?.currentValue || 0) - (a[1].advancedMetrics?.currentValue || 0));
+
+  if (activeFunds.length === 0) { section.style.display = "none"; return; }
+
+  // --- allocation bars ---
+  const totalValue = activeFunds.reduce((s, [, f]) => s + (f.advancedMetrics?.currentValue || 0), 0);
+  const allocCont = document.getElementById("holdingsAllocBars");
+  if (allocCont && totalValue > 0) {
+    allocCont.innerHTML = "";
+    activeFunds.forEach(([, fund], idx) => {
+      const val = fund.advancedMetrics?.currentValue || 0;
+      const pct = (val / totalValue) * 100;
+      const color = HC_COLORS[idx % HC_COLORS.length];
+      const name = fund.schemeDisplay || fund.scheme || "Fund";
+      const row = document.createElement("div");
+      row.className = "hc-alloc-row";
+      row.innerHTML = `
+        <div class="hc-alloc-name">
+          <span class="hc-alloc-dot" style="background:${color}"></span>
+          <span class="hc-alloc-label" title="${name}">${name}</span>
+        </div>
+        <div class="hc-alloc-track"><div class="hc-alloc-fill" style="width:${pct.toFixed(1)}%;background:${color}"></div></div>
+        <span class="hc-alloc-pct">${pct.toFixed(1)}%</span>
+        <span class="hc-alloc-val">₹${formatNumber(Math.round(val))}</span>
+      `;
+      allocCont.appendChild(row);
+    });
+  }
+
+  // --- find oldest nav date across all funds + benchmarks (for Max period) ---
+  let oldestNavDate = new Date();
+  const allNavSources = [
+    ...activeFunds.map(([, f]) => f.navHistory),
+    mfStats?.[PORTFOLIO_BENCHMARKS.nifty50.isin]?.nav_history,
+    mfStats?.[PORTFOLIO_BENCHMARKS.nifty500.isin]?.nav_history,
+  ].filter(Boolean);
+  allNavSources.forEach(navH => {
+    if (!navH.length) return;
+    const oldest = parseNavHistDate(navH[navH.length - 1].date);
+    if (oldest && oldest < oldestNavDate) oldestNavDate = oldest;
+  });
+
+  // --- build chip data once (preserving visibility across re-renders) ---
+  const prevVisibility = Object.fromEntries(perfChipData.map(c => [c.label, c.visible]));
+  perfChipData = [];
+  activeFunds.forEach(([, fund], idx) => {
+    const navH = fund.navHistory;
+    if (!navH || navH.length < 2) return;
+    const name = fund.schemeDisplay || fund.scheme || "Fund";
+    const color = HC_COLORS[idx % HC_COLORS.length];
+    perfChipData.push({ label: name, color, visible: prevVisibility[name] ?? true });
+  });
+  perfChipData.push({ label: "Nifty 50",  color: "#7A6C61", visible: prevVisibility["Nifty 50"]  ?? true, isBenchmark: true });
+  perfChipData.push({ label: "Nifty 500", color: "#B0A89E", visible: prevVisibility["Nifty 500"] ?? true, isBenchmark: true });
+
+  // --- period selector ---
+  const chipRow = document.getElementById("perfChipRow");
+  if (chipRow) {
+    chipRow.innerHTML = "";
+
+    // filter chips wrap (created first so toggle can reference it)
+    const chipsWrap = document.createElement("div");
+    chipsWrap.className = "hc-chips-inner";
+
+    // filter toggle button (mobile only — shown via CSS)
+    const filterToggle = document.createElement("button");
+    filterToggle.className = "hc-filter-toggle";
+    const updateToggleLabel = () => {
+      const total = perfChipData.length;
+      const active = perfChipData.filter(c => c.visible).length;
+      const isOpen = chipsWrap.classList.contains("hc-chips-inner--open");
+      const countLabel = active < total ? `${active}/${total}` : `${total}`;
+      filterToggle.innerHTML = `Funds <span class="hc-filter-badge">${countLabel}</span> ${isOpen ? "▲" : "▼"}`;
+    };
+    filterToggle.addEventListener("click", () => {
+      chipsWrap.classList.toggle("hc-chips-inner--open");
+      updateToggleLabel();
+    });
+
+    // period buttons
+    const periodWrap = document.createElement("div");
+    periodWrap.className = "hc-period-row";
+    ["1Y","2Y","3Y","5Y","7Y","10Y"].forEach(p => {
+      const btn = document.createElement("button");
+      btn.className = "hc-period-btn" + (p === perfActivePeriod ? " hc-period-btn--active" : "");
+      btn.dataset.period = p;
+      btn.textContent = p;
+      btn.addEventListener("click", () => switchPerfPeriod(p, activeFunds, oldestNavDate));
+      periodWrap.appendChild(btn);
+    });
+    periodWrap.appendChild(filterToggle);
+    chipRow.appendChild(periodWrap);
+
+    // filter chips
+    perfChipData.forEach(c => {
+      const chip = document.createElement("span");
+      chip.className = "hc-chip" + (c.visible ? "" : " hc-chip--off");
+      chip.innerHTML = `<span class="hc-chip-dot" style="background:${c.color}"></span><span class="hc-chip-full">${c.label}</span><span class="hc-chip-short">${shortFundName(c.label)}</span>`;
+      chip.addEventListener("click", () => {
+        c.visible = !c.visible;
+        chip.classList.toggle("hc-chip--off", !c.visible);
+        updateToggleLabel();
+        if (perfChartInstance) {
+          const ds = perfChartInstance.data.datasets.find(d => d.label === c.label);
+          if (ds) { ds.hidden = !c.visible; perfChartInstance.update(); }
+        }
+      });
+      chipsWrap.appendChild(chip);
+    });
+    updateToggleLabel();
+    chipRow.appendChild(chipsWrap);
+  }
+
+  // --- show loader, defer chart build ---
+  const perfWrap = document.getElementById("perfChartWrap");
+  if (perfWrap) perfWrap.classList.add("loading");
+  section.style.display = "";
+
+  setTimeout(() => {
+    const startDate = perfPeriodStart(perfActivePeriod, oldestNavDate);
+    const { labels, datasets, sinceInfo } = buildPerfDatasets(startDate, activeFunds);
+
+    const canvas = document.getElementById("holdingsPerfChart");
+    if (!canvas || !datasets.length) { if (perfWrap) perfWrap.classList.remove("loading"); return; }
+
+    if (perfChartInstance) { perfChartInstance.destroy(); perfChartInstance = null; }
+    perfChartInstance = new Chart(canvas, {
+      type: "line",
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { display: false },
+          datalabels: { display: false },
+          tooltip: {
+            backgroundColor: "#FFFCF8",
+            borderColor: "#E7DED3",
+            borderWidth: 1,
+            titleColor: "#2F241D",
+            bodyColor: "#7A6C61",
+            padding: 10,
+            itemSort: (a, b) => (b.parsed.y ?? -Infinity) - (a.parsed.y ?? -Infinity),
+            callbacks: {
+              label: ctx => {
+                if (ctx.parsed.y == null) return ` ${ctx.dataset.label}: --`;
+                const ret = ctx.parsed.y - 100;
+                return ` ${ctx.dataset.label}: ${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { color: "rgba(231,222,211,0.5)" },
+            ticks: { color: "#7A6C61", font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 },
+          },
+          y: {
+            grid: { color: "rgba(231,222,211,0.5)" },
+            ticks: { color: "#7A6C61", font: { size: 10 }, callback: v => v.toFixed(0) },
+          },
+        },
+        animation: {
+          duration: 0,
+          onComplete: () => {
+            if (perfWrap) perfWrap.classList.remove("loading");
+            updatePerfBottomStats(labels, datasets, sinceInfo);
+          },
+        },
+      },
+    });
+  }, 0);
 }
 
 // FUND BREAKDOWN
@@ -6784,11 +7540,14 @@ function updateFundBreakdown() {
   if (currentGrid.children.length === 0) {
     currentGrid.innerHTML = `
       <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">
-        <div style="font-size: 48px; margin-bottom: 20px;">💼</div>
+        <div style="font-size: 48px; margin-bottom: 20px;"><i class="fa-solid fa-briefcase"></i></div>
         <h3 style="margin-bottom: 10px; color: var(--text-primary);">No Current Holdings</h3>
         <p style="color: var(--text-tertiary);">You don't have any active mutual fund holdings.</p>
       </div>
     `;
+  } else {
+    wrapGridInTable(currentGrid);
+    applyFltSortIndicator(currentGrid);
   }
 
   renderHoldingsToolbar(currentGrid, "current", {
@@ -6797,6 +7556,8 @@ function updateFundBreakdown() {
     value: curValue,
     gain: curGain,
   });
+
+  renderHoldingsCharts();
 
   // Build past holdings section
   if (hasPast) {
@@ -6833,6 +7594,9 @@ function updateFundBreakdown() {
       pastCount++;
     });
 
+    wrapGridInTable(pastRedeemedGrid);
+    applyFltSortIndicator(pastRedeemedGrid);
+
     renderHoldingsToolbar(pastGrid, "past", {
       count: pastCount,
       invested: pastInvested,
@@ -6845,12 +7609,130 @@ function updateFundBreakdown() {
 
     pastGrid.innerHTML = `
       <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">
-        <div style="font-size: 48px; margin-bottom: 20px;">📋</div>
+        <div style="font-size: 48px; margin-bottom: 20px;"><i class="fa-solid fa-clipboard-list"></i></div>
         <h3 style="margin-bottom: 10px; color: var(--text-primary);">No Past Holdings</h3>
         <p style="color: var(--text-tertiary);">You don't have any fully redeemed funds yet.</p>
       </div>
     `;
   }
+}
+
+// Wraps all .flt-row children of a grid into a proper <table> structure
+// Sort state for desktop/tablet holdings tables
+const fltSortState = {
+  currentFolioGrid: { col: "value", dir: -1 },
+  pastFolioGrid: { col: "pnl", dir: -1 },
+  pastRedeemedGrid: { col: "pnl", dir: -1 },
+};
+
+function sortFltTable(gridId, col) {
+  const state = fltSortState[gridId];
+  if (state.col === col) {
+    state.dir = -state.dir;
+  } else {
+    state.col = col;
+    state.dir = col === "name" ? 1 : -1; // numeric cols default desc
+  }
+
+  const gridEl = document.getElementById(gridId);
+  if (!gridEl) return;
+  const table = gridEl.querySelector(".flt-table");
+  if (!table) return;
+  const tbody = table.querySelector("tbody");
+  const rows = [...tbody.querySelectorAll(".flt-row")];
+
+  const getValue = (row) => {
+    switch (col) {
+      case "name":
+        return row.dataset.sortName || "";
+      case "value":
+        return parseFloat(row.dataset.sortValue) || 0;
+      case "oneday":
+        return parseFloat(row.dataset.sortOneday) || -Infinity;
+      case "pnl":
+        return parseFloat(row.dataset.sortPnl) || 0;
+      case "xirr":
+        return parseFloat(row.dataset.sortXirr) || -Infinity;
+      default:
+        return 0;
+    }
+  };
+
+  rows.sort((a, b) => {
+    const va = getValue(a),
+      vb = getValue(b);
+    if (typeof va === "string") return va.localeCompare(vb) * state.dir;
+    return (va - vb) * state.dir;
+  });
+  rows.forEach((r) => tbody.appendChild(r));
+
+  // Update header arrow indicators
+  table.querySelectorAll(".flt-th[data-sort-col]").forEach((th) => {
+    th.classList.remove("flt-th--sort-asc", "flt-th--sort-desc");
+    if (th.dataset.sortCol === col) {
+      th.classList.add(
+        state.dir === 1 ? "flt-th--sort-asc" : "flt-th--sort-desc",
+      );
+    }
+  });
+}
+
+function applyFltSortIndicator(gridEl) {
+  const state = fltSortState[gridEl.id];
+  if (!state?.col) return;
+  const table = gridEl.querySelector(".flt-table");
+  if (!table) return;
+  table.querySelectorAll(".flt-th[data-sort-col]").forEach((th) => {
+    th.classList.remove("flt-th--sort-asc", "flt-th--sort-desc");
+    if (th.dataset.sortCol === state.col) {
+      th.classList.add(
+        state.dir === 1 ? "flt-th--sort-asc" : "flt-th--sort-desc",
+      );
+    }
+  });
+}
+
+function wrapGridInTable(gridEl) {
+  const rows = [...gridEl.querySelectorAll(".flt-row")];
+  if (!rows.length) return;
+
+  const gridId = gridEl.id;
+  const valueLabel =
+    gridId === "currentFolioGrid" ? "Current Value" : "Withdrawn";
+
+  const isCurrentGrid = gridId === "currentFolioGrid";
+
+  const table = document.createElement("table");
+  table.className = "flt-table" + (isCurrentGrid ? "" : " flt-table--past");
+
+  const mkTh = (label, col, alignRight = false) => {
+    const sortable = col !== null;
+    return `<th class="flt-th${alignRight ? " flt-th--r" : ""}${sortable ? " flt-th--sortable" : ""}" ${sortable ? `data-sort-col="${col}" onclick="sortFltTable('${gridId}','${col}')"` : ""}>${label}${sortable ? `<span class="flt-sort-icon"></span>` : ""}</th>`;
+  };
+
+  const thead = document.createElement("thead");
+  thead.innerHTML = `
+    <tr class="flt-header-row">
+      ${mkTh("Fund", "name")}
+      ${mkTh(valueLabel, "value", true)}
+      ${isCurrentGrid ? mkTh("1D", "oneday", true) : ""}
+      ${mkTh("P&amp;L", "pnl", true)}
+      ${mkTh("XIRR", "xirr", true)}
+      ${mkTh("", null, true)}
+    </tr>`;
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  rows.forEach((row) => {
+    row.removeAttribute("style");
+    tbody.appendChild(row);
+  });
+  table.appendChild(tbody);
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "flt-table-wrap";
+  wrapper.appendChild(table);
+  gridEl.appendChild(wrapper);
 }
 
 // Build (or refresh) the minimal summary + search toolbar above a holdings grid.
@@ -6917,15 +7799,13 @@ function filterHoldingsGrid(type) {
 
   const terms = normalizeSearchText(input.value).split(" ").filter(Boolean);
 
-  const cards = gridEl.querySelectorAll(".folio-card");
+  const rows = gridEl.querySelectorAll(".flt-row");
 
-  cards.forEach((card) => {
-    const name = normalizeSearchText(card.dataset.fundName || "");
-
+  rows.forEach((row) => {
+    const name = normalizeSearchText(row.dataset.fundName || "");
     const matches =
       terms.length === 0 || terms.every((term) => name.includes(term));
-
-    card.style.display = matches ? "" : "none";
+    row.style.display = matches ? "" : "none";
   });
 }
 
@@ -6962,6 +7842,9 @@ function updateSummaryFundBreakdown() {
     curGain += fund.advancedMetrics?.unrealizedGain || 0;
     curCount++;
   });
+
+  wrapGridInTable(currentGrid);
+  applyFltSortIndicator(currentGrid);
 
   renderHoldingsToolbar(currentGrid, "current", {
     count: curCount,
@@ -7157,13 +8040,26 @@ function createFundCardWithTransactions(
   statusLabel,
   isActive = true,
 ) {
-  const card = document.createElement("div");
-  card.className = "folio-card";
+  const card = document.createElement("tr");
+  card.className = "flt-row";
+  if (isActive && current > 0) {
+    card.onclick = () => showFundDetailsModal(fundKey, false);
+  } else {
+    card.onclick = () => showFundDetailsModal(fundKey, true, [...fund.folios]);
+  }
   card.dataset.fundName = (
     fund.schemeDisplay ||
     fund.scheme ||
     ""
   ).toLowerCase();
+  card.dataset.sortName = (
+    fund.schemeDisplay ||
+    fund.scheme ||
+    ""
+  ).toLowerCase();
+  card.dataset.sortValue = String(isActive ? current : withdrawn);
+  card.dataset.sortPnl = String(isActive ? unrealizedGain : realizedGain);
+  card.dataset.sortXirr = xirrText !== "--" ? String(parseFloat(xirrText)) : "";
 
   const extendedData = mfStats[fund.isin];
   // Sort folios by current value desc (active first, redeemed last) for chip display
@@ -7257,34 +8153,71 @@ function createFundCardWithTransactions(
         </div>`
         : "";
 
-  card.innerHTML = `
-    <div class="folio-card-header">
-      ${extendedData?.logo_url ? `<img class="folio-card-logo" src="${extendedData.logo_url}" alt="" onerror="this.style.display='none'">` : ""}
-      <span class="folio-card-name-header" title="${displayName}">${displayName}</span>
-    </div>
-    <div class="folio-card-sub-header">
-      <span class="folio-card-amc">${amcShortName}</span>
-      <div class="folio-card-chips">${chipHTML}</div>
-    </div>
-    <div class="folio-card-hero">
-      <div class="folio-card-hero-cell">
-        <span class="folio-card-hero-label">${heroValueLabel}</span>
-        <span class="folio-card-hero-value">₹${formatNumber(heroValueAmt)}</span>
-        ${oneDaySubHTML}
+  const xirrClass =
+    xirrText === "--" ? "" : parseFloat(xirrText) >= 0 ? "gain" : "loss";
+  const logoHTML = extendedData?.logo_url
+    ? `<img class="flt-logo" src="${extendedData.logo_url}" alt="" onerror="this.style.display='none'">`
+    : `<div class="flt-logo flt-logo--fallback">${(displayName || "?")[0].toUpperCase()}</div>`;
+
+  const detailsBtnHTML =
+    isActive && current > 0
+      ? `<button class="flt-details-btn" onclick="event.stopPropagation();showFundDetailsModal('${fundKey}', false)" title="View Details"><i class="fa-solid fa-chart-line"></i><span class="flt-btn-label"> Details</span></button>`
+      : `<button class="flt-details-btn" onclick="event.stopPropagation();showFundDetailsModal('${fundKey}', true, ['${fund.folios.join("','")}'])" title="View Details"><i class="fa-solid fa-chart-line"></i><span class="flt-btn-label"> Details</span></button>`;
+
+  // 1D return column content
+  const oneDayRupees = oneDayReturn
+    ? Math.abs(Math.round(oneDayReturn.rupees || 0))
+    : 0;
+  const oneDayPct = oneDayReturn
+    ? Math.abs((oneDayReturn.percent || 0).toFixed(2))
+    : 0;
+  card.dataset.sortOneday = oneDayReturn
+    ? String(oneDayReturn.percent || 0)
+    : "";
+
+  const oneDayCellHTML = oneDayReturn
+    ? `<span class="flt-val ${odPositive ? "gain" : "loss"}">${odPositive ? "▲" : "▼"} ₹${formatNumber(oneDayRupees)}</span>
+       <span class="flt-sub ${odPositive ? "gain" : "loss"}">${odSign}${oneDayPct}%</span>`
+    : `<span class="flt-val" style="color:var(--text-muted)">--</span>`;
+
+  // Invested sub-line label differs for past funds
+  const investedSubHTML = `<span class="flt-sub">₹${formatNumber(isActive ? remainingCost : invested)}</span>`;
+
+  // Units in meta: only for active holdings with remaining units
+  const unitsMetaStr =
+    isActive && parseFloat(remainingUnits) > 0
+      ? ` · ${parseFloat(remainingUnits).toFixed(3)} units`
+      : "";
+
+  // Must use createElement for each td — browsers strip td innerHTML set directly on a tr
+  const cells = [
+    // Fund name + meta
+    `<div class="flt-fund-info">
+      ${logoHTML}
+      <div class="flt-fund-text">
+        <span class="flt-fund-name" title="${displayName}">${displayName}</span>
+        <span class="flt-fund-meta">${amcShortName} · ${displayFolios.length} ${displayFolios.length === 1 ? "folio" : "folios"}${unitsMetaStr}</span>
       </div>
-      <div class="folio-card-hero-cell ${pnlHeroClass}">
-        <span class="folio-card-hero-label">P&amp;L</span>
-        <span class="folio-card-hero-value ${pnlClass}">₹${formatNumber(Math.abs(pnl))}</span>
-        <span class="folio-card-hero-sub">${pnlSub}</span>
-      </div>
-      <div class="folio-card-hero-cell folio-card-hero-cell--xirr">
-        <span class="folio-card-hero-label">XIRR</span>
-        <span class="folio-card-hero-value">${xirrText}</span>
-      </div>
-    </div>
-    <div class="folio-card-chips-row">${secondaryChips}</div>
-    ${actionsHTML}
-  `;
+    </div>`,
+    // Current value + invested sub
+    `<span class="flt-val">₹${formatNumber(heroValueAmt)}</span>${investedSubHTML}`,
+    // 1D return — current holdings only
+    ...(isActive ? [oneDayCellHTML] : []),
+    // P&L
+    `<span class="flt-val ${pnlClass}">${pnlSign}₹${formatNumber(Math.abs(pnl))}</span>
+     <span class="flt-sub ${pnlClass}">${pnlSign}${Math.abs(pnlPct)}%</span>`,
+    // XIRR
+    `<span class="flt-val ${xirrClass}">${xirrText}</span>`,
+    // Details button
+    detailsBtnHTML,
+  ];
+
+  cells.forEach((html, i) => {
+    const td = document.createElement("td");
+    td.className = "flt-td" + (i > 0 ? " flt-td--r" : " flt-td--fund");
+    td.innerHTML = html;
+    card.appendChild(td);
+  });
 
   return card;
 }
@@ -7551,7 +8484,7 @@ function showFundDetailsModal(
     foliosSectionHTML =
       '<div class="folio-compact-section">' +
       '<div class="folio-compact-header">' +
-      '<span class="folio-compact-header-icon">🗂️</span>' +
+      '<span class="folio-compact-header-icon"><i class="fa-solid fa-folder-open"></i></span>' +
       '<span class="folio-compact-header-title">Folios</span>' +
       '<span class="folio-compact-count">' +
       fund.folios.length +
@@ -7681,7 +8614,7 @@ function showFundDetailsModal(
     foliosSectionHTML =
       '<div class="folio-compact-section">' +
       '<div class="folio-compact-header">' +
-      '<span class="folio-compact-header-icon">🗂️</span>' +
+      '<span class="folio-compact-header-icon"><i class="fa-solid fa-folder-open"></i></span>' +
       '<span class="folio-compact-header-title">Folios</span>' +
       '<span class="folio-compact-count">' +
       _sorted.length +
@@ -7693,6 +8626,187 @@ function showFundDetailsModal(
       "</div>";
   }
 
+  // ── Tax-aware exit section (current holdings, detailed CAS only) ──
+  let taxExitHTML = '';
+  if (!isPastHolding && !isSummaryCAS && current > 0 && fund.advancedMetrics?.folioSummaries) {
+    const category = fund.advancedMetrics.category;
+    const stcgThreshold = category === 'equity' ? 365 : 730;
+    const isEquity = category === 'equity';
+    const navPerUnit = units > 0 ? current / units : 0;
+
+    if (navPerUnit > 0) {
+      const today = new Date();
+      let stcgGain = 0, ltcgGain = 0;
+      let earliestStcg = null;
+
+      targetFolios.forEach(folioNum => {
+        const fs = fund.advancedMetrics.folioSummaries[folioNum];
+        if (!fs?.remainingLots?.length) return;
+        fs.remainingLots.forEach(lot => {
+          const holdingDays = Math.floor((today - lot.purchaseDate) / (1000 * 60 * 60 * 24));
+          const lotGain = lot.units * (navPerUnit - lot.nav);
+          if (holdingDays < stcgThreshold) {
+            stcgGain += lotGain;
+            const daysLeft = stcgThreshold - holdingDays;
+            if (!earliestStcg || daysLeft < earliestStcg.daysLeft) {
+              const turnDate = new Date(lot.purchaseDate.getTime() + stcgThreshold * 86400000);
+              earliestStcg = { daysLeft, turnDate, stcgTaxOnLot: lotGain > 0 ? Math.round(lotGain * 0.20) : 0 };
+            }
+          } else {
+            ltcgGain += lotGain;
+          }
+        });
+      });
+
+      // LTCG tax using portfolio-wide exemption headroom
+      let ltcgTax = 0;
+      if (ltcgGain > 0) {
+        const taxData = calculateTaxPlanningData();
+        const portfolioLTCG = taxData.unrealizedLTCG;
+        const otherFundsLTCG = Math.max(0, portfolioLTCG - ltcgGain);
+        const remainingExemption = Math.max(0, 125000 - otherFundsLTCG);
+        const taxableLTCG = Math.max(0, ltcgGain - remainingExemption);
+        ltcgTax = Math.round(taxableLTCG * 0.125);
+      }
+      const ltcgTaxFull = ltcgGain > 0 ? Math.round(ltcgGain * 0.125) : 0;
+
+      const stcgTax = isEquity && stcgGain > 0 ? Math.round(stcgGain * 0.20) : null;
+      const totalTax = (stcgTax ?? 0) + ltcgTax;
+
+      // Exit load: parse string to compute rupee amount
+      const exitLoadStr = extendedData?.exit_load || '';
+      let exitLoadAmount = 0;
+      let exitLoadDisplay = exitLoadStr && exitLoadStr !== '--' ? exitLoadStr : '';
+
+      const toDays = (val, unit) => {
+        const u = unit.toLowerCase();
+        return u.startsWith('year') ? val * 365 : u.startsWith('month') ? val * 30 : val;
+      };
+
+      const parseExitLoad = (str) => {
+        if (!str || str === '--') return null;
+
+        // Tiered with free-quota: "units above/in excess of X% of the investment, ..."
+        const freeM = str.match(/units?\s+(?:above|in\s+excess\s+of)\s+(\d+(?:\.\d+)?)\s*%/i);
+        if (freeM) {
+          const freePercent = parseFloat(freeM[1]);
+          const tiers = [];
+          // Search only after the free-quota clause to avoid matching its percentage as a rate
+          const afterFree = str.slice(freeM.index + freeM[0].length);
+          // Handles both "2% if redeemed within 365 days" and "1% will be charged for redemption within 12 months"
+          const withinRe = /(\d+(?:\.\d+)?)\s*%[^.]*?within\s+(\d+(?:\.\d+)?)\s*(days?|months?|years?)/gi;
+          const betweenRe = /(\d+(?:\.\d+)?)\s*%[^.]*?after\s+(\d+(?:\.\d+)?)\s*(days?|months?|years?)\s+but\s+on\s+or\s+before\s+(\d+(?:\.\d+)?)\s*(days?|months?|years?)/gi;
+          let m;
+          while ((m = withinRe.exec(afterFree)) !== null)
+            tiers.push({ rate: parseFloat(m[1]) / 100, fromDays: 0, toDays: toDays(parseFloat(m[2]), m[3]) });
+          while ((m = betweenRe.exec(afterFree)) !== null)
+            tiers.push({ rate: parseFloat(m[1]) / 100, fromDays: toDays(parseFloat(m[2]), m[3]), toDays: toDays(parseFloat(m[4]), m[5]) });
+          if (tiers.length) {
+            tiers.sort((a, b) => a.fromDays - b.fromDays);
+            return { type: 'tiered', freePercent, tiers };
+          }
+          return null;
+        }
+
+        // Simple: "X% if redeemed within N days/months/years"
+        const rateMatch = str.match(/(\d+(?:\.\d+)?)\s*%/);
+        if (!rateMatch) return null;
+        const rate = parseFloat(rateMatch[1]) / 100;
+        const low = str.toLowerCase();
+        const dm = low.match(/within\s+(\d+)\s*days?/);
+        const mm = low.match(/within\s+(\d+)\s*months?/);
+        const ym = low.match(/within\s+(\d+)\s*years?/);
+        const days = dm ? parseInt(dm[1]) : mm ? parseInt(mm[1]) * 30 : ym ? parseInt(ym[1]) * 365 : null;
+        return days ? { type: 'simple', rate, days } : null;
+      };
+
+      const parsedLoad = parseExitLoad(exitLoadStr);
+      if (parsedLoad) {
+        if (parsedLoad.type === 'simple') {
+          targetFolios.forEach(folioNum => {
+            const fs = fund.advancedMetrics.folioSummaries[folioNum];
+            if (!fs?.remainingLots?.length) return;
+            fs.remainingLots.forEach(lot => {
+              const holdingDays = Math.floor((today - lot.purchaseDate) / (1000 * 60 * 60 * 24));
+              if (holdingDays < parsedLoad.days)
+                exitLoadAmount += lot.units * navPerUnit * parsedLoad.rate;
+            });
+          });
+        } else if (parsedLoad.type === 'tiered') {
+          // Collect all lots sorted oldest-first (FIFO) across target folios
+          const allLots = [];
+          targetFolios.forEach(folioNum => {
+            const fs = fund.advancedMetrics.folioSummaries[folioNum];
+            if (fs?.remainingLots?.length)
+              fs.remainingLots.forEach(lot => allLots.push(lot));
+          });
+          allLots.sort((a, b) => a.purchaseDate - b.purchaseDate);
+
+          const totalUnits = allLots.reduce((s, l) => s + l.units, 0);
+          let freeLeft = totalUnits * parsedLoad.freePercent / 100;
+
+          allLots.forEach(lot => {
+            const chargedUnits = Math.max(0, lot.units - freeLeft);
+            freeLeft = Math.max(0, freeLeft - lot.units);
+            if (chargedUnits <= 0) return;
+            const holdingDays = Math.floor((today - lot.purchaseDate) / (1000 * 60 * 60 * 24));
+            const tier = parsedLoad.tiers.find(t => holdingDays >= t.fromDays && holdingDays < t.toDays);
+            if (tier) exitLoadAmount += chargedUnits * navPerUnit * tier.rate;
+          });
+        }
+        exitLoadAmount = Math.round(exitLoadAmount);
+      }
+
+      const netProceeds = current - totalTax - exitLoadAmount;
+      const fmtR = v => '₹' + formatNumber(Math.round(Math.abs(v)));
+      const threshLabel = stcgThreshold === 365 ? '1 yr' : '2 yrs';
+      const turnDateStr = earliestStcg
+        ? earliestStcg.turnDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
+        : '';
+
+      taxExitHTML = `
+        <div class="fund-tax-exit-section">
+          <div class="fund-tax-exit-header">
+            <i class="fa-solid fa-receipt" aria-hidden="true"></i>
+            Tax-aware exit
+            <span class="fund-tax-exit-badge">If you exit today</span>
+          </div>
+          <div class="fund-tax-split-grid">
+            <div class="fund-tax-split-card fund-tax-split-card--stcg">
+              <div class="fund-tax-split-label">STCG <span class="fund-tax-split-threshold">&lt; ${threshLabel}</span></div>
+              <div class="fund-tax-split-value ${stcgGain >= 0 ? 'positive' : 'negative'}">${fmtR(stcgGain)}</div>
+              <div class="fund-tax-split-sub">Tax: ${stcgGain > 0 ? (stcgTax !== null ? fmtR(stcgTax) : '<em>at slab</em>') : '<span class="tax-nil">₹0</span>'} <span class="fund-tax-split-rate">${stcgGain > 0 && isEquity ? '@ 20%' : ''}</span></div>
+            </div>
+            <div class="fund-tax-split-card fund-tax-split-card--ltcg">
+              <div class="fund-tax-split-label">LTCG <span class="fund-tax-split-threshold">&gt; ${threshLabel}</span></div>
+              <div class="fund-tax-split-value ${ltcgGain >= 0 ? 'positive' : 'negative'}">${fmtR(ltcgGain)}</div>
+              <div class="fund-tax-split-sub">Tax: ${ltcgGain > 0 ? (ltcgTax === 0 ? `<s style="color:var(--text-tertiary)">${fmtR(ltcgTaxFull)}</s> <span class="tax-nil">₹0</span>` : fmtR(ltcgTax)) : '<span class="tax-nil">₹0</span>'} <span class="fund-tax-split-rate">${ltcgGain > 0 ? '@ 12.5%' : ''}</span></div>
+            </div>
+          </div>
+          ${exitLoadDisplay ? `<div class="fund-tax-exit-load"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span class="fund-tax-exit-load-label">Exit load</span><span class="fund-tax-exit-load-val">${exitLoadDisplay}</span></div>` : ''}
+          <div class="fund-tax-outcome-row">
+            <div class="fund-tax-outcome-card">
+              <div class="fund-tax-outcome-label">Total est. tax</div>
+              <div class="fund-tax-outcome-val fund-tax-outcome-val--warn">${stcgTax === null && stcgGain > 0 ? `<em style="font-size:12px">at slab${ltcgTax > 0 ? ' + ' + fmtR(ltcgTax) : ''}</em>` : totalTax > 0 ? fmtR(totalTax) : '<span class="tax-nil">₹0</span>'}</div>
+            </div>
+            <div class="fund-tax-outcome-card">
+              <div class="fund-tax-outcome-label">Total exit load</div>
+              <div class="fund-tax-outcome-val ${exitLoadAmount > 0 ? 'fund-tax-outcome-val--warn' : ''}">${exitLoadAmount > 0 ? fmtR(exitLoadAmount) : (exitLoadDisplay && !parsedLoad ? '<span style="font-size:11px;color:var(--text-tertiary)">See above</span>' : '<span class="tax-nil">₹0</span>')}</div>
+            </div>
+            <div class="fund-tax-outcome-card">
+              <div class="fund-tax-outcome-label">Net proceeds</div>
+              <div class="fund-tax-outcome-val fund-tax-outcome-val--net">${fmtR(netProceeds)}</div>
+            </div>
+          </div>
+          ${earliestStcg && earliestStcg.daysLeft > 0 && earliestStcg.stcgTaxOnLot > 0 ? `
+          <div class="fund-tax-wait-banner">
+            <i class="fa-solid fa-clock" aria-hidden="true"></i>
+            <span>Wait <strong>${earliestStcg.daysLeft}d</strong> (until ${turnDateStr}) for earliest STCG lot to turn LTCG — saves ~<strong>${fmtR(earliestStcg.stcgTaxOnLot)}</strong> in tax.</span>
+          </div>` : ''}
+        </div>`;
+    }
+  }
+
   modal.innerHTML = `
     <div class="transaction-modal fund-details-modal">
       <div class="modal-header">
@@ -7700,7 +8814,7 @@ function showFundDetailsModal(
           ${extendedData?.logo_url ? `<img class="modal-fund-logo" src="${extendedData.logo_url}" alt="" onerror="this.style.display='none'">` : ""}
           <h2>${displayName}</h2>
         </div>
-        <button class="modal-close" onclick="closeFundDetailsModal()">✕</button>
+        <button class="modal-close" onclick="closeFundDetailsModal()"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-content fund-details-content">
         
@@ -7749,12 +8863,12 @@ function showFundDetailsModal(
                     : null;
                 if (!riskLevel) return "";
                 const riskColors = [
-                  "#10b981",
-                  "#84cc16",
-                  "#f59e0b",
-                  "#fb923c",
-                  "#ef4444",
-                  "#dc2626",
+                  "#2F8F5B",
+                  "#5A9E6E",
+                  "#C9872D",
+                  "#D9854A",
+                  "#C65A52",
+                  "#B84E47",
                 ];
                 const activeIdx = riskLevels.findIndex(
                   (r) => r.toLowerCase() === riskLevel.toLowerCase(),
@@ -7767,7 +8881,7 @@ function showFundDetailsModal(
                       ? riskColors[i]
                       : isPast
                         ? riskColors[i] + "80"
-                        : "rgba(102,126,234,0.15)";
+                        : "rgba(154, 107, 70, 0.15)";
                     return `<span class="riskometer-dot ${isActive ? "riskometer-dot--active" : ""}" style="background:${dotColor};box-shadow:${isActive ? "0 0 6px " + riskColors[i] : "none"}" title="${r}"></span>`;
                   })
                   .join("");
@@ -7850,6 +8964,8 @@ function showFundDetailsModal(
 
         </div>
 
+        ${taxExitHTML}
+
         <!-- Folios Section -->
         ${foliosSectionHTML}
 
@@ -7859,11 +8975,11 @@ function showFundDetailsModal(
           <!-- Valuation History (hidden for Summary CAS — no nav history without transaction dates) -->
           <div class="fund-chart-card" ${isSummaryCAS ? 'style="display:none"' : ""}>
             <div class="fund-chart-card-header">
-              <span class="fund-chart-card-icon">📈</span>
+              <span class="fund-chart-card-icon"><i class="fa-solid fa-chart-line"></i></span>
               <span class="fund-chart-card-title">Valuation History</span>
               <div class="fund-chart-legend-pills">
-                <span class="fund-chart-legend-pill" style="--pill-color:#667eea">Value</span>
-                <span class="fund-chart-legend-pill fund-chart-legend-pill--dashed" style="--pill-color:#ef4444">Cost</span>
+                <span class="fund-chart-legend-pill" style="--pill-color:#9A6B46">Value</span>
+                <span class="fund-chart-legend-pill fund-chart-legend-pill--dashed" style="--pill-color:#C65A52">Cost</span>
               </div>
               <div class="fund-chart-period-tabs" id="valuationPeriodTabs">
                 <button class="fund-chart-period-btn" data-period="1M" onclick="filterValuationChart('1M', '${fundKey}')">1M</button>
@@ -8004,7 +9120,7 @@ function showFundDetailsModal(
           <!-- Returns Performance Card -->
           <div class="fund-chart-card fund-perf-card">
             <div class="fund-chart-card-header">
-              <span class="fund-chart-card-icon">📈</span>
+              <span class="fund-chart-card-icon"><i class="fa-solid fa-chart-line"></i></span>
               <span class="fund-chart-card-title">Returns</span>
             </div>
             <div class="perf-table-wrapper">
@@ -8036,40 +9152,51 @@ function showFundDetailsModal(
             ? `
         <div class="fund-composition-card">
           <div class="fund-composition-card-header">
-            <span class="fund-chart-card-icon">🧩</span>
+            <span class="fund-chart-card-icon"><i class="fa-solid fa-puzzle-piece"></i></span>
             <span class="fund-chart-card-title">Fund Composition</span>
           </div>
           <div class="fund-composition-cols">
             <div class="fund-composition-col">
-              <div class="fund-composition-col-label">Asset Allocation</div>
+              <div class="fund-composition-col-label">
+                <span class="fund-composition-col-title">Asset Allocation</span>
+                <span class="fund-composition-col-sub" id="modalAssetAllocationSub"></span>
+              </div>
               <div class="fund-composition-col-body">
                 <div id="modalAssetAllocationBar" class="donut-chart-wrap"><canvas id="modalAssetAllocationChart"></canvas></div>
               </div>
             </div>
-            <div class="fund-composition-col-divider"></div>
             <div class="fund-composition-col">
-              <div class="fund-composition-col-label">Equity Split</div>
+              <div class="fund-composition-col-label">
+                <span class="fund-composition-col-title">Equity Split</span>
+                <span class="fund-composition-col-sub" id="modalMarketCapSub"></span>
+              </div>
               <div class="fund-composition-col-body">
                 <div id="modalMarketCapBar" class="donut-chart-wrap"><canvas id="modalMarketCapChart"></canvas></div>
               </div>
             </div>
-            <div class="fund-composition-col-divider" id="modalDebtColDivider" style="display:none"></div>
             <div class="fund-composition-col" id="modalDebtCol" style="display:none">
-              <div class="fund-composition-col-label">Debt Split</div>
+              <div class="fund-composition-col-label">
+                <span class="fund-composition-col-title">Debt Split</span>
+                <span class="fund-composition-col-sub" id="modalDebtSub"></span>
+              </div>
               <div class="fund-composition-col-body">
                 <div id="modalDebtBar" class="donut-chart-wrap"><canvas id="modalDebtChart"></canvas></div>
               </div>
             </div>
-            <div class="fund-composition-col-divider" id="modalEquitySectorColDivider" style="display:none"></div>
             <div class="fund-composition-col" id="modalEquitySectorCol" style="display:none">
-              <div class="fund-composition-col-label">Equity Sectors</div>
+              <div class="fund-composition-col-label">
+                <span class="fund-composition-col-title">Equity Sectors</span>
+                <span class="fund-composition-col-sub" id="modalEquitySectorSub"></span>
+              </div>
               <div class="fund-composition-col-body">
                 <div id="modalEquitySectorBar" class="donut-chart-wrap"><canvas id="modalEquitySectorChart"></canvas></div>
               </div>
             </div>
-            <div class="fund-composition-col-divider" id="modalDebtSectorColDivider" style="display:none"></div>
             <div class="fund-composition-col" id="modalDebtSectorCol" style="display:none">
-              <div class="fund-composition-col-label">Debt Sectors</div>
+              <div class="fund-composition-col-label">
+                <span class="fund-composition-col-title">Debt Sectors</span>
+                <span class="fund-composition-col-sub" id="modalDebtSectorSub"></span>
+              </div>
               <div class="fund-composition-col-body">
                 <div id="modalDebtSectorBar" class="donut-chart-wrap"><canvas id="modalDebtSectorChart"></canvas></div>
               </div>
@@ -8088,8 +9215,8 @@ function showFundDetailsModal(
 
           <!-- Section header -->
           <div class="fund-stats-header">
-            <span class="fund-stats-header-icon">📐</span>
-            <span class="fund-stats-header-title">Fund Risk Metrics</span>
+            <span class="fund-stats-header-icon"><i class="fa-solid fa-ruler-combined"></i></span>
+            <span class="fund-stats-header-title">Metrics</span>
             <div class="fund-stats-header-badges">
               ${extendedData.groww_rating ? `<span class="fund-stats-rating-badge">★ ${roundValue(extendedData.groww_rating)}</span>` : ""}
               ${extendedData.expense_ratio ? `<span class="fund-stats-expense-badge">Exp: ${roundValue(extendedData.expense_ratio)}%</span>` : ""}
@@ -8174,7 +9301,7 @@ function showFundDetailsModal(
             ? `
         <div class="fund-meta-section inv-limit-section">
           <div class="fund-stats-header">
-            <span class="fund-stats-header-icon">💰</span>
+            <span class="fund-stats-header-icon"><i class="fa-solid fa-coins"></i></span>
             <span class="fund-stats-header-title">Investment Limits</span>
           </div>
           <div class="fund-meta-grid">
@@ -8248,7 +9375,7 @@ function showFundDetailsModal(
             ? `
         <div class="fund-meta-section">
           <div class="fund-stats-header">
-            <span class="fund-stats-header-icon">🏷️</span>
+            <span class="fund-stats-header-icon"><i class="fa-solid fa-tag"></i></span>
             <span class="fund-stats-header-title">Fund Info</span>
           </div>
           <div class="fund-meta-grid">
@@ -8344,7 +9471,7 @@ function showFundDetailsModal(
         <!-- Quick Actions Section -->
         <div class="fund-quick-actions-card">
           <div class="fund-quick-actions-header">
-            <span class="fund-chart-card-icon">⚡</span>
+            <span class="fund-chart-card-icon"><i class="fa-solid fa-bolt"></i></span>
             <span class="fund-chart-card-title">Quick Actions</span>
           </div>
           <div class="fund-quick-actions-body">
@@ -8442,7 +9569,7 @@ function renderOverlapDetailModal(pair) {
     <div class="transaction-modal overlap-detail-modal">
       <div class="modal-header">
         <h2>Fund Overlap</h2>
-        <button class="modal-close" onclick="closeOverlapDetailModal()">✕</button>
+        <button class="modal-close" onclick="closeOverlapDetailModal()"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-content overlap-detail-content">
         <div class="overlap-detail-fund-cards">
@@ -8518,7 +9645,7 @@ function showCommonHoldingDetailModal(holdingIndex) {
     <div class="transaction-modal overlap-detail-modal">
       <div class="modal-header">
         <h2>Stock Overlap</h2>
-        <button class="modal-close" onclick="closeCommonHoldingDetailModal()">✕</button>
+        <button class="modal-close" onclick="closeCommonHoldingDetailModal()"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-content overlap-detail-content">
         <div class="overlap-detail-fund-cards">
@@ -8609,7 +9736,7 @@ function showAllOverlapPairsModal() {
     <div class="transaction-modal overlap-detail-modal">
       <div class="modal-header">
         <h2>Overlapping Fund Pairs</h2>
-        <button class="modal-close" onclick="closeAllOverlapPairsModal()">✕</button>
+        <button class="modal-close" onclick="closeAllOverlapPairsModal()"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-content overlap-detail-content">
         ${rows}
@@ -8671,7 +9798,7 @@ function showAllCommonHoldingsModal() {
     <div class="transaction-modal overlap-detail-modal">
       <div class="modal-header">
         <h2>Common Stock Holdings</h2>
-        <button class="modal-close" onclick="closeAllCommonHoldingsModal()">✕</button>
+        <button class="modal-close" onclick="closeAllCommonHoldingsModal()"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-content overlap-detail-content">
         ${rows}
@@ -8762,8 +9889,8 @@ function renderModalFundValuationChart(fundKey, initialPeriod = "ALL") {
         {
           label: "Value",
           data: values,
-          borderColor: "#667eea",
-          backgroundColor: "rgba(102, 126, 234, 0.1)",
+          borderColor: "#9A6B46",
+          backgroundColor: "rgba(154, 107, 70, 0.1)",
           fill: true,
           tension: 0.4,
           pointRadius: 0,
@@ -8773,8 +9900,8 @@ function renderModalFundValuationChart(fundKey, initialPeriod = "ALL") {
         {
           label: "Cost",
           data: costs,
-          borderColor: "#ef4444",
-          backgroundColor: "rgba(239, 68, 68, 0.05)",
+          borderColor: "#C65A52",
+          backgroundColor: "rgba(198, 90, 82, 0.05)",
           fill: false,
           tension: 0.4,
           pointRadius: 0,
@@ -8880,7 +10007,7 @@ function renderModalFundPerformanceChart(
     datasets.push({
       label: "Fund",
       data: fundData,
-      backgroundColor: "#3b82f6",
+      backgroundColor: "#4482C9",
       borderRadius: 6,
       barThickness: 20,
     });
@@ -8889,7 +10016,7 @@ function renderModalFundPerformanceChart(
     datasets.push({
       label: "Category",
       data: categoryData,
-      backgroundColor: "#10b981",
+      backgroundColor: "#2F8F5B",
       borderRadius: 6,
       barThickness: 20,
     });
@@ -8898,7 +10025,7 @@ function renderModalFundPerformanceChart(
     datasets.push({
       label: "Benchmark",
       data: benchmarkData,
-      backgroundColor: "#f59e0b",
+      backgroundColor: "#C9872D",
       borderRadius: 6,
       barThickness: 20,
     });
@@ -9074,9 +10201,15 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
         normalized.map((s) => s.value),
         currentValue,
       );
+      setAnalyticsCardSub("modalAssetAllocationSub", `${normalized.length} classes`);
     } else {
-      assetBarEl.innerHTML =
-        '<div class="fund-composition-chart empty-composition">DATA NOT AVAILABLE</div>';
+      const col = assetBarEl.closest(".fund-composition-col");
+      if (col) {
+        col.style.display = "none";
+        const next = col.nextElementSibling;
+        if (next?.classList.contains("fund-composition-col-divider"))
+          next.style.display = "none";
+      }
     }
   }
 
@@ -9141,6 +10274,7 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
         mcapData,
         equityRupees,
       );
+      setAnalyticsCardSub("modalMarketCapSub", `${mcapLabels.length} segments`);
 
       // Apply the same grouped legend (Domestic / Other) as the Dashboard
       const mcapLabelsEl = mcapBarEl.querySelector(".donut-labels");
@@ -9155,16 +10289,20 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
         );
       }
     } else {
-      mcapBarEl.innerHTML =
-        '<div class="fund-composition-chart empty-composition">DATA NOT AVAILABLE</div>';
+      const col = mcapBarEl.closest(".fund-composition-col");
+      if (col) {
+        col.style.display = "none";
+        const prev = col.previousElementSibling;
+        if (prev?.classList.contains("fund-composition-col-divider"))
+          prev.style.display = "none";
+      }
     }
   }
 
   // ============ DEBT DISTRIBUTION CHART (Doughnut) ============
   // totalValue = debtRupees (mirrors dashboard displayDebtDistribution)
   const debtCol = document.getElementById("modalDebtCol");
-  const debtColDivider = document.getElementById("modalDebtColDivider");
-  if (debtCol && debtColDivider) {
+  if (debtCol) {
     const debtBuckets = resolveDebtDistribution(extendedData?.holdings, 1);
     const debtEntries = Object.entries(debtBuckets)
       .filter(([, v]) => v > 0)
@@ -9172,8 +10310,6 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
 
     if (debtEntries.length > 0) {
       debtCol.style.display = "";
-      debtColDivider.style.display = "";
-
       const debtTotal = debtEntries.reduce((sum, [, v]) => sum + v, 0);
       buildDoughnutChart(
         "modalDebtChart",
@@ -9181,20 +10317,17 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
         debtEntries.map(([, val]) => (val / debtTotal) * 100),
         debtRupees,
       );
+      setAnalyticsCardSub("modalDebtSub", `${debtEntries.length} instruments`);
     } else {
       debtCol.style.display = "none";
-      debtColDivider.style.display = "none";
     }
   }
 
   // ============ EQUITY SECTOR SPLIT CHART (Doughnut) ============
   // totalValue = equityRupees (mirrors dashboard displaySectorSplit)
   const equitySectorCol = document.getElementById("modalEquitySectorCol");
-  const equitySectorColDivider = document.getElementById(
-    "modalEquitySectorColDivider",
-  );
 
-  if (equitySectorCol && equitySectorColDivider) {
+  if (equitySectorCol) {
     const equitySectorPer = ps?.equity_sector_per;
     const domesticEquityPct = parseFloat(ps?.asset_allocation?.equity ?? 0);
     const hedgedEquityPct = parseFloat(
@@ -9215,32 +10348,26 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
 
     if (equitySectorEntries.length > 0) {
       equitySectorCol.style.display = "";
-      equitySectorColDivider.style.display = "";
-
       const equitySectorTotal = equitySectorEntries.reduce(
         (sum, [, v]) => sum + v,
         0,
       );
-
       buildDoughnutChart(
         "modalEquitySectorChart",
         equitySectorEntries.map(([label]) => label),
         equitySectorEntries.map(([, val]) => (val / equitySectorTotal) * 100),
         equityRupees,
       );
+      setAnalyticsCardSub("modalEquitySectorSub", `${equitySectorEntries.length} sectors`);
     } else {
       equitySectorCol.style.display = "none";
-      equitySectorColDivider.style.display = "none";
     }
   }
 
   // ============ DEBT SECTOR SPLIT CHART (Doughnut) ============
   // totalValue = debtRupees (mirrors dashboard displayDebtSectorSplit)
   const debtSectorCol = document.getElementById("modalDebtSectorCol");
-  const debtSectorColDivider = document.getElementById(
-    "modalDebtSectorColDivider",
-  );
-  if (debtSectorCol && debtSectorColDivider) {
+  if (debtSectorCol) {
     const debtSectorPer = ps?.debt_sector_per;
     const debtAllocPct = parseFloat(
       ps?.asset_allocation?.debt ?? ps?.asset_allocation?.Debt ?? 0,
@@ -9259,22 +10386,19 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
 
     if (debtSectorEntries.length > 0) {
       debtSectorCol.style.display = "";
-      debtSectorColDivider.style.display = "";
-
       const debtSectorTotal = debtSectorEntries.reduce(
         (sum, [, v]) => sum + v,
         0,
       );
-
       buildDoughnutChart(
         "modalDebtSectorChart",
         debtSectorEntries.map(([label]) => label),
         debtSectorEntries.map(([, val]) => (val / debtSectorTotal) * 100),
         debtRupees,
       );
+      setAnalyticsCardSub("modalDebtSectorSub", `${debtSectorEntries.length} instruments`);
     } else {
       debtSectorCol.style.display = "none";
-      debtSectorColDivider.style.display = "none";
     }
   }
 }
@@ -9313,7 +10437,7 @@ function showAllPortfolioHoldings() {
         <h2>Top Equity Holdings (Top ${top200.length}${
           rest.length > 0 ? " + Others" : ""
         })</h2>
-        <button class="modal-close" onclick="closePortfolioHoldingsModal()">✕</button>
+        <button class="modal-close" onclick="closePortfolioHoldingsModal()"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-content" id="portfolioHoldingsContent"></div>
       <div class="modal-footer">
@@ -9381,7 +10505,7 @@ function showAllFamilyHoldings() {
         <h2>Family Top Equity Holdings (Top ${top200.length}${
           rest.length > 0 ? " + Others" : ""
         })</h2>
-        <button class="modal-close" onclick="closeFamilyHoldingsModal()">✕</button>
+        <button class="modal-close" onclick="closeFamilyHoldingsModal()"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-content" id="familyHoldingsContent"></div>
       <div class="modal-footer">
@@ -9513,7 +10637,7 @@ function showFundHoldings(fundKey) {
         <h2>${fund.schemeDisplay || fund.scheme} - Holdings (${
           holdingsWithCash.length
         })</h2>
-        <button class="modal-close" onclick="closeFundHoldingsModal()">✕</button>
+        <button class="modal-close" onclick="closeFundHoldingsModal()"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-content" id="fundHoldingsContent"></div>
       <div class="modal-footer">
@@ -9764,7 +10888,7 @@ function showAllTimeTransactions() {
     <div class="transaction-modal">
       <div class="modal-header">
         <h2>All-Time Transactions</h2>
-        <button class="modal-close" onclick="closeAllTimeTransactions()">✕</button>
+        <button class="modal-close" onclick="closeAllTimeTransactions()"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-content" id="allTimeTxContent"></div>
       <div class="modal-footer">
@@ -9811,7 +10935,7 @@ function showActiveTransactions() {
     <div class="transaction-modal">
       <div class="modal-header">
         <h2>Active Holdings Transactions</h2>
-        <button class="modal-close" onclick="closeActiveTransactions()">✕</button>
+        <button class="modal-close" onclick="closeActiveTransactions()"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-content" id="activeTxContent"></div>
       <div class="modal-footer">
@@ -9897,7 +11021,7 @@ function showFundTransactions(fundKey, folioNumbersStr) {
               <span class="fund-tx-toggle-track"></span>
             </div>
           </label>
-          <button class="modal-close" onclick="closeFundTransactionModal()">✕</button>
+          <button class="modal-close" onclick="closeFundTransactionModal()"><i class="fa-solid fa-xmark"></i></button>
         </div>
       </div>
       <div class="modal-content" id="fundTxContent"></div>
@@ -10065,7 +11189,7 @@ function createFolioWiseTransactionView(fund, targetFolios) {
       txns.forEach((cf) => {
         const row = document.createElement("tr");
         const txType = getTransactionDisplayType(cf.type);
-        const amountColor = txType === "Buy" ? "#10b981" : "#ef4444";
+        const amountColor = txType === "Buy" ? "#2F8F5B" : "#C65A52";
 
         row.innerHTML = `
         <td><span class="tx-type">${txType}</span></td>
@@ -10137,7 +11261,7 @@ function initializeTransactionSections() {
     <div class="tx-section">
       <div class="tx-section-header">
         <div class="tx-section-left">
-          <span class="tx-section-icon">💼</span>
+          <span class="tx-section-icon"><i class="fa-solid fa-briefcase"></i></span>
           <span class="tx-section-title">Active Holdings Transactions</span>
           <span class="tx-count-badge">${activeCount}</span>
         </div>
@@ -10155,7 +11279,7 @@ function initializeTransactionSections() {
     <div class="tx-section">
       <div class="tx-section-header">
         <div class="tx-section-left">
-          <span class="tx-section-icon">📊</span>
+          <span class="tx-section-icon"><i class="fa-solid fa-list"></i></span>
           <span class="tx-section-title">All-Time Transactions</span>
           <span class="tx-count-badge">${allCount}</span>
         </div>
@@ -10180,6 +11304,18 @@ function initializeTransactionSections() {
 
   const allWrap = document.getElementById("allTxTableWrap");
   allWrap.appendChild(createTransactionTable(allTimeFlows, "allTxTable"));
+
+  requestAnimationFrame(() => {
+    [activeWrap, allWrap].forEach(wrap => {
+      const firstRow = wrap.querySelector('tbody tr');
+      if (!firstRow) return;
+      const rowH = firstRow.getBoundingClientRect().height;
+      const theadH = wrap.querySelector('thead')?.getBoundingClientRect().height ?? 0;
+      wrap.style.scrollPaddingTop = theadH + 'px';
+      const maxRows = Math.floor((480 - theadH) / rowH);
+      if (maxRows > 0) wrap.style.maxHeight = (theadH + maxRows * rowH) + 'px';
+    });
+  });
 }
 
 function normalizeSearchText(text) {
@@ -10245,7 +11381,7 @@ function createTransactionTable(cashFlows, tableId) {
   filteredFlows.forEach((cf) => {
     const row = document.createElement("tr");
     const txType = getTransactionDisplayType(cf.type);
-    const amountColor = txType === "Buy" ? "#10b981" : "#ef4444";
+    const amountColor = txType === "Buy" ? "#2F8F5B" : "#C65A52";
 
     row.innerHTML = `
       <td>${cf.schemeDisplay || cf.scheme || "Unknown"}</td>
@@ -10302,7 +11438,7 @@ function createFundTransactionTable(cashFlows) {
   filteredFlows.forEach((cf) => {
     const row = document.createElement("tr");
     const txType = getTransactionDisplayType(cf.type);
-    const amountColor = txType === "Buy" ? "#10b981" : "#ef4444";
+    const amountColor = txType === "Buy" ? "#2F8F5B" : "#C65A52";
 
     row.innerHTML = `
       <td>${cf.folio ? cf.folio.split("/")[0].trim() : "Unknown"}</td>
@@ -10686,10 +11822,12 @@ function updateChart() {
   }
 
   // === OTHER TABS ===
-  const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-  gradient.addColorStop(0, "#8799f4");
-  gradient.addColorStop(0.5, "#667eea");
-  gradient.addColorStop(1, "#5a6ed1");
+  const tabColors = {
+    investment: { fill: "rgba(47, 143, 91, 0.75)", hover: "#2F8F5B" },
+    withdrawal: { fill: "rgba(198, 90, 82, 0.75)", hover: "#C65A52" },
+    netinvest:  { fill: "rgba(154, 107, 70, 0.75)", hover: "#9A6B46" },
+  };
+  const tc = tabColors[currentTab] || tabColors.netinvest;
 
   chart = new Chart(ctx, {
     type: "bar",
@@ -10699,9 +11837,9 @@ function updateChart() {
         {
           label: currentTab.charAt(0).toUpperCase() + currentTab.slice(1),
           data: data.values,
-          backgroundColor: gradient,
-          borderColor: "#667eea",
-          hoverBackgroundColor: "#764ba2",
+          backgroundColor: tc.fill,
+          borderColor: "transparent",
+          hoverBackgroundColor: tc.hover,
           borderWidth: 0,
           borderRadius: 4,
           barThickness: "flex",
@@ -11254,8 +12392,8 @@ function renderFundValuationChart(fundKey, canvasId) {
         {
           label: "Value",
           data: values,
-          borderColor: "#667eea",
-          backgroundColor: "rgba(102, 126, 234, 0.1)",
+          borderColor: "#9A6B46",
+          backgroundColor: "rgba(154, 107, 70, 0.1)",
           fill: true,
           tension: 0.4,
           pointRadius: 0,
@@ -11264,8 +12402,8 @@ function renderFundValuationChart(fundKey, canvasId) {
         {
           label: "Cost",
           data: costs,
-          borderColor: "#ef4444",
-          backgroundColor: "rgba(239, 68, 68, 0.05)",
+          borderColor: "#C65A52",
+          backgroundColor: "rgba(198, 90, 82, 0.05)",
           fill: false,
           tension: 0.4,
           pointRadius: 0,
@@ -11394,7 +12532,7 @@ function renderFundPerformanceChart(canvasId, extendedData) {
     datasets.push({
       label: "Fund",
       data: fundData,
-      backgroundColor: "#3b82f6",
+      backgroundColor: "#4482C9",
       borderRadius: 6,
       barThickness: 14,
     });
@@ -11403,7 +12541,7 @@ function renderFundPerformanceChart(canvasId, extendedData) {
     datasets.push({
       label: "Category",
       data: categoryData,
-      backgroundColor: "#10b981",
+      backgroundColor: "#2F8F5B",
       borderRadius: 6,
       barThickness: 14,
     });
@@ -11412,7 +12550,7 @@ function renderFundPerformanceChart(canvasId, extendedData) {
     datasets.push({
       label: "Benchmark",
       data: benchmarkData,
-      backgroundColor: "#f59e0b",
+      backgroundColor: "#C9872D",
       borderRadius: 6,
       barThickness: 14,
     });
@@ -11500,7 +12638,94 @@ function renderFundPerformanceChart(canvasId, extendedData) {
   }
 }
 
-// COMPACT DASHBOARD
+// COMPACT DASHBOARD — main mobile summary card (Dashboard tab, no list)
+function updateMainMobileSummary() {
+  if (!portfolioData || !fundWiseData) return;
+  if (!document.getElementById("mainMobileSummary")) return;
+
+  const summary = calculateSummary();
+  const activeFunds = Object.values(fundWiseData).filter(
+    (f) => f.advancedMetrics?.currentValue > 0,
+  );
+
+  const setEl = (id, text) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  };
+
+  setEl("mainHoldingsCount", activeFunds.length);
+  setEl("mainHoldingsLabel", activeFunds.length === 1 ? "Active Holding" : "Active Holdings");
+  setEl("mainTotalValue", formatNumber(summary.currentValue));
+  updateTopbarMeta();
+  setEl("mainInvested", "₹" + formatNumber(summary.costPrice));
+
+  const pnlSign = summary.unrealizedGain >= 0 ? "+" : "-";
+  const pnlCls = summary.unrealizedGain >= 0 ? "positive" : "negative";
+  const pnlPct =
+    summary.costPrice > 0
+      ? ((summary.unrealizedGain / summary.costPrice) * 100).toFixed(2)
+      : 0;
+  const retEl = document.getElementById("mainTotalReturns");
+  if (retEl) {
+    retEl.textContent = "₹" + formatNumber(Math.abs(summary.unrealizedGain));
+    retEl.className = "stat-value " + pnlCls;
+  }
+  const pctEl = document.getElementById("mainTotalReturnsPct");
+  if (pctEl) {
+    pctEl.textContent = `(${pnlSign}${Math.abs(pnlPct)}%)`;
+    pctEl.className = "stat-sub " + pnlCls;
+  }
+
+  const xirrEl = document.getElementById("mainXIRR");
+  if (xirrEl) {
+    if (summary.activeXirr !== null) {
+      xirrEl.textContent = summary.activeXirr.toFixed(2) + "%";
+      xirrEl.className =
+        "stat-value " + (summary.activeXirr >= 0 ? "positive" : "negative");
+    } else {
+      xirrEl.textContent = "--";
+      xirrEl.className = "stat-value";
+    }
+  }
+  const xirrRow = document.getElementById("mainXIRRRow");
+  if (xirrRow) xirrRow.style.display = isSummaryCAS ? "none" : "";
+  const alphaRow = document.getElementById("mainAlphaRow");
+  if (alphaRow) alphaRow.style.display = isSummaryCAS ? "none" : "";
+
+  const oneDayReturns = calculateOneDayReturns();
+  const odSign = oneDayReturns.value >= 0 ? "▲ " : "▼ ";
+  const odClass = oneDayReturns.value >= 0 ? "positive" : "negative";
+  const odEl = document.getElementById("main1DReturns");
+  if (odEl) {
+    odEl.textContent = `${odSign}${oneDayReturns.text} today`;
+    odEl.className = "compact-1d-change " + odClass;
+  }
+
+  // 3Y Alpha
+  const alphaEl = document.getElementById("mainAlpha");
+  if (alphaEl && !isSummaryCAS) {
+    try {
+      const benchmarks = getPortfolioBenchmarks();
+      const analytics = calculatePortfolioAnalytics();
+      const alpha3y = calculatePortfolioAlpha(
+        analytics.weightedReturns,
+        benchmarks,
+      ).vsNifty500.alpha3y;
+      if (alpha3y == null || isNaN(alpha3y)) {
+        alphaEl.textContent = "--";
+        alphaEl.className = "stat-value";
+      } else {
+        alphaEl.textContent = `${alpha3y >= 0 ? "+" : ""}${parseFloat(alpha3y).toFixed(2)}%`;
+        alphaEl.className =
+          "stat-value " + (alpha3y >= 0 ? "positive" : "negative");
+      }
+    } catch (_) {
+      alphaEl.textContent = "--";
+    }
+  }
+}
+
+// COMPACT DASHBOARD — Current Holdings tab (full list)
 function updateCompactDashboard() {
   if (!portfolioData || !fundWiseData) return;
 
@@ -11654,7 +12879,7 @@ function updateCompactPastDashboard() {
   if (!hasPast) {
     container.innerHTML = `
       <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">
-        <div style="font-size: 48px; margin-bottom: 20px;">📋</div>
+        <div style="font-size: 48px; margin-bottom: 20px;"><i class="fa-solid fa-clipboard-list"></i></div>
         <h3 style="margin-bottom: 10px; color: var(--text-primary);">No Past Holdings</h3>
         <p style="color: var(--text-tertiary);">You don't have any fully redeemed funds yet.</p>
       </div>
@@ -11734,6 +12959,7 @@ function updateCompactPastDashboard() {
     </div>
 
     <div class="compact-controls past-sort">
+    <span class="compact-controls-label">Sort by</span>
       <button class="compact-filter-btn" onclick="toggleCompactPastSort()">
         <i class="fa-solid fa-sort"></i>
         <span>Returns</span>
@@ -12247,7 +13473,7 @@ async function loadFamilyDashboard() {
     const container = document.getElementById("familySummaryCards");
     container.innerHTML = `
       <div class="card" style="grid-column: 1 / -1; text-align: center;">
-        <div style="font-size: 48px; margin-bottom: 20px;">🔒</div>
+        <div style="font-size: 48px; margin-bottom: 20px;"><i class="fa-solid fa-lock"></i></div>
         <h3 style="margin-bottom: 10px; color: var(--text-secondary);">Family Dashboard Locked</h3>
         <p style="color: var(text-secondary);">Upload CAS files for at least 2 family members to unlock this feature.</p>
       </div>
@@ -12291,7 +13517,7 @@ async function loadFamilyDashboard() {
     const summaryCards = document.getElementById("familySummaryCards");
     summaryCards.innerHTML = `
       <div class="card" style="grid-column: 1 / -1; text-align: center;">
-        <div style="font-size: 24px; color: #667eea;">
+        <div style="font-size: 24px; color: #9A6B46;">
           <i class="fa-solid fa-spinner fa-spin"></i> Loading family data...
         </div>
       </div>
@@ -13023,6 +14249,8 @@ function displayFamilyAnalytics(metrics) {
 
   const sectorCard = document.getElementById("familySectorCard");
 
+  if (!sectorCard) return;
+
   if (onlyUnclassified || nonZeroEntries.length === 0) {
     sectorCard.classList.add("hidden");
   } else {
@@ -13055,6 +14283,7 @@ function displayFamilyAnalytics(metrics) {
       normalisedSec,
       sectorRupees,
     );
+    setAnalyticsCardSub("familySectorSub", `${sortedLabels.filter(l => l !== "Others").length} sectors`);
     sectorCard.classList.remove("loading");
   }
 
@@ -13076,7 +14305,6 @@ function displayFamilyAnalytics(metrics) {
     const amcLabels = topAmc.map(([n]) => n);
     const amcData = topAmc.map(([, v]) => v);
     const [sortedLabels, sortedData] = sortData(amcLabels, amcData);
-    // Append Others at the end after sorting so it's always last
     if (amcOthers > 0) {
       sortedLabels.push("Others");
       sortedData.push(amcOthers);
@@ -13087,6 +14315,7 @@ function displayFamilyAnalytics(metrics) {
       sortedData,
       metrics.totalCurrentValue,
     );
+    setAnalyticsCardSub("familyAmcSub", `${sortedLabels.filter(l => l !== "Others").length} AMCs`);
     document.getElementById("familyAmcCard")?.classList.remove("loading");
   } else {
     const amcCard = document.getElementById("familyAmcCard");
@@ -13106,6 +14335,22 @@ function displayFamilyAnalytics(metrics) {
 }
 
 function displayFamilyAssetAllocation(metrics) {
+  const assetCard = document.getElementById("familyAssetAllocationCard");
+  if (!assetCard) return;
+
+  assetCard.classList.remove("loading");
+
+  const LABEL_MAP = {
+    "domestic equity": "Dom. Equity",
+    "global equity": "Global Eq.",
+    "hedged equity": "Hedged Eq.",
+    debt: "Debt",
+    gold: "Gold",
+    silver: "Silver",
+    cash: "Cash",
+    "real estate": "Real Estate",
+    other: "Other",
+  };
   const preferred = [
     "domestic equity",
     "global equity",
@@ -13117,63 +14362,38 @@ function displayFamilyAssetAllocation(metrics) {
     "cash",
     "other",
   ];
-
-  const assetLabels = [];
-  const assetData = [];
-
-  // Title-case helper for multi-word keys like "domestic equity", "reits"
-  const toLabel = (k) => k.replace(/\b\w/g, (c) => c.toUpperCase());
-
-  // Preferred order first
+  const entries = [];
   preferred.forEach((k) => {
     const val = parseFloat(metrics.assetAllocation?.[k]);
-    if (!isNaN(val) && val > 0) {
-      assetLabels.push(toLabel(k));
-      assetData.push(val);
-    }
+    if (!isNaN(val) && val > 0.1) entries.push([k, val]);
   });
-
-  // Any extra asset types (excluding _breakdown)
   Object.keys(metrics.assetAllocation || {}).forEach((k) => {
     if (!preferred.includes(k) && k !== "_breakdown") {
       const val = parseFloat(metrics.assetAllocation[k]);
-      if (!isNaN(val) && val > 0) {
-        assetLabels.push(toLabel(k));
-        assetData.push(val);
-      }
+      if (!isNaN(val) && val > 0.1) entries.push([k, val]);
     }
   });
-
-  const assetCard = document.getElementById("familyAssetAllocationCard");
-  if (!assetCard) return;
-
-  assetCard.classList.remove("loading");
+  entries.sort((a, b) => b[1] - a[1]);
 
   const wrapper = assetCard.querySelector(".chart-wrapper");
+  if (!wrapper) return;
 
-  if (assetData.length === 0) {
-    if (wrapper)
-      wrapper.innerHTML =
-        '<p style="text-align: center; color: #9ca3af; padding: 20px;">DATA NOT AVAILABLE</p>';
+  if (entries.length === 0) {
+    wrapper.innerHTML =
+      '<p style="text-align:center;color:#9ca3af;padding:20px">DATA NOT AVAILABLE</p>';
     return;
   }
 
-  if (wrapper && !wrapper.querySelector("#familyAssetAllocationChart")) {
-    wrapper.innerHTML = '<canvas id="familyAssetAllocationChart"></canvas>';
-  }
-
-  const [sortedLabels, sortedData] = sortData(assetLabels, assetData);
-
-  // Calculate total value
-  const users = storageManager.getAllUsers();
-  let totalValue = metrics.totalCurrentValue || 0;
+  const labels = entries.map(([key]) => LABEL_MAP[key] ?? key);
+  const data = entries.map(([, val]) => val);
 
   buildDoughnutChart(
     "familyAssetAllocationChart",
-    sortedLabels,
-    sortedData,
-    totalValue,
+    labels,
+    data,
+    metrics.totalCurrentValue,
   );
+  setAnalyticsCardSub("familyAssetAllocationSub", `₹${formatNumber(Math.round(metrics.totalCurrentValue))}`);
 }
 
 function displayFamilyMarketCapSplit(metrics) {
@@ -13206,7 +14426,6 @@ function displayFamilyMarketCapSplit(metrics) {
   }
 
   mcCard.classList.remove("hidden");
-
   mcCard.classList.remove("loading");
 
   const wrapper = mcCard.querySelector(".chart-wrapper");
@@ -13224,8 +14443,6 @@ function displayFamilyMarketCapSplit(metrics) {
 
   const [sortedLabels, sortedData] = sortData(mcLabels, mcData);
 
-  // marketCap values already sum to 100 (within-equity %).
-  // Derive the equity rupee sub-total from the family asset allocation.
   const equityPct =
     (metrics.assetAllocation?.["domestic equity"] || 0) +
     (metrics.assetAllocation?.["global equity"] || 0) +
@@ -13238,6 +14455,7 @@ function displayFamilyMarketCapSplit(metrics) {
     sortedData,
     equityRupees,
   );
+  setAnalyticsCardSub("familyMarketCapSub", `${sortedLabels.length} segments`);
 
   applyGroupedMarketCapLegend(
     "familyMarketCapChart",
@@ -13250,65 +14468,81 @@ function displayFamilyMarketCapSplit(metrics) {
 function displayFamilyUserBreakdown(userBreakdown) {
   const container = document.getElementById("familyUserBreakdown");
   if (!container) return;
-  container.innerHTML = "";
 
   const sortedUsers = Object.entries(userBreakdown).sort(
     (a, b) => b[1].currentValue - a[1].currentValue,
   );
 
-  sortedUsers.forEach(([userName, data]) => {
-    const gainPercent =
-      data.cost > 0 ? ((data.unrealizedGain / data.cost) * 100).toFixed(2) : 0;
-    const gainClass = data.unrealizedGain >= 0 ? "gain" : "loss";
-    const displayName = getStoredInvestorName(userName).split(" ")[0];
+  const makeRow = ([userName, data]) => {
+    const displayName = getStoredInvestorName(userName);
+    const fundCount = data.holdings;
 
-    const card = document.createElement("div");
-    card.className = "family-user-card";
+    const gainPct =
+      data.cost > 0 ? (data.unrealizedGain / data.cost) * 100 : null;
+    const gainCls =
+      gainPct == null ? "" : gainPct >= 0 ? "positive" : "negative";
+    const gainPctStr =
+      gainPct == null
+        ? "--"
+        : (gainPct >= 0 ? "+" : "") + gainPct.toFixed(2) + "%";
+    const gainRupStr =
+      (data.unrealizedGain >= 0 ? "+" : "-") +
+      "₹" +
+      formatNumber(Math.abs(Math.round(data.unrealizedGain)));
 
-    const pnlClass = data.unrealizedGain >= 0 ? "pnl-gain" : "pnl-loss";
     const od = data.oneDayChange;
-    const odRowHTML = od
-      ? (() => {
-          const odSign = od.rupees >= 0 ? "+" : "-";
-          const odTriangle = od.rupees >= 0 ? "▲" : "▼";
-          const odClass = od.rupees >= 0 ? "gain" : "loss";
-          return `
-        <div class="family-stat-row oneday-${odClass}">
-          <span class="label">1D Change</span>
-          <span class="value ${odClass}" style="font-size:11px;">
-            ${odTriangle} ₹${formatNumber(Math.abs(Math.round(od.rupees)))}
-          </span>
-          <span class="sub-value ${odClass}">${odSign}${Math.abs(od.percent).toFixed(2)}%</span>
-        </div>`;
-        })()
-      : "";
-    card.innerHTML = `
-      <h4>
-        <i class="fa-solid fa-user"></i> ${displayName}
-        <span class="family-holdings-pill">${data.holdings} fund${data.holdings === 1 ? "" : "s"}</span>
-      </h4>
-      <div class="family-user-stats">
-        <div class="family-stat-row">
-          <span class="label">Current Value</span>
-          <span class="value">₹${formatNumber(data.currentValue)}</span>
-        </div>
-        <div class="family-stat-row">
-          <span class="label">Invested</span>
-          <span class="value">₹${formatNumber(data.cost)}</span>
-        </div>
-        <div class="family-stat-row ${pnlClass}">
-          <span class="label">P&L</span>
-          <span class="value ${gainClass}">
-            ₹${formatNumber(Math.abs(data.unrealizedGain))}
-          </span>
-          <span class="sub-value">${data.unrealizedGain >= 0 ? "+" : "-"}${Math.abs(gainPercent)}%</span>
-        </div>
-        ${odRowHTML}
-      </div>
-    `;
+    let odValStr = "--",
+      odPctStr = "",
+      odCls = "";
+    if (od) {
+      odCls = od.rupees >= 0 ? "positive" : "negative";
+      odValStr =
+        (od.rupees >= 0 ? "▲ " : "▼ ") +
+        "₹" +
+        formatNumber(Math.abs(Math.round(od.rupees)));
+      odPctStr = (od.rupees >= 0 ? "+" : "") + od.percent.toFixed(2) + "%";
+    }
 
-    container.appendChild(card);
-  });
+    return `
+      <div class="fam-bk-row">
+        <div class="fam-bk-name-col">
+          <div class="fam-bk-name">${displayName}</div>
+          <span class="fam-bk-chip">${fundCount} fund${fundCount === 1 ? "" : "s"}</span>
+        </div>
+        <div class="fam-bk-stat">
+          <div class="fam-bk-val">₹${formatNumber(Math.round(data.currentValue))}</div>
+          <div class="fam-bk-sub">₹${formatNumber(Math.round(data.cost))} inv</div>
+        </div>
+        <div class="fam-bk-stat">
+          <div class="fam-bk-val ${gainCls}">${gainRupStr}</div>
+          <div class="fam-bk-sub ${gainCls}">${gainPctStr}</div>
+        </div>
+        <div class="fam-bk-stat">
+          <div class="fam-bk-val ${odCls}">${odValStr}</div>
+          <div class="fam-bk-sub ${odCls}">${odPctStr}</div>
+        </div>
+      </div>`;
+  };
+
+  const colHeader = `
+    <div class="fam-bk-col-header">
+      <div class="fam-bk-name-col">Member</div>
+      <div class="fam-bk-stat">Value</div>
+      <div class="fam-bk-stat">P&amp;L</div>
+      <div class="fam-bk-stat">1D</div>
+    </div>`;
+
+  const mid = Math.ceil(sortedUsers.length / 2);
+  const colA = colHeader + sortedUsers.slice(0, mid).map(makeRow).join("");
+  const colB = colHeader + sortedUsers.slice(mid).map(makeRow).join("");
+
+  container.innerHTML = `
+    <div class="dash-section-card" style="margin-top:8px">
+      <div class="fam-bk-cols">
+        <div class="fam-bk-col">${colA}</div>
+        <div class="fam-bk-col">${colB}</div>
+      </div>
+    </div>`;
 }
 function updateCompactFamilyDashboard(metrics) {
   if (!metrics || window.innerWidth > 500) return;
@@ -13391,11 +14625,11 @@ function updateCompactFamilyDashboard(metrics) {
 
   // Avatar background colours cycling through accent palette
   const avatarStyles = [
-    { bg: "rgba(102,126,234,0.15)", color: "#534AB7" },
-    { bg: "rgba(16,185,129,0.15)", color: "#065f46" },
-    { bg: "rgba(245,158,11,0.15)", color: "#92400e" },
-    { bg: "rgba(239,68,68,0.12)", color: "#991b1b" },
-    { bg: "rgba(118,75,162,0.15)", color: "#6b21a8" },
+    { bg: "rgba(154, 107, 70, 0.15)", color: "#534AB7" },
+    { bg: "rgba(47, 143, 91, 0.15)", color: "#065f46" },
+    { bg: "rgba(201, 135, 45, 0.15)", color: "#92400e" },
+    { bg: "rgba(198, 90, 82, 0.12)", color: "#991b1b" },
+    { bg: "rgba(122, 82, 52, 0.15)", color: "#6b21a8" },
   ];
 
   sortedUsers.forEach(([userName, data], idx) => {
@@ -13493,6 +14727,21 @@ function initializeUserManagement() {
   }
 }
 
+function buildUserItem(user) {
+  const investorName = getStoredInvestorName(user);
+  const isActive = user === currentUser;
+  const userItem = document.createElement("div");
+  userItem.className = `user-item ${isActive ? "active" : ""}`;
+  userItem.onclick = () => switchToUser(user);
+  userItem.innerHTML = `
+    <div class="user-item-info">
+      <div class="user-item-name">${investorName}</div>
+      <div class="user-item-email">${user}</div>
+    </div>
+  `;
+  return userItem;
+}
+
 function populateUserList(users) {
   const container = document.getElementById("userListContainer");
   if (!container) {
@@ -13504,46 +14753,81 @@ function populateUserList(users) {
 
   if (users.length === 0) {
     container.innerHTML =
-      '<div style="text-align: right; padding: 20px; color: var(--text-tertiary); font-size:12px">No users found. Upload a CAS file to get started.</div>';
+      '<div style="text-align:right;padding:20px;color:var(--text-tertiary);font-size:12px">No users found. Upload a CAS file to get started.</div>';
     setDataManagementButtons(false);
     return;
   }
 
   setDataManagementButtons(true);
 
-  users.forEach((user) => {
-    const investorName = getStoredInvestorName(user);
-    const isActive = user === currentUser;
+  if (users.length > 1) {
+    container.classList.add("ul-dropdown-mode");
+    // Custom dropdown
+    const activeUser = currentUser;
+    const activeName = getStoredInvestorName(activeUser) || activeUser;
 
-    const userItem = document.createElement("div");
-    userItem.className = `user-item ${isActive ? "active" : ""}`;
+    const dropdown = document.createElement("div");
+    dropdown.className = "ul-dropdown";
 
-    userItem.onclick = (e) => {
-      if (
-        e.target.closest(".user-item-delete") ||
-        e.target.closest(".user-item-settings")
-      )
-        return;
-      switchToUser(user);
-    };
-
-    userItem.innerHTML = `
-      <div class="user-item-info">
-        <div class="user-item-name">${investorName}</div>
-        <div class="user-item-email">${user}</div>
+    const trigger = document.createElement("button");
+    trigger.className = "ul-trigger";
+    trigger.innerHTML = `
+      <div class="ul-trigger-info">
+        <span class="ul-trigger-name">${activeName}</span>
+        <span class="ul-trigger-sub">${activeUser}</span>
       </div>
-      <div style="display: flex; gap: 8px;">
-        <button class="user-item-settings" onclick="event.stopPropagation(); showFolioManagementModal('${user}')" title="Manage Folios">
-          <i class="fa-solid fa-gear"></i>
-        </button>
-        <button class="user-item-delete" onclick="event.stopPropagation(); deleteSingleUser('${user}')" title="Delete User">
-          <i class="fa-solid fa-trash"></i>
-        </button>
-      </div>
+      <i class="fa-solid fa-chevron-down ul-trigger-chevron"></i>
     `;
 
-    container.appendChild(userItem);
-  });
+    const panel = document.createElement("div");
+    panel.className = "ul-panel";
+    panel.hidden = true;
+    const scroll = document.createElement("div");
+    scroll.className = "ul-panel-scroll";
+    users.forEach((user) => scroll.appendChild(buildUserItem(user)));
+    panel.appendChild(scroll);
+    // Teleport panel to body so it escapes all ancestor overflow constraints
+    document.body.appendChild(panel);
+
+    const positionPanel = () => {
+      const rect = trigger.getBoundingClientRect();
+      panel.style.position = "fixed";
+      panel.style.top = (rect.bottom + 6) + "px";
+      panel.style.left = rect.left + "px";
+      panel.style.width = rect.width + "px";
+    };
+
+    const closePanel = () => {
+      panel.hidden = true;
+      trigger.classList.remove("ul-trigger--open");
+      window.removeEventListener("scroll", positionPanel, true);
+      window.removeEventListener("resize", positionPanel);
+    };
+
+    trigger.onclick = () => {
+      const open = !panel.hidden;
+      if (open) {
+        closePanel();
+      } else {
+        positionPanel();
+        panel.hidden = false;
+        trigger.classList.add("ul-trigger--open");
+        window.addEventListener("scroll", positionPanel, true);
+        window.addEventListener("resize", positionPanel);
+      }
+    };
+
+    document.addEventListener("click", (e) => {
+      if (!dropdown.contains(e.target) && !panel.contains(e.target)) {
+        closePanel();
+      }
+    }, { capture: true });
+
+    dropdown.appendChild(trigger);
+    container.appendChild(dropdown);
+  } else {
+    users.forEach((user) => container.appendChild(buildUserItem(user)));
+  }
 }
 
 // Resets the URL hash to #main before a reload, so the user lands on the
@@ -14075,7 +15359,7 @@ function showFolioManagementModal(userName) {
         <h2><i class="fa-solid fa-gear"></i> Manage Folios - ${getStoredInvestorName(
           userName,
         )}</h2>
-        <button class="modal-close" onclick="closeFolioManagementModal()">✕</button>
+        <button class="modal-close" onclick="closeFolioManagementModal()"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="folio-management-content" id="folioManagementContent">
         <div style="text-align: center; padding: 40px;">
@@ -14464,10 +15748,6 @@ function displayTaxPlanning() {
   if (isSummaryCAS) {
     container.innerHTML = `
       <div class="tax-planning-container">
-        <div class="section-header">
-          <h3>📊 Tax Planning</h3>
-          <p class="section-subtitle">Not available for Summary CAS</p>
-        </div>
         <p class="no-data">Tax planning features require a Detailed CAS with transaction history.</p>
       </div>
     `;
@@ -14477,11 +15757,6 @@ function displayTaxPlanning() {
   const taxData = calculateTaxPlanningData();
   let html = `
     <div class="tax-planning-container">
-      <div class="section-header">
-        <h3>📊 Tax Planning Dashboard</h3>
-        <p class="section-subtitle">Optimize your tax liability with strategic holding management</p>
-      </div>
-
       <div class="tax-summary-cards">
         <div class="tax-summary-card">
           <h4>Long-Term Holdings</h4>
@@ -14561,9 +15836,10 @@ function displayTaxPlanning() {
   </div>
 </div>
       </div>
+    </div>
   `;
 
-  // Long-Term Holdings Section
+  // Long-Term Holdings Section — outside the tax-planning-container wrapper
   html += `
     <div class="holdings-split-section">
       <div class="holdings-split-header" onclick="toggleHoldingsSplit('longTerm')">
@@ -14754,7 +16030,7 @@ function displayTaxPlanning() {
   html += `
     <div class="tax-rates-section">
       <div class="tax-rates-header">
-        <span class="tax-rates-icon">📋</span>
+        <span class="tax-rates-icon"><i class="fa-solid fa-clipboard-list"></i></span>
         <span class="tax-rates-title">Current Tax Rates</span>
       </div>
       <div class="tax-rates-table-wrapper">
@@ -14814,7 +16090,7 @@ function displayTaxPlanning() {
         <p>• Rates exclude surcharge &amp; cess.</p>
         <p>• ₹1.25 lakh annual exemption applies only to equity-oriented funds (Section 112A).</p>
         <p>• Hybrid funds with &lt;65% equity are taxed like debt/international funds.</p>
-        <p>• Use FIFO for SIP redemptions and always verify the purchase date and fund classification.</p>
+        <p>• Use FIFO for SIP redemptions and always verify the Buy Date and fund classification.</p>
         <p>• Hold equity funds for at least 1 year to benefit from lower LTCG tax rates.</p>
         <p>• Consider booking LTCG up to ₹1.25L annually to use the tax-free limit.</p>
         <p>• Plan redemptions to minimize tax impact by timing them strategically.</p>
@@ -14829,8 +16105,6 @@ function displayTaxPlanning() {
       <span>Tax calculations are estimates only and should not be considered professional advice; please verify the results independently before making financial decisions.</span>
     </div>
   `;
-
-  html += `</div>`;
 
   container.innerHTML = html;
 }
@@ -15775,6 +17049,7 @@ function switchDashboardTab(tabId) {
       "transactions",
       "capital-gains",
       "past-holding",
+      "portfolio-composition",
     ];
     if (disabledTabs.includes(tabId)) {
       showToast("This feature is not available for Summary CAS", "warning");
@@ -15811,11 +17086,19 @@ function switchDashboardTab(tabId) {
   const activeButtons = document.querySelectorAll(buttonClass);
   activeButtons.forEach((btn) => btn.classList.add("active"));
 
+  if (tabId === "current-holding") {
+    if (fundWiseData) updateCompactDashboard();
+  }
+
   if (tabId === "charts") {
     if (!isSummaryCAS) {
       updateChart();
       displayMonthlySummaryAndProjections();
       renderTransactionCalendar();
+      if (fundWiseData && Object.keys(fundWiseData).length > 0) {
+        const _wr = calculatePortfolioAnalytics().weightedReturns;
+        displayWeightedReturns(_wr, "weightedReturnsContainer");
+      }
     }
   }
   if (tabId === "transactions") {
@@ -15830,6 +17113,8 @@ function switchDashboardTab(tabId) {
     displayHealthScore();
   } else if (tabId === "tax-planning") {
     displayTaxPlanning();
+  } else if (tabId === "portfolio-composition") {
+    displayPortfolioCompositionPage();
   } else if (tabId === "family-dashboard") {
     loadFamilyDashboard();
   } else {
@@ -16087,37 +17372,135 @@ function initializeTheme() {
 function toggleTheme() {
   const currentTheme = document.documentElement.getAttribute("data-theme");
   const newTheme = currentTheme === "dark" ? "light" : "dark";
+  const newBg = newTheme === "dark" ? "#15120f" : "#f8f5f1";
 
-  document.documentElement.setAttribute("data-theme", newTheme);
-  localStorage.setItem("theme", newTheme);
-  updateThemeUI(newTheme);
+  // Cover the screen in the new theme's bg so chart redraws are hidden
+  const overlay = document.createElement("div");
+  overlay.style.cssText = `position:fixed;inset:0;z-index:2147483647;background:${newBg};opacity:0;transition:opacity 0.18s ease;pointer-events:none;`;
+  document.body.appendChild(overlay);
 
-  if (portfolioData && fundWiseData) {
-    calculateAndDisplayPortfolioAnalytics();
-  }
+  // Fade overlay in, then switch theme and re-render everything behind it
+  requestAnimationFrame(() => {
+    overlay.style.opacity = "1";
+  });
 
-  if (currentTab && chart) {
-    updateChart();
-  }
+  setTimeout(() => {
+    // Suppress all CSS transitions so nothing flickers under the overlay
+    document.documentElement.classList.add("theme-switching");
 
-  if (familyDashboardCache) {
-    displayFamilyAnalytics(familyDashboardCache);
-  }
+    document.documentElement.setAttribute("data-theme", newTheme);
+    localStorage.setItem("theme", newTheme);
+    updateThemeUI(newTheme);
+
+    if (portfolioData && fundWiseData) {
+      calculateAndDisplayPortfolioAnalytics();
+    }
+    if (currentTab && chart) {
+      updateChart();
+    }
+    if (familyDashboardCache) {
+      displayFamilyAnalytics(familyDashboardCache);
+    }
+    renderDashboardHealthSnippet();
+    if (window.monthlySummaryData) {
+      updateProjections();
+    }
+
+    // Fade overlay out, then restore transitions
+    requestAnimationFrame(() => {
+      overlay.style.opacity = "0";
+      setTimeout(() => {
+        overlay.remove();
+        document.documentElement.classList.remove("theme-switching");
+      }, 200);
+    });
+  }, 200);
 }
 
 function updateThemeUI(theme) {
   const isDark = theme === "dark";
+  const iconClass = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
+  const label = isDark ? "Light Mode" : "Dark Mode";
 
   const themeIcon = document.getElementById("themeIconDesktop");
+  if (themeIcon) themeIcon.className = iconClass;
 
-  if (themeIcon) {
-    themeIcon.className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
-  }
+  const themeLabel = document.getElementById("themeToggleLabel");
+  if (themeLabel) themeLabel.textContent = label;
 
   const themeIconMobile = document.getElementById("themeIconMobile");
+  if (themeIconMobile) themeIconMobile.className = iconClass;
+}
 
-  if (themeIconMobile) {
-    themeIconMobile.className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
+// TOPBAR META — user chip + NAV date chip
+function updateTopbarMeta() {
+  if (!portfolioData || !fundWiseData) return;
+
+  // User name
+  const fullName = portfolioData.investor_info?.name?.trim() || currentUser || "";
+  const firstName = fullName.split(" ")[0] || "";
+  const initials = fullName.split(" ").slice(0, 2).map(w => w[0]?.toUpperCase() || "").join("") || "?";
+
+  ["topbarAvatar", "topbarAvatarMobile"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = initials;
+  });
+  ["topbarUserName", "topbarUserNameMobile"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = firstName;
+  });
+
+  // Latest NAV date — find the most recent across active funds
+  let latestDate = null;
+  Object.values(fundWiseData).forEach(fund => {
+    if (!fund.advancedMetrics?.currentValue) return;
+    const isin = fund.isin;
+    const d = isin ? mfStats?.[isin]?.latest_nav_date : null;
+    if (d && (!latestDate || d > latestDate)) latestDate = d;
+  });
+
+  // Parse YYYY-MM-DD safely (avoid UTC midnight timezone shift)
+  let navLabel = "--";
+  if (latestDate) {
+    const parts = String(latestDate).split("-");
+    if (parts.length === 3) {
+      const d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+      navLabel = d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" });
+    }
+  }
+
+  ["topbarNavDate", "topbarNavDateMobile"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = navLabel;
+  });
+
+  // Show chips now that data is ready
+  const meta = document.getElementById("topbarMeta");
+  const divider = document.querySelector(".topbar-divider--meta");
+  if (meta) meta.style.display = "flex";
+  if (divider) divider.style.display = fullName ? "block" : "none";
+}
+
+function toggleTopbarOverflow() {
+  const menu = document.getElementById("topbarOverflowMenu");
+  if (!menu) return;
+  menu.classList.toggle("open");
+  if (menu.classList.contains("open")) {
+    setTimeout(() => document.addEventListener("click", closeTopbarOverflowOnOutside), 0);
+  }
+}
+
+function closeTopbarOverflow() {
+  const menu = document.getElementById("topbarOverflowMenu");
+  if (menu) menu.classList.remove("open");
+  document.removeEventListener("click", closeTopbarOverflowOnOutside);
+}
+
+function closeTopbarOverflowOnOutside(e) {
+  const menu = document.getElementById("topbarOverflowMenu");
+  const btn = document.getElementById("topbarOverflowBtn");
+  if (menu && !menu.contains(e.target) && !btn?.contains(e.target)) {
+    closeTopbarOverflow();
   }
 }
 
@@ -16363,7 +17746,7 @@ window.switchDashboardTab = function (tabId) {
   // Update dashboard-title to reflect the active tab name
   const tabNames = {
     main: "Dashboard",
-    charts: "Charts",
+    charts: "Performance",
     transactions: "Transactions",
     "capital-gains": "Capital Gains",
     "past-holding": "Past Holdings",
@@ -16371,6 +17754,7 @@ window.switchDashboardTab = function (tabId) {
     "overlap-analysis": "Overlap Analysis",
     "expense-impact": "Expense Impact",
     "health-score": "Portfolio Health",
+    "portfolio-composition": "Portfolio Composition",
     "family-dashboard": "Family Dashboard",
     "manage-data": "Manage Data",
     "tax-planning": "Tax Planning",
@@ -16732,4 +18116,787 @@ async function takeFullPageScreenshot() {
       btn.innerHTML = '<i class="fa-solid fa-camera"></i>';
     }
   }
+}
+
+// ── Phase 1: Portfolio Composition page ──────────────────────────────────
+
+function displayPortfolioCompositionPage() {
+  if (!portfolioData || !fundWiseData || Object.keys(fundWiseData).length === 0)
+    return;
+  calculateAndDisplayPortfolioAnalytics();
+}
+
+// ── Phase 1: Dashboard snippet renderers ────────────────────────────────
+
+function renderDashboardHealthSnippet() {
+  const el = document.getElementById("dashHealthSnippet");
+  if (!el) return;
+  if (
+    !portfolioData ||
+    !fundWiseData ||
+    Object.keys(fundWiseData).length === 0
+  ) {
+    el.innerHTML =
+      '<p class="dash-snippet-empty">Load a portfolio to see health score.</p>';
+    return;
+  }
+  const scores = calculateHealthScore();
+  if (scores.error) {
+    el.innerHTML = `<p class="dash-snippet-empty">${scores.error}</p>`;
+    return;
+  }
+
+  const getGrade = (s) => {
+    if (s >= 85) return { label: "Excellent", cls: "health-grade--excellent" };
+    if (s >= 75) return { label: "Great", cls: "health-grade--great" };
+    if (s >= 60) return { label: "Good", cls: "health-grade--good" };
+    if (s >= 45) return { label: "Fair", cls: "health-grade--fair" };
+    return { label: "Needs Work", cls: "health-grade--poor" };
+  };
+  const g = getGrade(scores.overall);
+
+  const factors = [
+    { key: "diversification", label: "Diversification" },
+    { key: "overlap", label: "Overlap risk" },
+    { key: "expenseRatio", label: "Expense ratio" },
+    { key: "performance", label: "Returns alpha" },
+  ];
+
+  // Resolve CSS vars now so SVG attributes and inline styles get real color values
+  const rs = getComputedStyle(document.documentElement);
+  const C_SUCCESS = rs.getPropertyValue("--success").trim() || "#2f8f5b";
+  const C_WARNING = rs.getPropertyValue("--warning").trim() || "#c9872d";
+  const C_NEGATIVE = rs.getPropertyValue("--danger").trim() || "#c65a52";
+
+  const barColor = (pct) =>
+    pct >= 75 ? C_SUCCESS : pct >= 50 ? C_WARNING : C_NEGATIVE;
+
+  const ringColor =
+    g.cls === "health-grade--fair"
+      ? C_WARNING
+      : g.cls === "health-grade--poor"
+        ? C_NEGATIVE
+        : C_SUCCESS;
+
+  const circumference = 2 * Math.PI * 28;
+  const dashArr = `${(scores.overall / 100) * circumference} ${circumference}`;
+  const dashOff = 0; // rotate(-90) already starts arc at 12 o'clock
+
+  const barsHtml = factors
+    .map((f) => {
+      const s = scores.details[f.key]?.score ?? 0;
+      const max = scores.details[f.key]?.max ?? 100;
+      const pct = (s / max) * 100;
+      const color = barColor(pct);
+      return `
+      <div class="dash-hf-row">
+        <span class="dash-hf-label">${f.label}</span>
+        <div class="dash-hf-bar-track">
+          <div class="dash-hf-bar-fill" style="width:${pct.toFixed(1)}%;background-color:${color}"></div>
+        </div>
+        <span class="dash-hf-score" style="color:${color}">${Math.round(s)}</span>
+      </div>`;
+    })
+    .join("");
+
+  el.innerHTML = `
+    <div class="dash-health-body">
+      <div class="dash-health-ring-wrap">
+        <svg class="dash-health-ring" viewBox="0 0 72 72">
+          <circle cx="36" cy="36" r="28" fill="none" stroke="rgba(154,107,70,0.1)" stroke-width="8"/>
+          <circle cx="36" cy="36" r="28" fill="none"
+            style="stroke:${ringColor}"
+            stroke-width="8"
+            stroke-linecap="round"
+            stroke-dasharray="${dashArr}"
+            stroke-dashoffset="${dashOff}"
+            transform="rotate(-90 36 36)"/>
+        </svg>
+        <span class="dash-health-score">${scores.overall}</span>
+      </div>
+      <div class="dash-health-meta">
+        <div class="dash-health-grade ${g.cls}">${g.label}</div>
+        <div class="dash-health-sublabel">${scores.overall}/100 overall score</div>
+      </div>
+    </div>
+    <div class="dash-health-factors">${barsHtml}</div>
+  `;
+}
+
+function renderDashboardReturnsSnippet() {
+  const el = document.getElementById("dashReturnsSnippet");
+  if (!el) return;
+  if (
+    !portfolioData ||
+    !fundWiseData ||
+    Object.keys(fundWiseData).length === 0
+  ) {
+    el.innerHTML =
+      '<p class="dash-snippet-empty">Load a portfolio to see returns.</p>';
+    return;
+  }
+
+  const analytics = calculatePortfolioAnalytics();
+  const wr = analytics.weightedReturns;
+  const benchmarks = getPortfolioBenchmarks();
+  const alpha = calculatePortfolioAlpha(wr, benchmarks);
+
+  const fmt = (v) =>
+    v == null || isNaN(v) ? "--" : parseFloat(v).toFixed(2) + "%";
+  const fmtAlpha = (v, positive) => {
+    if (v == null || isNaN(v))
+      return `<span class="wr-alpha-pill wr-alpha-na">N/A</span>`;
+    const cls = v >= 0 ? "alpha-pos" : "alpha-neg";
+    const sign = v >= 0 ? "+" : "";
+    return `<span class="dash-alpha-badge ${cls}">${sign}${v.toFixed(2)}%</span>`;
+  };
+  const valCls = (v) => (v == null ? "" : v >= 0 ? "positive" : "negative");
+
+  const periods = [
+    {
+      label: "1Y",
+      port: wr.return1y,
+      n50: benchmarks.nifty50.return1y,
+      a50: alpha.vsNifty50.alpha1y,
+      n500: benchmarks.nifty500.return1y,
+      a500: alpha.vsNifty500.alpha1y,
+    },
+    {
+      label: "3Y",
+      port: wr.return3y,
+      n50: benchmarks.nifty50.return3y,
+      a50: alpha.vsNifty50.alpha3y,
+      n500: benchmarks.nifty500.return3y,
+      a500: alpha.vsNifty500.alpha3y,
+    },
+    {
+      label: "5Y",
+      port: wr.return5y,
+      n50: benchmarks.nifty50.return5y,
+      a50: alpha.vsNifty50.alpha5y,
+      n500: benchmarks.nifty500.return5y,
+      a500: alpha.vsNifty500.alpha5y,
+    },
+  ];
+
+  const rows = periods
+    .map(
+      (p) => `
+    <tr>
+      <td>${p.label}</td>
+      <td><span class="dash-ret-port ${valCls(p.port)}">${fmt(p.port)}</span></td>
+      <td>
+        <div class="dash-ret-bench">
+          <span class="dash-ret-bench-val">${fmt(p.n50)}</span>
+          ${fmtAlpha(p.a50)}
+        </div>
+      </td>
+      <td>
+        <div class="dash-ret-bench">
+          <span class="dash-ret-bench-val">${fmt(p.n500)}</span>
+          ${fmtAlpha(p.a500)}
+        </div>
+      </td>
+    </tr>
+  `,
+    )
+    .join("");
+
+  el.innerHTML = `
+    <table class="dash-ret-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Portfolio</th>
+          <th>Nifty 50</th>
+          <th>Nifty 500</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function renderDashboardInsightsStrip() {
+  const el = document.getElementById("dashInsightsCard");
+  if (!el) return;
+  if (
+    !portfolioData ||
+    !fundWiseData ||
+    Object.keys(fundWiseData).length === 0
+  ) {
+    el.innerHTML =
+      '<p class="dash-snippet-empty">Load a portfolio to see insights.</p>';
+    return;
+  }
+
+  // Overlap
+  const overlapData = calculateOverlapAnalysis();
+  const truncate = (s, n) => (s.length > n ? s.slice(0, n) + "…" : s);
+  const highPairs = overlapData.error
+    ? []
+    : overlapData.fundPairs.filter((p) => parseFloat(p.overlapPercent) > 50);
+  const mediumPairs = overlapData.error
+    ? []
+    : overlapData.fundPairs.filter(
+        (p) =>
+          parseFloat(p.overlapPercent) > 25 &&
+          parseFloat(p.overlapPercent) <= 50,
+      );
+  let overlapVal, overlapSub, overlapColor;
+  if (overlapData.error) {
+    overlapVal = "--";
+    overlapSub = "Not enough data";
+    overlapColor = "var(--text-secondary)";
+  } else if (highPairs.length > 0) {
+    const tp = highPairs[0];
+    const pct = parseFloat(tp.overlapPercent).toFixed(0) + "%";
+    const extra = highPairs.length > 1 ? ` · ${highPairs.length - 1} more` : "";
+    overlapVal = pct;
+    overlapSub = `${truncate(tp.fund1, 22)} ↔ ${truncate(tp.fund2, 22)}${extra}`;
+    overlapColor = "var(--danger)";
+  } else if (mediumPairs.length > 0) {
+    const tp = mediumPairs[0];
+    const pct = parseFloat(tp.overlapPercent).toFixed(0) + "%";
+    overlapVal = pct;
+    overlapSub = `${truncate(tp.fund1, 22)} ↔ ${truncate(tp.fund2, 22)}`;
+    overlapColor = "var(--warning)";
+  } else {
+    overlapVal = "Clean";
+    overlapSub = "No high-overlap pairs";
+    overlapColor = "var(--success)";
+  }
+
+  // Expense
+  const expenseData = calculateExpenseImpact();
+  const expenseTotalValue =
+    expenseData?.funds?.reduce((s, f) => s + f.value, 0) ?? 0;
+  const erVal =
+    expenseData?.annualCost != null
+      ? "₹" + formatNumber(Math.round(expenseData.annualCost)) + "/yr"
+      : "--";
+  const erSub =
+    expenseData?.weightedExpenseRatio != null
+      ? `Cost drag · ${expenseData.weightedExpenseRatio.toFixed(2)}% avg ER on ₹${formatNumber(Math.round(expenseTotalValue))}`
+      : "annual expense drag";
+
+  // Tax Planning — LTCG headroom (₹1.5L LTCG exemption limit)
+  // Mirror the Capital Gains tab: use current FY if it has gains, else most recent FY with data.
+  const LTCG_LIMIT = 150000;
+  const _cgCurrentFY = getFinancialYear(new Date());
+  const _cgHasCurrent = Object.values(capitalGainsData.currentYear ?? {}).some(
+    (c) => c.ltcg !== 0 || c.stcg !== 0,
+  );
+  let _cgFYData = capitalGainsData.currentYear;
+  if (!_cgHasCurrent) {
+    const _cgYears = Object.keys(capitalGainsData.byYear ?? {}).sort(
+      (a, b) => parseInt(b.split(" ")[1]) - parseInt(a.split(" ")[1]),
+    );
+    const _cgPrev = _cgYears.find((fy) => fy !== _cgCurrentFY);
+    if (_cgPrev) _cgFYData = capitalGainsData.byYear[_cgPrev];
+  }
+  const currentYearLtcg =
+    (_cgFYData?.equity?.ltcg ?? 0) + (_cgFYData?.hybrid?.ltcg ?? 0);
+  const ltcgHeadroom = Math.max(0, LTCG_LIMIT - currentYearLtcg);
+  const taxVal = "₹" + formatNumber(Math.round(ltcgHeadroom));
+  const taxSub =
+    ltcgHeadroom > 0
+      ? "LTCG headroom · tax-free this FY"
+      : "LTCG limit fully used this FY";
+  const taxColor = ltcgHeadroom > 0 ? "var(--success)" : "var(--warning)";
+
+  el.innerHTML = `
+    <div class="dash-insights-row-inner">
+      <div class="dash-insight-card" style="border-left-color:${overlapColor}"
+           onclick="switchDashboardTab('overlap-analysis')" role="button" tabindex="0">
+        <div class="dash-section-card-header">
+          <span class="dash-section-card-title">Fund Overlap</span>
+          <span class="dash-section-link">View →</span>
+        </div>
+        <div class="dash-insight-bigval" style="color:${overlapColor}">${overlapVal}</div>
+        <div class="dash-insight-onesub">${overlapSub}</div>
+      </div>
+      <div class="dash-insight-card" style="border-left-color:${taxColor}"
+           onclick="switchDashboardTab('capital-gains')" role="button" tabindex="0">
+        <div class="dash-section-card-header">
+          <span class="dash-section-card-title">Tax Planning</span>
+          <span class="dash-section-link">View →</span>
+        </div>
+        <div class="dash-insight-bigval" style="color:${taxColor}">${taxVal}</div>
+        <div class="dash-insight-onesub">${taxSub}</div>
+      </div>
+      <div class="dash-insight-card" style="border-left-color:var(--warning)"
+           onclick="switchDashboardTab('expense-impact')" role="button" tabindex="0">
+        <div class="dash-section-card-header">
+          <span class="dash-section-card-title">Expense Ratio Impact</span>
+          <span class="dash-section-link">View →</span>
+        </div>
+        <div class="dash-insight-bigval" style="color:var(--warning)">${erVal}</div>
+        <div class="dash-insight-onesub">${erSub}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderDashboardAllocationBar() {
+  const el = document.getElementById("dashAllocationBar");
+  if (!el) return;
+  if (
+    !portfolioData ||
+    !fundWiseData ||
+    Object.keys(fundWiseData).length === 0
+  ) {
+    el.innerHTML =
+      '<p class="dash-snippet-empty">Load a portfolio to see allocation.</p>';
+    return;
+  }
+
+  const analytics = calculatePortfolioAnalytics();
+  const alloc = analytics.assetAllocation;
+  const LABEL_MAP = {
+    "domestic equity": "Dom. Equity",
+    "global equity": "Global Eq.",
+    "hedged equity": "Hedged Eq.",
+    debt: "Debt",
+    gold: "Gold",
+    silver: "Silver",
+    cash: "Cash",
+    "real estate": "Real Estate",
+    other: "Other",
+  };
+  const COLORS = [
+    "#9a6b46",
+    "#2f8f5b",
+    "#c9872d",
+    "#667eea",
+    "#c65a52",
+    "#b8aaa0",
+    "#4a9eba",
+    "#7c5cbf",
+    "#e07b54",
+  ];
+
+  const entries = Object.entries(alloc)
+    .filter(([, v]) => v > 0.1)
+    .sort((a, b) => b[1] - a[1]);
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+  if (total === 0) {
+    el.innerHTML = '<p class="dash-snippet-empty">No allocation data.</p>';
+    return;
+  }
+
+  const barSegs = entries
+    .map(
+      ([key, val], i) =>
+        `<div style="width:${((val / total) * 100).toFixed(2)}%;background:${COLORS[i % COLORS.length]};height:100%"></div>`,
+    )
+    .join("");
+
+  const legendHtml = entries
+    .map(
+      ([key, val], i) => `
+    <div class="dash-alloc-legend-row">
+      <div class="dash-alloc-dot" style="background:${COLORS[i % COLORS.length]}"></div>
+      <span class="dash-alloc-name">${LABEL_MAP[key] ?? key}</span>
+      <span class="dash-alloc-pct">${((val / total) * 100).toFixed(1)}%</span>
+    </div>
+  `,
+    )
+    .join("");
+  const moreHtml = "";
+
+  el.innerHTML = `
+    <div class="dash-alloc-bar-track">${barSegs}</div>
+    <div class="dash-alloc-legend-grid">${legendHtml}</div>
+    ${moreHtml}
+  `;
+}
+
+function renderDashboardHoldingsTable() {
+  const el = document.getElementById("dashHoldingsTable");
+  const viewAllBtn = document.getElementById("dashHoldingsViewAllBtn");
+  if (!el) return;
+  if (
+    !portfolioData ||
+    !fundWiseData ||
+    Object.keys(fundWiseData).length === 0
+  ) {
+    el.innerHTML =
+      '<p class="dash-snippet-empty">Load a portfolio to see holdings.</p>';
+    return;
+  }
+
+  const activeFunds = Object.values(fundWiseData)
+    .filter((f) => (f.advancedMetrics?.currentValue ?? 0) > 0)
+    .sort(
+      (a, b) =>
+        (b.advancedMetrics?.currentValue ?? 0) -
+        (a.advancedMetrics?.currentValue ?? 0),
+    );
+
+  if (viewAllBtn) {
+    viewAllBtn.textContent = `View all ${activeFunds.length} →`;
+  }
+
+  const top5 = activeFunds.slice(0, 6);
+
+  const rows = top5
+    .map((fund, i) => {
+      const val = fund.advancedMetrics?.currentValue ?? 0;
+      const gainPct = fund.advancedMetrics?.unrealizedGainPercentage ?? null;
+      const gainCls =
+        gainPct == null ? "" : gainPct >= 0 ? "positive" : "negative";
+      const gainStr =
+        gainPct == null
+          ? "--"
+          : (gainPct >= 0 ? "+" : "") + gainPct.toFixed(1) + "%";
+      const subcat = mfStats[fund.isin]?.sub_category || fund.type || "";
+      const cat = mfStats[fund.isin]?.category || "";
+      const shortAmc = (fund.amc || "")
+        .replace(/\s+Mutual\s+Fund\b/i, "")
+        .replace(/\s+MF\b/i, "")
+        .trim();
+      const amcLine = [shortAmc, cat, subcat].filter(Boolean).join(" · ");
+      const typeTag = subcat || cat || "";
+
+      return `
+      <div class="dash-h-row">
+        <span class="dash-h-rank">${i + 1}</span>
+        <div class="dash-h-info">
+          <div class="dash-h-name">${fund.schemeDisplay || fund.scheme}</div>
+          <div class="dash-h-amc">${amcLine}</div>
+        </div>
+        ${typeTag ? `<span class="dash-h-type">${typeTag}</span>` : ""}
+        <div class="dash-h-right">
+          <div class="dash-h-val">₹${formatNumber(Math.round(val))}</div>
+          <div class="dash-h-ret ${gainCls}">${gainStr}</div>
+        </div>
+      </div>
+    `;
+    })
+    .join("");
+
+  el.innerHTML = `<div class="dash-h-list">${rows}</div>`;
+}
+
+// ── Milestones & Monthly Flow ────────────────────────────────────────────
+
+const MILESTONE_SCALE = [
+  5000, 10000, 25000, 50000, 75000,
+  100000, 150000, 200000, 300000, 500000, 750000,
+  1000000, 1500000, 2000000, 2500000, 3000000, 5000000, 7500000,
+  10000000, 15000000, 20000000, 25000000, 50000000, 75000000,
+  100000000, 150000000, 200000000, 500000000, 1000000000,
+];
+
+function formatMilestoneAmount(v) {
+  if (v >= 10000000) return `₹${(v / 10000000).toLocaleString("en-IN", { maximumFractionDigits: 1 })} Cr`;
+  if (v >= 100000)   return `₹${(v / 100000).toLocaleString("en-IN", { maximumFractionDigits: 1 })}L`;
+  if (v >= 1000)     return `₹${(v / 1000).toLocaleString("en-IN", { maximumFractionDigits: 0 })}K`;
+  return `₹${v}`;
+}
+
+function generateMilestones(currentValue) {
+  const aboveIdx = MILESTONE_SCALE.findIndex((m) => m > currentValue);
+  if (aboveIdx === -1) return MILESTONE_SCALE.slice(-5);
+  const pastStart = Math.max(0, aboveIdx - 2);
+  const futureEnd = Math.min(MILESTONE_SCALE.length, aboveIdx + 6);
+  return MILESTONE_SCALE.slice(pastStart, futureEnd);
+}
+
+function findMilestoneCrossDate(dailyValuation, targetValue) {
+  if (!dailyValuation || !dailyValuation.length) return null;
+  for (const entry of dailyValuation) {
+    if (entry.value >= targetValue) return entry.date;
+  }
+  return null;
+}
+
+function monthsToReach(currentValue, targetValue, monthlyInflow, cagr = 12) {
+  if (currentValue >= targetValue) return 0;
+  if (monthlyInflow <= 0) return null;
+  const r = cagr / 100 / 12;
+  let v = currentValue;
+  for (let n = 1; n <= 600; n++) {
+    v = v * (1 + r) + monthlyInflow;
+    if (v >= targetValue) return n;
+  }
+  return null;
+}
+
+function formatEta(months) {
+  if (months === null) return { label: "—", sub: "" };
+  if (months < 1) return { label: "< 1 month", sub: "" };
+  if (months < 24) return { label: `~${months} month${months === 1 ? "" : "s"}`, sub: "" };
+  const yrs = (months / 12).toFixed(1);
+  return { label: `~${yrs} yrs`, sub: "" };
+}
+
+function etaTargetDate(months) {
+  if (!months) return "";
+  const d = new Date();
+  d.setMonth(d.getMonth() + months);
+  return d.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+}
+
+function formatCrossDate(dateStr) {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+}
+
+function paceCallout(nextMilestone, nextLabel, months, hasOutlier) {
+  const outlierNote = hasOutlier
+    ? ` <span style="font-size:10px;opacity:0.75">(outlier month excluded)</span>`
+    : "";
+  if (months === null) return `Keep investing to reach <b>${nextLabel}</b>.`;
+  if (months <= 6)
+    return `At this pace, you'll hit <b>${nextLabel} in ~${months} month${months === 1 ? "" : "s"}</b> — your next milestone.${outlierNote}`;
+  if (months <= 24)
+    return `<b>${nextLabel}</b> is about <b>${months} months away</b> at this pace.${outlierNote}`;
+  const yrs = (months / 12).toFixed(1);
+  return `<b>${nextLabel}</b> is ~<b>${yrs} yrs away</b> — a small SIP stepup could bring it closer.${outlierNote}`;
+}
+
+function renderDashboardMilestonesCard() {
+  const el = document.getElementById("dashMilestonesList");
+  const subEl = document.getElementById("dashMilestonesSub");
+  if (!el) return;
+
+  if (!portfolioData || !fundWiseData || Object.keys(fundWiseData).length === 0) {
+    el.innerHTML = '<p class="dash-snippet-empty">Load a portfolio to see milestones.</p>';
+    return;
+  }
+
+  const currentValue = Object.values(fundWiseData).reduce(
+    (s, f) => s + (f.advancedMetrics?.currentValue || 0), 0,
+  );
+  window._dashCurrentValue = currentValue;
+
+  const milestones = generateMilestones(currentValue);
+  const dailyVal = window.portfolioValuationHistory || null;
+  const summary = calculateMonthlySummary();
+  const use6M = summary?.sixMonths?.inflow > 0;
+  const inflow = use6M ? summary.sixMonths.inflow : (summary?.twelveMonths?.inflow || 0);
+  const inflowPeriodLabel = use6M ? "6-month" : "12-month";
+  const cagr = 12;
+
+  if (subEl) subEl.textContent = formatMilestoneAmount(currentValue) + " today";
+
+  const aboveIdx = milestones.findIndex((m) => m > currentValue);
+
+  const today = new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+  const currentLabel = formatMilestoneAmount(currentValue);
+
+  // Build rows, injecting "You are here" between last past and first future
+  const rows = [];
+
+  milestones.forEach((ms, i) => {
+    const isActuallyPast = ms < currentValue;
+    const isNext = !isActuallyPast && i === aboveIdx;
+    const isFar  = !isActuallyPast && i >= aboveIdx + 3;
+    const rowClass = isActuallyPast ? "ms-past" : isNext ? "ms-next" : isFar ? "ms-far" : "ms-future";
+    const label = formatMilestoneAmount(ms);
+
+    // Inject "You are here" row before the first future milestone
+    if (isNext && aboveIdx > 0) {
+      rows.push({ type: "current", label: currentLabel, date: today });
+    }
+
+    if (isActuallyPast) {
+      const crossDate = findMilestoneCrossDate(dailyVal, ms);
+      rows.push({ type: rowClass, label, meta: crossDate ? formatCrossDate(crossDate) : "—" });
+    } else {
+      const months = monthsToReach(currentValue, ms, inflow, cagr);
+      const { label: etaLabel } = formatEta(months);
+      const awayAmt = formatMilestoneAmount(Math.round(ms - currentValue));
+      const targetDate = months ? etaTargetDate(months) : "";
+      rows.push({ type: rowClass, label, meta: awayAmt + " away", eta: etaLabel, etaSub: targetDate, isNext });
+    }
+
+    // If no past milestones at all, inject current at the very start
+    if (i === 0 && aboveIdx === 0) {
+      rows.unshift({ type: "current", label: currentLabel, date: today });
+    }
+  });
+
+  let html = '<div class="ms-list">';
+  rows.forEach((row, i) => {
+    const hasLine = i < rows.length - 1;
+    const spine = `<div class="ms-spine"><div class="ms-dot"></div>${hasLine ? '<div class="ms-line"></div>' : ""}</div>`;
+
+    if (row.type === "current") {
+      html += `
+        <div class="ms-row ms-current">
+          ${spine}
+          <div class="ms-body">
+            <div>
+              <div class="ms-amount">${row.label} <span class="ms-badge ms-badge-here">You are here</span></div>
+              <div class="ms-meta">${row.date}</div>
+            </div>
+          </div>
+        </div>`;
+    } else if (row.type === "ms-past") {
+      html += `
+        <div class="ms-row ms-past">
+          ${spine}
+          <div class="ms-body">
+            <div>
+              <div class="ms-amount">${row.label} <span class="ms-badge ms-badge-reached">Reached</span></div>
+              <div class="ms-meta">${row.meta}</div>
+            </div>
+          </div>
+        </div>`;
+    } else {
+      const rightHtml = row.eta ? `<div class="ms-r"><div class="ms-eta">${row.eta}</div><div class="ms-eta-sub">${row.etaSub}</div></div>` : "";
+      const badge = row.isNext ? ` <span class="ms-badge ms-badge-next">Next</span>` : "";
+      html += `
+        <div class="ms-row ${row.type}">
+          ${spine}
+          <div class="ms-body">
+            <div>
+              <div class="ms-amount">${row.label}${badge}</div>
+              <div class="ms-meta">${row.meta}</div>
+            </div>
+            ${rightHtml}
+          </div>
+        </div>`;
+    }
+  });
+
+  html += '</div>';
+  html += `<div class="ms-footer">12% CAGR · ${inflowPeriodLabel} typical (median) inflow</div>`;
+  el.innerHTML = html;
+}
+
+function renderDashboardMonthlyFlowCard() {
+  const el = document.getElementById("dashFlowContent");
+  if (!el) return;
+
+  if (!portfolioData || !fundWiseData || Object.keys(fundWiseData).length === 0) {
+    el.innerHTML = '<p class="dash-snippet-empty">Load a portfolio to see monthly flow.</p>';
+    return;
+  }
+
+  const summary = calculateMonthlySummary();
+  if (!summary) {
+    el.innerHTML = '<p class="dash-snippet-empty">Not enough transaction data.</p>';
+    return;
+  }
+
+  const use6M       = summary.sixMonths.inflow > 0;
+  const activePeriod = use6M ? summary.sixMonths : summary.twelveMonths;
+  const periodLabel  = use6M ? "6M" : "12M";
+  const inflow       = activePeriod.inflow;
+
+  const avg6Buy      = summary.sixMonths.avgBuy;
+  const avg6Net      = summary.sixMonths.avgNetInflow;
+  const avg6Sell     = summary.sixMonths.avgSell;
+  const avg12Net     = summary.twelveMonths.avgNetInflow;
+  const medianBuy    = activePeriod.medianBuy;
+  const medianNet    = activePeriod.medianNetInflow;
+
+  const subEl = document.getElementById("dashFlowSub");
+  if (subEl) subEl.textContent = use6M ? "Last 6 months" : "Last 12 months";
+
+  // Build per-month bar data for last 6 months
+  const hiddenFolios = currentUser ? getHiddenFolios(currentUser) : [];
+  const allTx = [];
+  Object.values(fundWiseData).forEach((fund) => {
+    fund.transactions.forEach((tx) => {
+      const folio = tx.folio || "unknown";
+      if (hiddenFolios.includes(folio) || hiddenFolios.includes(`${folio}|${fund.scheme}`)) return;
+      allTx.push({ date: new Date(tx.date), type: tx.type, amount: Math.abs(parseFloat(tx.nav * tx.units) || 0) });
+    });
+  });
+
+  const now = new Date();
+  const monthBuckets = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = d.toLocaleDateString("en-IN", { year: "2-digit", month: "short" });
+    monthBuckets.push({ key, label: d.toLocaleDateString("en-IN", { month: "short" }), buy: 0, sell: 0 });
+  }
+  allTx.forEach((tx) => {
+    const key = tx.date.toLocaleDateString("en-IN", { year: "2-digit", month: "short" });
+    const bucket = monthBuckets.find((b) => b.key === key);
+    if (!bucket) return;
+    if (tx.type === "PURCHASE") bucket.buy += tx.amount;
+    else if (tx.type === "REDEMPTION") bucket.sell += tx.amount;
+  });
+
+  const maxVal = Math.max(...monthBuckets.map((b) => Math.max(b.buy, b.sell)), 1);
+
+  const barCols = monthBuckets.map((b) => {
+    const buyH  = Math.round((b.buy  / maxVal) * 100);
+    const sellH = Math.round((b.sell / maxVal) * 100);
+    return `
+      <div class="mf-bar-col">
+        <div class="mf-bar-wrap">
+          <div class="mf-bar buy"  style="height:${buyH}%"></div>
+          <div class="mf-bar sell" style="height:${sellH}%"></div>
+        </div>
+        <div class="mf-bar-label">${b.label}</div>
+      </div>`;
+  }).join("");
+
+  // Next milestone pace callout
+  const currentValue = window._dashCurrentValue ||
+    Object.values(fundWiseData).reduce((s, f) => s + (f.advancedMetrics?.currentValue || 0), 0);
+  const milestones = generateMilestones(currentValue);
+  const nextMs = milestones.find((m) => m > currentValue);
+  const nextLabel = nextMs ? formatMilestoneAmount(nextMs) : null;
+  const months = nextMs ? monthsToReach(currentValue, nextMs, inflow, 12) : null;
+  const pace = nextLabel ? paceCallout(nextMs, nextLabel, months, summary.sixMonths.hasOutlier) : "Keep investing consistently.";
+
+  const net6Median  = summary.sixMonths.medianNetInflow;
+  const net12Median = summary.twelveMonths.medianNetInflow;
+  const buyClass    = "color:var(--success)";
+  const netClass    = medianNet >= 0 ? "color:var(--success)" : "color:var(--danger)";
+  const inv6Class   = net6Median  >= 0 ? "color:var(--success)" : "color:var(--danger)";
+  const inv12Class  = net12Median >= 0 ? "color:var(--success)" : "color:var(--danger)";
+
+  el.innerHTML = `
+    <div class="mf-body">
+      <div class="mf-stat-grid">
+        <div class="mf-stat">
+          <div class="mf-stat-label">Typical Buy (${periodLabel})</div>
+          <div class="mf-stat-val" style="${buyClass}">₹${formatNumber(Math.round(medianBuy))}</div>
+          <div class="mf-stat-sub">per month</div>
+        </div>
+        <div class="mf-stat">
+          <div class="mf-stat-label">Typical Net Inflow (${periodLabel})</div>
+          <div class="mf-stat-val" style="${netClass}">₹${formatNumber(Math.round(Math.abs(medianNet)))}</div>
+          <div class="mf-stat-sub">after redemptions</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="mf-sec-label">Buy vs Sell — last 6 months</div>
+        <div class="mf-bars">${barCols}</div>
+        <div class="mf-legend">
+          <div class="mf-legend-item"><div class="mf-legend-dot buy"></div>Buy</div>
+          <div class="mf-legend-item"><div class="mf-legend-dot sell"></div>Sell</div>
+        </div>
+      </div>
+
+      <div class="mf-compare">
+        <div class="mf-compare-row">
+          <span class="mf-compare-label">Typical 6M Investment</span>
+          <span class="mf-compare-val" style="${inv6Class}">₹${formatNumber(Math.round(Math.abs(net6Median)))}</span>
+        </div>
+        <div class="mf-compare-row">
+          <span class="mf-compare-label">Typical 12M Investment</span>
+          <span class="mf-compare-val" style="${inv12Class}">₹${formatNumber(Math.round(Math.abs(net12Median)))}</span>
+        </div>
+      </div>
+
+      <div class="mf-pace">
+        <i class="fa-solid fa-rocket"></i>
+        <div class="mf-pace-text">${pace}</div>
+      </div>
+    </div>
+    <div class="ms-footer" style="cursor:pointer" onclick="switchDashboardTab('charts')">
+      View full projection → Performance tab
+    </div>`;
 }

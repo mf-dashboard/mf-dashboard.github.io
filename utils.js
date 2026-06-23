@@ -821,17 +821,27 @@ function showToast(message, type = "info") {
 }
 
 function lockBodyScroll() {
+  const scrollY = window.scrollY;
   const scrollBarWidth =
     window.innerWidth - document.documentElement.clientWidth;
+  document.body.dataset.scrollY = scrollY;
   document.documentElement.style.overflow = "hidden";
   document.body.style.overflow = "hidden";
+  document.body.style.position = "fixed";
+  document.body.style.top = `-${scrollY}px`;
+  document.body.style.width = "100%";
   document.body.style.paddingRight = `${scrollBarWidth}px`;
 }
 
 function unlockBodyScroll() {
+  const scrollY = parseInt(document.body.dataset.scrollY || "0", 10);
   document.documentElement.style.overflow = "";
   document.body.style.overflow = "";
+  document.body.style.position = "";
+  document.body.style.top = "";
+  document.body.style.width = "";
   document.body.style.paddingRight = "";
+  window.scrollTo(0, scrollY);
 }
 
 // ─── Processing Splash ────────────────────────────────────────────────────────

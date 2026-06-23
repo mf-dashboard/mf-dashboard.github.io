@@ -2,7 +2,7 @@
 
 A comprehensive web-based portfolio tracker for Indian mutual fund investors. Track your investments, analyze performance, calculate capital gains, and monitor your portfolio with beautiful visualizations — all running locally in your browser!
 
-![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Web-brightgreen.svg)
 
@@ -23,7 +23,6 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 - **Absolute Returns**: Track overall and individual fund performance
 - **Realized vs Unrealized Gains**: Separate tracking of booked and paper profits
 - **Weighted Portfolio Returns**: 1Y, 3Y, and 5Y weighted returns across all holdings
-- **Weighted Portfolio Returns**: 1Y, 3Y, and 5Y weighted returns across all holdings
 - **Benchmark Comparison**: Portfolio vs Nifty 50 and Nifty 500
 - **Alpha Analysis**: Outperformance and underperformance across 1Y, 3Y, and 5Y periods
 - **Visual Return Comparison**: Side-by-side benchmark comparison charts
@@ -36,6 +35,8 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 - **Investment Flow**: Track monthly/quarterly/yearly investments and redemptions
 - **Fund Valuation History**: Individual fund performance charts
 - **Performance Comparison**: Compare fund vs category vs benchmark returns
+- **Performance vs Benchmark Chart**: All holdings indexed to 100 at period start — compare any combination of funds against Nifty 50 and Nifty 500 over 1Y, 2Y, 3Y, 5Y, 7Y, or 10Y periods. Partial-history funds shown with a "since MMM 'YY" label.
+- **Portfolio Allocation Chart**: Horizontal bar chart showing each fund's share of the total current portfolio value at a glance
 
 ### 💸 Capital Gains
 
@@ -125,7 +126,7 @@ The application automatically keeps your portfolio data fresh:
   - Family weighted returns (1Y, 3Y, 5Y)
   - Family benchmark comparison against Nifty 50 and Nifty 500
   - Family alpha generation metrics
-  - Family performance visualization- Family weighted returns (1Y, 3Y, 5Y)
+  - Family performance visualization
   - Per-member breakdown with value, cost, P&L, and active holdings count
 
 ### 📱 Progressive Web App (PWA)
@@ -171,7 +172,7 @@ Portfolio summary cards, asset allocation, fund house distribution, sector break
 
 ![Current Holdings](./img/screenshots/current-holdings.png)
 
-Fund cards with current value, P&L, XIRR, units, average NAV, and average holding days. Click "View Details" to drill into valuation history, benchmark comparison, and extended fund stats.
+Fund cards with current value, P&L, XIRR, units, average NAV, and average holding days. Below the fund grid, two new charts: **Portfolio Allocation** (horizontal bar, by current value) and **Performance vs Benchmark** (indexed line chart with period selector and fund filter). Click "View Details" to drill into valuation history, benchmark comparison, and extended fund stats.
 
 ---
 
@@ -291,6 +292,10 @@ Visit: [My MF Dashboard](https://mf-dashboard.github.io)
 
 Fund cards with value, cost, units, P&L, XIRR, avg NAV, avg hold days. "View Details" opens valuation history, performance vs category/benchmark, and extended stats (Alpha, Beta, Sharpe, Sortino, AUM, Expense Ratio, Rating, Holdings).
 
+Below the fund grid:
+- **Portfolio Allocation**: Horizontal bar chart showing each fund's share of total current value
+- **Performance vs Benchmark**: Line chart with all holdings + Nifty 50 + Nifty 500 indexed to 100 at the period start. Use period buttons (1Y/2Y/3Y/5Y/7Y/10Y) and fund filter chips to customise the view. Returns summary and best/worst performer cards (with annualized return) shown below. On mobile, chips collapse behind a filter toggle to reduce clutter.
+
 ### 4. Past Holdings
 
 Fully exited funds — withdrawn amount, realized P&L, XIRR, invested amount.
@@ -363,6 +368,10 @@ Newton-Raphson with bisection fallback. Cash flows: purchases (negative), redemp
 ### Portfolio Projection
 
 `FV = P × ((1 + r)^n - 1) / r × (1 + r)` with optional annual step-up applied each year. Projected in parallel using 6M avg SIP, 12M avg SIP, and custom SIP.
+
+### Performance vs Benchmark (Indexed Chart)
+
+All series indexed to 100 at the selected period start date. Monthly data points are sampled from daily NAV history. Funds without a full period history use their earliest available NAV as the base and are labelled "since MMM 'YY". CAGR formula used for annualized return in best/worst cards: `((1 + totalReturn/100)^(1/years) - 1) × 100`.
 
 ---
 
@@ -523,7 +532,24 @@ MIT License — see [LICENSE](LICENSE). Free to use, modify, and distribute with
 
 ## 🗓️ Changelog
 
-### Version 2.0.0 (Current)
+### Version 3.0.0 (Current)
+
+**New Features**:
+
+- ✅ Performance vs Benchmark chart in Current Holdings — all funds + Nifty 50 + Nifty 500 indexed to 100, period selector (1Y/2Y/3Y/5Y/7Y/10Y), toggleable fund filter chips, returns summary row, best/worst performer cards with annualized CAGR
+- ✅ Portfolio Allocation chart in Current Holdings — horizontal bar chart by current value
+- ✅ Partial-history fund support in Performance chart — funds without full period history shown with "since MMM 'YY" label and excluded from best/worst ranking
+- ✅ Mobile filter toggle — Performance vs Benchmark chip row collapses behind a "Funds (N)" toggle button on mobile to reduce clutter
+
+**Improvements**:
+
+- Warm Financial Intelligence design system — calm, precise, trustworthy visual language across light and dark themes; warm charcoal dark mode (not a simple invert)
+- Short fund names on mobile for performance chart chips and returns row (e.g. "Bandhan SC", "PPFAS FC")
+- Performance chart spinner held until chart is fully painted (no premature spinner removal)
+- Period switch uses `update('none')` for instant re-render without animation flash
+- Fixed sidebar toggle incorrectly appearing on mobile and tablet
+
+### Version 2.0.0
 
 **New Features**:
 
