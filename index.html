@@ -8,6 +8,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Apply theme before paint to avoid flash -->
+    <script>
+      (function() {
+        var t = localStorage.getItem("theme") || "light";
+        document.documentElement.setAttribute("data-theme", t);
+      })();
+    </script>
     <!-- Cloudflare Web Analytics -->
     <script>
       (() => {
@@ -31,7 +38,7 @@
       data-cf-beacon='{"token": "4d8174ccb12041b3a010d11343f45f18"}'
     ></script> -->
     <!-- End Cloudflare Web Analytics -->
-    <link rel="stylesheet" href="styles.css?v=20260623c" />
+    <link rel="stylesheet" href="styles.css?v=20260624" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -62,7 +69,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260623" />
+    <link rel="manifest" href="/manifest.json?v=20260624" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -93,10 +100,14 @@
           <div class="theme-container">
             <!-- User + NAV chips (desktop/tablet only) -->
             <div class="topbar-meta" id="topbarMeta">
-              <span class="topbar-user-chip" id="topbarUserChip">
-                <span class="topbar-avatar" id="topbarAvatar">--</span>
-                <span class="topbar-user-name" id="topbarUserName"></span>
-              </span>
+              <div class="topbar-user-chip-wrap" id="topbarUserChipWrap">
+                <span class="topbar-user-chip" id="topbarUserChip" onclick="toggleUserSwitcher()" title="Switch user">
+                  <span class="topbar-avatar" id="topbarAvatar">--</span>
+                  <span class="topbar-user-name" id="topbarUserName"></span>
+                  <i class="fa-solid fa-chevron-down topbar-user-chip-caret" id="topbarUserChipCaret"></i>
+                </span>
+                <div class="topbar-user-dropdown" id="topbarUserDropdown"></div>
+              </div>
               <span class="topbar-nav-chip" id="topbarNavChip">
                 <i class="fa-solid fa-rotate"></i>
                 <span id="topbarNavDate">--</span>
@@ -114,15 +125,17 @@
           <div class="topbar-overflow-menu" id="topbarOverflowMenu">
             <!-- User + NAV shown only on mobile (chips not visible in topbar) -->
             <div class="topbar-overflow-meta topbar-overflow-meta--mobile">
-              <span class="topbar-user-chip topbar-user-chip--sm" id="topbarUserChipMobile">
+              <span class="topbar-user-chip topbar-user-chip--sm" id="topbarUserChipMobile" onclick="toggleMobileUserSwitcher()">
                 <span class="topbar-avatar" id="topbarAvatarMobile">--</span>
                 <span id="topbarUserNameMobile"></span>
+                <i class="fa-solid fa-chevron-down topbar-user-chip-caret" id="topbarUserChipCaretMobile"></i>
               </span>
               <span class="topbar-nav-chip topbar-nav-chip--sm" id="topbarNavChipMobile">
                 <i class="fa-solid fa-rotate"></i>
                 <span id="topbarNavDateMobile">--</span>
               </span>
             </div>
+            <div class="topbar-mobile-user-list" id="topbarMobileUserList"></div>
             <button class="topbar-overflow-item" onclick="switchDashboardTab('manage-data');closeTopbarOverflow()">
               <i class="fa-solid fa-upload"></i> Manage Data
             </button>
@@ -133,6 +146,24 @@
               <i class="fa-solid fa-moon" id="themeIconDesktop"></i>
               <span id="themeToggleLabel">Dark Mode</span>
             </button>
+            <div class="topbar-overflow-dates">
+              <div class="topbar-overflow-date-row">
+                <span class="topbar-overflow-date-label">Last Stats Update</span>
+                <span class="topbar-overflow-date-val" id="lastStatsUpdateDate">--</span>
+              </div>
+              <div class="topbar-overflow-date-row">
+                <span class="topbar-overflow-date-label">Next Stats Update</span>
+                <span class="topbar-overflow-date-val" id="nextStatsUpdateDate">--</span>
+              </div>
+              <div class="topbar-overflow-date-row">
+                <span class="topbar-overflow-date-label">Last NAV Update</span>
+                <span class="topbar-overflow-date-val" id="lastNavUpdateDate">--</span>
+              </div>
+              <div class="topbar-overflow-date-row">
+                <span class="topbar-overflow-date-label">Next NAV Update</span>
+                <span class="topbar-overflow-date-val" id="nextNavUpdateDate">--</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -999,14 +1030,14 @@
             <div class="folio-grid" id="currentFolioGrid"></div>
           </div>
           <div class="hc-section" id="holdingsChartsSection" style="display:none;">
-            <div class="hc-card">
+            <div class="hc-card" id="hc-card-allocation">
               <div class="hc-header">
                 <span class="hc-title">Portfolio Allocation</span>
                 <span class="hc-sub">By current value</span>
               </div>
               <div id="holdingsAllocBars"></div>
             </div>
-            <div class="hc-card">
+            <div class="hc-card" id="hc-card-performance">
               <div class="hc-header">
                 <span class="hc-title">Performance vs Benchmark</span>
                 <span class="hc-sub">All funds indexed to 100 at period start</span>
@@ -1016,7 +1047,6 @@
                 <div class="chart-loading"><div class="chart-spinner"></div></div>
                 <canvas id="holdingsPerfChart" role="img" aria-label="Line chart comparing fund returns against Nifty 50 and Nifty 500">Performance data unavailable.</canvas>
               </div>
-              <div class="hc-returns-row" id="perfReturnsRow"></div>
               <div class="hc-bw-row" id="perfBestWorstRow"></div>
             </div>
           </div>
@@ -1201,8 +1231,8 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260623"></script>
-    <script src="utils.js?v=20260623c"></script>
-    <script src="scripts.js?v=20260623c"></script>
+    <script src="indexeddb-helper.js?v=20260624"></script>
+    <script src="utils.js?v=20260624"></script>
+    <script src="scripts.js?v=20260624"></script>
   </body>
 </html>

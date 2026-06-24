@@ -101,7 +101,7 @@ const DEBUG_MODE = false;
 // copies). Bumping this forces an immediate full update — bypassing the
 // 6 AM gate and the 7-day cadence — the next time the app loads, and also
 // resets the 7-day weekly-update counter.
-const STATS_SCHEMA_VERSION = 2;
+const STATS_SCHEMA_VERSION = 3;
 const STATS_SCHEMA_VERSION_KEY = "statsSchemaVersion";
 
 // Warm Financial Intelligence palette — mirrors the CSS tbc-fill nth-child rules
@@ -331,6 +331,10 @@ async function loadParsedCASJson() {
       "— Folios:",
       portfolioData.folios?.length,
     );
+
+    // Always fetch stats when injecting a CAS — in-memory mfStats may belong
+    // to a different user already loaded in this session.
+    mfStats = {};
 
     // Determine if we need to fetch MF stats (empty or missing)
     const statsMissing = !mfStats || Object.keys(mfStats).length === 0;
@@ -2672,7 +2676,9 @@ function classifyMFHoldingByCompany(companyName) {
     c.includes("long duration") ||
     c.includes("constant maturity") ||
     c.includes("corporate bond") ||
-    c.includes("floater")
+    c.includes("floater") ||
+    c.includes(" sdl") ||        // State Development Loans
+    c.includes("sdl ")
   )
     return "debt";
 
@@ -2750,55 +2756,35 @@ function resolveAssetAllocation(fundAsset, holdings, weight) {
         );
       };
 
-      const equityHoldings = safeHoldings.filter((h) => {
-        const nat = (h.nature_name || "").toUpperCase();
-        return nat === "EQUITY" || isGlobalHolding(h);
-      });
-
-      if (equityHoldings.length === 0) {
-        // Check for MF/FoF holdings — split by company name classification
-        const mfEquityHoldings = safeHoldings.filter((h) => {
-          const corpus = parseFloat(h.corpus_per || 0);
-          if (corpus <= 0) return false;
-          const nat = (h.nature_name || "").toUpperCase();
-          const inst = (h.instrument_name || "").toLowerCase();
-          return (
-            nat === "MF" ||
-            inst === "mutual fund" ||
-            inst === "foreign mutual funds"
-          );
-        });
-
-        if (mfEquityHoldings.length === 0) {
-          buckets["domestic equity"] =
-            (buckets["domestic equity"] || 0) + allocPct;
-          return;
-        }
-
-        const mfTotal = mfEquityHoldings.reduce(
-          (sum, h) => sum + parseFloat(h.corpus_per || 0),
-          0,
-        );
-
-        mfEquityHoldings.forEach((h) => {
-          const corpus = parseFloat(h.corpus_per || 0);
-          const bucket = classifyMFHoldingByCompany(h.company_name);
-          buckets[bucket] =
-            (buckets[bucket] || 0) + (corpus / mfTotal) * allocPct;
-        });
-        return;
-      }
-
       let globalCorpus = 0;
       let domesticCorpus = 0;
 
-      equityHoldings.forEach((h) => {
+      safeHoldings.forEach((h) => {
+        const nat = (h.nature_name || "").toUpperCase();
         const corpus = parseFloat(h.corpus_per || 0);
         if (corpus <= 0) return;
-        if (isGlobalHolding(h)) {
-          globalCorpus += corpus;
-        } else {
-          domesticCorpus += corpus;
+
+        if (nat === "EQUITY") {
+          // Direct stock holding — global if flagged, else domestic
+          if (isGlobalHolding(h)) {
+            globalCorpus += corpus;
+          } else {
+            domesticCorpus += corpus;
+          }
+        } else if (nat === "GLOBAL_MF") {
+          // Foreign ETF/MF — nature itself confirms it's global. Only exclude
+          // commodity/debt ETFs (e.g. gold miners) from the equity ratio;
+          // everything else defaults to global equity regardless of name keywords.
+          const bucket = classifyMFHoldingByCompany(h.company_name);
+          if (bucket !== "gold" && bucket !== "silver" && bucket !== "debt") {
+            globalCorpus += corpus;
+          }
+        } else if (nat === "MF") {
+          // Domestic ETF/MF — classify by name to exclude bond/g-sec ETFs
+          // (those are already accounted for under the debt key)
+          const bucket = classifyMFHoldingByCompany(h.company_name);
+          if (bucket === "domestic equity") domesticCorpus += corpus;
+          else if (bucket === "global equity") globalCorpus += corpus;
         }
       });
 
@@ -3245,12 +3231,17 @@ function calculatePortfolioAnalytics() {
         0,
       );
 
-      // Fall back to all holdings if no EQUITY nature tag found
+      // Fall back to all holdings if no EQUITY nature tag found, but still exclude cash/debt
       let holdingsToProcess = equityHoldings;
       if (equityHoldings.length === 0) {
-        holdingsToProcess = fund.holdings.filter(
-          (h) => parseFloat(h.corpus_per || 0) > 0,
-        );
+        holdingsToProcess = fund.holdings.filter((h) => {
+          if (parseFloat(h.corpus_per || 0) <= 0) return false;
+          const nat = (h.nature_name || "").toUpperCase();
+          const inst = (h.instrument_name || "").toLowerCase();
+          if (nat === "CASH" || nat === "DEBT") return false;
+          if (inst === "cblo" || inst === "reverse repo" || inst === "tri-party repo" || inst === "net receivables") return false;
+          return true;
+        });
         equityCorpusTotal = holdingsToProcess.reduce(
           (sum, h) => sum + parseFloat(h.corpus_per || 0),
           0,
@@ -7041,6 +7032,7 @@ function updateGainCard(valueId, percentId, gain, percent, xirr) {
 
 // ── Holdings Charts ──────────────────────────────────────────────────────────
 let perfChartInstance = null;
+let perfLatestStatsData = null; // { labels, datasets, sinceInfo } — kept current to avoid stale onComplete closure
 let perfChipData = [];       // module-level: persists visibility across period switches
 let perfActivePeriod = "3Y"; // default period
 
@@ -7190,23 +7182,24 @@ function updatePerfBottomStats(labels, datasets, sinceInfo) {
   const lastIdx = labels.length - 1;
   const fmt = r => `${r >= 0 ? "+" : ""}${r.toFixed(1)}%`;
 
-  // returns row
-  const returnsRow = document.getElementById("perfReturnsRow");
-  if (returnsRow) {
-    returnsRow.innerHTML = perfChipData.map(c => {
-      const ds = datasets.find(d => d.label === c.label);
-      const val = ds?.data?.[lastIdx];
-      const ret = val != null ? val - 100 : null;
-      const cls = ret != null ? (ret >= 0 ? "positive" : "negative") : "";
-      const since = sinceInfo?.[c.label];
-      return `<span class="hc-ret-item">
-        <span class="hc-ret-dot" style="background:${c.color}"></span>
-        <span class="hc-ret-name"><span class="hc-chip-full">${c.label}</span><span class="hc-chip-short">${shortFundName(c.label)}</span></span>
-        <span class="hc-ret-val ${cls}">${ret != null ? fmt(ret) : "--"}</span>
-        ${since ? `<span class="hc-ret-since">since ${since}</span>` : ""}
-      </span>`;
-    }).join("");
-  }
+  // update return % directly on each chip
+  perfChipData.forEach(c => {
+    const chip = document.querySelector(`#perfChipRow [data-label="${c.label}"]`);
+    if (!chip) return;
+    const ds = datasets.find(d => d.label === c.label);
+    const val = ds?.data?.[lastIdx];
+    const ret = val != null ? val - 100 : null;
+    const since = sinceInfo?.[c.label];
+    const retEl = chip.querySelector(".hc-chip-ret");
+    if (retEl) {
+      retEl.textContent = ret != null ? fmt(ret) : "--";
+      retEl.className = `hc-chip-ret ${ret != null ? (ret >= 0 ? "positive" : "negative") : ""}`;
+    }
+    const sinceEl = chip.querySelector(".hc-chip-since");
+    if (sinceEl) {
+      sinceEl.textContent = since ? `since ${since}` : "";
+    }
+  });
 
   // best / worst — only funds with full period history (sinceInfo[label] === null)
   const periodYears = { "1Y":1,"2Y":2,"3Y":3,"5Y":5,"7Y":7,"10Y":10 }[perfActivePeriod] || null;
@@ -7263,6 +7256,8 @@ function switchPerfPeriod(period, activeFunds, oldestNavDate) {
     const startDate = perfPeriodStart(period, oldestNavDate);
     const { labels, datasets, sinceInfo } = buildPerfDatasets(startDate, activeFunds);
 
+    perfLatestStatsData = { labels, datasets, sinceInfo };
+
     if (perfChartInstance) {
       perfChartInstance.data.labels = labels;
       perfChartInstance.data.datasets = datasets;
@@ -7284,12 +7279,14 @@ function renderHoldingsCharts() {
 
   if (activeFunds.length === 0) { section.style.display = "none"; return; }
 
-  // --- allocation bars ---
+  // --- allocation bars (top 9 + Others if > 10) ---
   const totalValue = activeFunds.reduce((s, [, f]) => s + (f.advancedMetrics?.currentValue || 0), 0);
   const allocCont = document.getElementById("holdingsAllocBars");
   if (allocCont && totalValue > 0) {
     allocCont.innerHTML = "";
-    activeFunds.forEach(([, fund], idx) => {
+    const allocFunds = activeFunds.length > 10 ? activeFunds.slice(0, 9) : activeFunds;
+    const otherFunds = activeFunds.length > 10 ? activeFunds.slice(9) : [];
+    allocFunds.forEach(([, fund], idx) => {
       const val = fund.advancedMetrics?.currentValue || 0;
       const pct = (val / totalValue) * 100;
       const color = HC_COLORS[idx % HC_COLORS.length];
@@ -7307,6 +7304,22 @@ function renderHoldingsCharts() {
       `;
       allocCont.appendChild(row);
     });
+    if (otherFunds.length > 0) {
+      const othersVal = otherFunds.reduce((s, [, f]) => s + (f.advancedMetrics?.currentValue || 0), 0);
+      const othersPct = (othersVal / totalValue) * 100;
+      const row = document.createElement("div");
+      row.className = "hc-alloc-row";
+      row.innerHTML = `
+        <div class="hc-alloc-name">
+          <span class="hc-alloc-dot" style="background:#8a9aaa"></span>
+          <span class="hc-alloc-label">${otherFunds.length} Other funds</span>
+        </div>
+        <div class="hc-alloc-track"><div class="hc-alloc-fill" style="width:${othersPct.toFixed(1)}%;background:#8a9aaa"></div></div>
+        <span class="hc-alloc-pct">${othersPct.toFixed(1)}%</span>
+        <span class="hc-alloc-val">₹${formatNumber(Math.round(othersVal))}</span>
+      `;
+      allocCont.appendChild(row);
+    }
   }
 
   // --- find oldest nav date across all funds + benchmarks (for Max period) ---
@@ -7344,7 +7357,7 @@ function renderHoldingsCharts() {
     const chipsWrap = document.createElement("div");
     chipsWrap.className = "hc-chips-inner";
 
-    // filter toggle button (mobile only — shown via CSS)
+    // filter toggle button
     const filterToggle = document.createElement("button");
     filterToggle.className = "hc-filter-toggle";
     const updateToggleLabel = () => {
@@ -7362,14 +7375,17 @@ function renderHoldingsCharts() {
     // period buttons
     const periodWrap = document.createElement("div");
     periodWrap.className = "hc-period-row";
+    const periodBtns = document.createElement("div");
+    periodBtns.className = "hc-period-btns";
     ["1Y","2Y","3Y","5Y","7Y","10Y"].forEach(p => {
       const btn = document.createElement("button");
       btn.className = "hc-period-btn" + (p === perfActivePeriod ? " hc-period-btn--active" : "");
       btn.dataset.period = p;
       btn.textContent = p;
       btn.addEventListener("click", () => switchPerfPeriod(p, activeFunds, oldestNavDate));
-      periodWrap.appendChild(btn);
+      periodBtns.appendChild(btn);
     });
+    periodWrap.appendChild(periodBtns);
     periodWrap.appendChild(filterToggle);
     chipRow.appendChild(periodWrap);
 
@@ -7377,7 +7393,8 @@ function renderHoldingsCharts() {
     perfChipData.forEach(c => {
       const chip = document.createElement("span");
       chip.className = "hc-chip" + (c.visible ? "" : " hc-chip--off");
-      chip.innerHTML = `<span class="hc-chip-dot" style="background:${c.color}"></span><span class="hc-chip-full">${c.label}</span><span class="hc-chip-short">${shortFundName(c.label)}</span>`;
+      chip.dataset.label = c.label;
+      chip.innerHTML = `<span class="hc-chip-dot" style="background:${c.color}"></span><span class="hc-chip-full">${c.label}</span><span class="hc-chip-short">${shortFundName(c.label)}</span><span class="hc-chip-ret"></span><span class="hc-chip-since"></span>`;
       chip.addEventListener("click", () => {
         c.visible = !c.visible;
         chip.classList.toggle("hc-chip--off", !c.visible);
@@ -7406,6 +7423,7 @@ function renderHoldingsCharts() {
     if (!canvas || !datasets.length) { if (perfWrap) perfWrap.classList.remove("loading"); return; }
 
     if (perfChartInstance) { perfChartInstance.destroy(); perfChartInstance = null; }
+    perfLatestStatsData = { labels, datasets, sinceInfo };
     perfChartInstance = new Chart(canvas, {
       type: "line",
       data: { labels, datasets },
@@ -7417,11 +7435,12 @@ function renderHoldingsCharts() {
           legend: { display: false },
           datalabels: { display: false },
           tooltip: {
-            backgroundColor: "#FFFCF8",
-            borderColor: "#E7DED3",
+            enabled: window.innerWidth > 768,
+            backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--bg-white").trim() || "#FFFCF8",
+            borderColor: getComputedStyle(document.documentElement).getPropertyValue("--border-medium").trim() || "#E7DED3",
             borderWidth: 1,
-            titleColor: "#2F241D",
-            bodyColor: "#7A6C61",
+            titleColor: getComputedStyle(document.documentElement).getPropertyValue("--text-primary").trim() || "#2F241D",
+            bodyColor: getComputedStyle(document.documentElement).getPropertyValue("--text-secondary").trim() || "#7A6C61",
             padding: 10,
             itemSort: (a, b) => (b.parsed.y ?? -Infinity) - (a.parsed.y ?? -Infinity),
             callbacks: {
@@ -7436,7 +7455,7 @@ function renderHoldingsCharts() {
         scales: {
           x: {
             grid: { color: "rgba(231,222,211,0.5)" },
-            ticks: { color: "#7A6C61", font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 },
+            ticks: { color: "#7A6C61", font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: window.innerWidth <= 768 ? 5 : 10 },
           },
           y: {
             grid: { color: "rgba(231,222,211,0.5)" },
@@ -7447,7 +7466,7 @@ function renderHoldingsCharts() {
           duration: 0,
           onComplete: () => {
             if (perfWrap) perfWrap.classList.remove("loading");
-            updatePerfBottomStats(labels, datasets, sinceInfo);
+            if (perfLatestStatsData) updatePerfBottomStats(perfLatestStatsData.labels, perfLatestStatsData.datasets, perfLatestStatsData.sinceInfo);
           },
         },
       },
@@ -10558,9 +10577,8 @@ function downloadFamilyHoldings() {
 
   const data = mainHoldings.map(([company, info]) => ({
     "Company Name": company,
-    "% of Family Portfolio": parseFloat(info.percentage.toFixed(2)),
-    Nature: info.nature,
-    Sector: info.sector,
+    "% of Family Portfolio": parseFloat(info.percentage.toFixed(3)),
+    "Type": formatHoldingTypeLabel(info.nature, info.instrument, info.sector),
   }));
 
   // Add "Others" row if there are small holdings
@@ -10571,14 +10589,13 @@ function downloadFamilyHoldings() {
     );
     data.push({
       "Company Name": "Others (< 0.01% each)",
-      "% of Family Portfolio": parseFloat(othersTotal.toFixed(2)),
-      Nature: "Mixed",
-      Sector: "Mixed",
+      "% of Family Portfolio": parseFloat(othersTotal.toFixed(3)),
+      "Type": "Mixed",
     });
   }
 
   const ws = XLSX.utils.json_to_sheet(data);
-  ws["!cols"] = [{ wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 20 }];
+  ws["!cols"] = [{ wch: 40 }, { wch: 15 }, { wch: 30 }];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Family Top Equity Holdings");
@@ -10590,6 +10607,70 @@ function downloadFamilyHoldings() {
 
   showToast("Family holdings downloaded successfully!", "success");
 }
+const ALLOC_BUCKET_STYLE = {
+  "domestic equity": { label: "Domestic Eq",  bg: "#EAF3DE", color: "#3B6D11", dot: "#3B6D11" },
+  "global equity":   { label: "Global Eq",    bg: "#E6F1FB", color: "#185FA5", dot: "#185FA5" },
+  "hedged equity":   { label: "Hedged Eq",    bg: "#EEEDFE", color: "#534AB7", dot: "#534AB7" },
+  "debt":            { label: "Debt",          bg: "#FAEEDA", color: "#854F0B", dot: "#854F0B" },
+  "gold":            { label: "Gold",          bg: "#FAF3DC", color: "#7a5c0a", dot: "#7a5c0a" },
+  "silver":          { label: "Silver",        bg: "#F1EFE8", color: "#5F5E5A", dot: "#888780" },
+  "real estate":     { label: "Real Estate",   bg: "#FAECE7", color: "#993C1D", dot: "#993C1D" },
+  "cash":            { label: "Cash",          bg: "#F1EFE8", color: "#5F5E5A", dot: "#888780" },
+  "other":           { label: "Other",         bg: "#F1EFE8", color: "#5F5E5A", dot: "#888780" },
+};
+
+function classifyHoldingBucket(holding) {
+  const nat = (holding.nature_name || "").toUpperCase();
+  const inst = (holding.instrument_name || "").toLowerCase();
+  const comp = (holding.company_name || "").toLowerCase();
+
+  if (nat === "CASH" || inst === "reverse repo" || inst === "tri-party repo" || inst === "cblo") return "cash";
+  if (nat === "DEBT") return "debt";
+  if (nat === "REALEST") return "real estate";
+  if (nat === "EQUITY") {
+    if (inst.includes("future")) return "hedged equity";
+    const isGlobal = inst.includes("foreign") || inst === "ads/adr" || inst === "foreign mf";
+    return isGlobal ? "global equity" : "domestic equity";
+  }
+  if (nat === "GLOBAL_MF") {
+    const bucket = classifyMFHoldingByCompany(holding.company_name);
+    if (bucket === "gold") return "gold";
+    if (bucket === "silver") return "silver";
+    if (bucket === "debt") return "debt";
+    return "global equity";
+  }
+  if (nat === "MF") {
+    const bucket = classifyMFHoldingByCompany(holding.company_name);
+    if (bucket === "gold") return "gold";
+    if (bucket === "silver") return "silver";
+    if (bucket === "debt") return "debt";
+    if (bucket === "global equity") return "global equity";
+    return "domestic equity";
+  }
+  if (inst.includes("gold")) return "gold";
+  if (inst.includes("silver")) return "silver";
+  if (inst.includes("debt") || inst.includes("bond") || inst.includes("debenture") || inst.includes("g-sec") || inst.includes("tbill")) return "debt";
+  return "other";
+}
+
+function buildAllocPills(buckets) {
+  const total = Object.values(buckets).reduce((s, v) => s + Math.max(0, v), 0);
+  if (total === 0) return "";
+  const sorted = Object.entries(buckets)
+    .filter(([, v]) => v > 0.5)
+    .sort((a, b) => b[1] - a[1]);
+  const bar = sorted.map(([k, v]) => {
+    const cls = k.replace(/\s+/g, "-");
+    return `<div class="ap-bar ap-${cls}" style="height:100%;width:${((v/total)*100).toFixed(1)}%;border-radius:0"></div>`;
+  }).join('<div style="width:1px;background:transparent"></div>');
+  const pills = sorted.map(([k, v]) => {
+    const s = ALLOC_BUCKET_STYLE[k] || ALLOC_BUCKET_STYLE["other"];
+    const cls = k.replace(/\s+/g, "-");
+    return `<span class="alloc-pill ap-${cls}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 7px;border-radius:99px;white-space:nowrap"><span class="ap-dot" style="width:6px;height:6px;border-radius:50%;flex-shrink:0"></span>${s.label} ${((v/total)*100).toFixed(1)}%</span>`;
+  }).join("");
+  return `<div style="height:6px;border-radius:3px;overflow:hidden;display:flex;gap:1px;margin-bottom:8px">${bar}</div><div style="display:flex;flex-wrap:wrap;gap:5px">${pills}</div>`;
+}
+
 function showFundHoldings(fundKey) {
   const fund = fundWiseData[fundKey];
 
@@ -10631,13 +10712,20 @@ function showFundHoldings(fundKey) {
     });
   }
 
+  const extended = fund.isin ? mfStats?.[fund.isin] : null;
+  const fundAsset = extended?.portfolio_stats?.asset_allocation;
+  const allocPillsHtml = fundAsset
+    ? buildAllocPills(resolveAssetAllocation(fundAsset, extended?.holdings, 1))
+    : "";
+
   modal.innerHTML = `
     <div class="transaction-modal">
-      <div class="modal-header">
-        <h2>${fund.schemeDisplay || fund.scheme} - Holdings (${
-          holdingsWithCash.length
-        })</h2>
-        <button class="modal-close" onclick="closeFundHoldingsModal()"><i class="fa-solid fa-xmark"></i></button>
+      <div class="modal-header" style="flex-direction:column;align-items:stretch;gap:0">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:20px">
+          <h2>${fund.schemeDisplay || fund.scheme} - Holdings (${holdingsWithCash.length})</h2>
+          <button class="modal-close" onclick="closeFundHoldingsModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        ${allocPillsHtml ? `<div style="margin-top:12px">${allocPillsHtml}</div>` : ""}
       </div>
       <div class="modal-content" id="fundHoldingsContent"></div>
       <div class="modal-footer">
@@ -10663,6 +10751,53 @@ function showFundHoldings(fundKey) {
     if (e.target === modal) closeFundHoldingsModal();
   });
 }
+function formatHoldingTypeLabel(nature, instrument, sector) {
+  const nat = (nature || "").toUpperCase();
+  const inst = (instrument || "").toLowerCase().trim();
+  const secRaw = (sector || "").replace(/\s*-\s*(Foreign\s*-\s*Equity|Futures)$/i, "").trim();
+  const sec = (secRaw.toLowerCase() === "unspecified" || secRaw.toLowerCase() === "unknown") ? "" : secRaw;
+
+  if (nat === "CASH" || inst === "reverse repo" || inst === "tri-party repo" || inst === "cblo") return "Cash";
+  if (inst === "net receivables" || inst === "cash margin") return "Cash";
+
+  const instAbbr = (() => {
+    if (inst.includes("certificate of deposit")) return "CD";
+    if (inst.includes("commercial paper")) return "CP";
+    if (inst.includes("treasury bill") || inst.includes("tbill")) return "T-Bill";
+    if (inst.includes("government security") || inst.includes("g-sec")) return "G-Sec";
+    if (inst.includes("debenture") || inst.includes("ncd")) return "NCD";
+    if (inst.includes("bond")) return "Bond";
+    if (inst.includes("real estate investment trust") || inst.includes("reit")) return "REIT";
+    if (inst.includes("mutual fund") || inst.includes("foreign mutual fund")) return "MF";
+    if (inst.includes("future")) return "Future";
+    if (inst.includes("ads/adr") || inst.includes("foreign mf")) return "Foreign";
+    return null;
+  })();
+
+  if (nat === "REALEST" || (instAbbr === "REIT")) return "REIT";
+
+  if (nat === "DEBT") {
+    return instAbbr ? `Debt · ${instAbbr}` : "Debt";
+  }
+
+  if (nat === "MF") {
+    return instAbbr === "MF" && sec ? `MF · ${sec}` : "Mutual Fund";
+  }
+
+  if (nat === "EQUITY") {
+    const isForeign = inst.includes("foreign") || inst.includes("ads/adr") || inst.includes("foreign mf");
+    const isFuture = inst.includes("future");
+    const prefix = isForeign ? "Foreign Equity" : isFuture ? "Equity Future" : "Equity";
+    return sec ? `${prefix} · ${sec}` : prefix;
+  }
+
+  if (nat === "GLOBAL_MF") {
+    return sec ? `Foreign MF · ${sec}` : "Foreign Mutual Fund";
+  }
+
+  return sec || nature || "Unknown";
+}
+
 function closeFundHoldingsModal() {
   const modal = document.getElementById("fundHoldingsModal");
   if (modal) {
@@ -10683,8 +10818,7 @@ function createHoldingsTable(holdings, othersPercentage = 0) {
     <tr>
       <th>Company Name</th>
       <th>% of Portfolio</th>
-      <th>Nature</th>
-      <th>Instrument</th>
+      <th>Type</th>
     </tr>
   `;
   table.appendChild(header);
@@ -10692,25 +10826,13 @@ function createHoldingsTable(holdings, othersPercentage = 0) {
   const body = document.createElement("tbody");
 
   holdings
-    .filter(([company, data]) => data.percentage >= 0.01) // Filter here too
+    .filter(([company, data]) => data.percentage >= 0.01)
     .forEach(([company, data]) => {
       const row = document.createElement("tr");
       row.innerHTML = `
         <td>${company}</td>
-        <td>${data.percentage.toFixed(2)}%</td>
-        <td>${data.nature}</td>
-        <td>
-        ${(() => {
-          const isCashOrMf = ["CASH", "MF"].includes(data.nature);
-
-          return (
-            (isCashOrMf ? "" : data.sector) +
-              (data.instrument === "Equity"
-                ? ""
-                : (isCashOrMf ? "" : " - ") + data.instrument) || "Unknown"
-          );
-        })()}
-      </td>
+        <td>${data.percentage.toFixed(3)}%</td>
+        <td>${formatHoldingTypeLabel(data.nature, data.instrument, data.sector)}</td>
       `;
       body.appendChild(row);
     });
@@ -10721,8 +10843,7 @@ function createHoldingsTable(holdings, othersPercentage = 0) {
     othersRow.style.fontWeight = "600";
     othersRow.innerHTML = `
       <td>Others</td>
-      <td>${othersPercentage.toFixed(2)}%</td>
-      <td>Mixed</td>
+      <td>${othersPercentage.toFixed(3)}%</td>
       <td>Mixed</td>
     `;
     body.appendChild(othersRow);
@@ -10740,8 +10861,8 @@ function createFundHoldingsTable(holdings) {
     <tr>
       <th>Company Name</th>
       <th>% of Fund</th>
-      <th>Nature</th>
-      <th>Instrument</th>
+      <th>Type</th>
+      <th>Asset Allocation</th>
     </tr>
   `;
   table.appendChild(header);
@@ -10749,24 +10870,16 @@ function createFundHoldingsTable(holdings) {
   const body = document.createElement("tbody");
 
   holdings.forEach((holding) => {
+    const bucket = classifyHoldingBucket(holding);
+    const bs = ALLOC_BUCKET_STYLE[bucket] || ALLOC_BUCKET_STYLE["other"];
+    const cls = bucket.replace(/\s+/g, "-");
+    const pillHtml = `<span class="alloc-pill ap-${cls}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 7px;border-radius:99px;white-space:nowrap"><span class="ap-dot" style="width:6px;height:6px;border-radius:50%;flex-shrink:0"></span>${bs.label}</span>`;
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${holding.company_name || "Unknown"}</td>
-      <td>${parseFloat(holding.corpus_per || 0).toFixed(2)}%</td>
-      <td>${holding.nature_name || "Unknown"}</td>
-      <td>
-        ${(() => {
-          const isCashOrMf = ["CASH", "MF"].includes(holding.nature_name);
-
-          return (
-            (isCashOrMf ? "" : holding.sector_name) +
-              (holding.instrument_name === "Equity"
-                ? ""
-                : (isCashOrMf ? "" : " - ") + holding.instrument_name) ||
-            "Unknown"
-          );
-        })()}
-      </td>
+      <td>${parseFloat(holding.corpus_per || 0).toFixed(3)}%</td>
+      <td>${formatHoldingTypeLabel(holding.nature_name, holding.instrument_name, holding.sector_name)}</td>
+      <td>${pillHtml}</td>
     `;
     body.appendChild(row);
   });
@@ -10791,9 +10904,8 @@ function downloadPortfolioHoldings() {
 
   const data = mainHoldings.map(([company, info]) => ({
     "Company Name": company,
-    "% of Portfolio": parseFloat(info.percentage.toFixed(2)),
-    Nature: info.nature,
-    Sector: info.sector,
+    "% of Portfolio": parseFloat(info.percentage.toFixed(3)),
+    "Type": formatHoldingTypeLabel(info.nature, info.instrument, info.sector),
   }));
 
   // Add "Others" row if there are small holdings
@@ -10804,14 +10916,13 @@ function downloadPortfolioHoldings() {
     );
     data.push({
       "Company Name": "Others (< 0.01% each)",
-      "% of Portfolio": parseFloat(othersTotal.toFixed(2)),
-      Nature: "Mixed",
-      Sector: "Mixed",
+      "% of Portfolio": parseFloat(othersTotal.toFixed(3)),
+      "Type": "Mixed",
     });
   }
 
   const ws = XLSX.utils.json_to_sheet(data);
-  ws["!cols"] = [{ wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 20 }];
+  ws["!cols"] = [{ wch: 40 }, { wch: 15 }, { wch: 30 }];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Top Equity Holdings");
@@ -10854,13 +10965,13 @@ function downloadFundHoldings(fundKey) {
     )
     .map((holding) => ({
       "Company Name": holding.company_name || "Unknown",
-      "% of Fund": parseFloat((holding.corpus_per || 0).toFixed(2)),
-      Nature: holding.nature_name || "Unknown",
-      Sector: holding.sector_name || "Unknown",
+      "% of Fund": parseFloat((holding.corpus_per || 0).toFixed(3)),
+      "Type": formatHoldingTypeLabel(holding.nature_name, holding.instrument_name, holding.sector_name),
+      "Asset Allocation": (ALLOC_BUCKET_STYLE[classifyHoldingBucket(holding)] || ALLOC_BUCKET_STYLE["other"]).label,
     }));
 
   const ws = XLSX.utils.json_to_sheet(data);
-  ws["!cols"] = [{ wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 20 }];
+  ws["!cols"] = [{ wch: 40 }, { wch: 12 }, { wch: 30 }, { wch: 20 }];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Fund Holdings");
@@ -14341,7 +14452,7 @@ function displayFamilyAssetAllocation(metrics) {
   assetCard.classList.remove("loading");
 
   const LABEL_MAP = {
-    "domestic equity": "Dom. Equity",
+    "domestic equity": "Domestic Eq.",
     "global equity": "Global Eq.",
     "hedged equity": "Hedged Eq.",
     debt: "Debt",
@@ -15190,6 +15301,88 @@ function updateCurrentUserDisplay() {
     }
   });
 }
+function toggleMobileUserSwitcher() {
+  if (allUsers.length <= 1) return;
+  const list = document.getElementById("topbarMobileUserList");
+  const caret = document.getElementById("topbarUserChipCaretMobile");
+  if (!list) return;
+  const isOpen = list.classList.toggle("open");
+  if (caret) caret.style.transform = isOpen ? "rotate(180deg)" : "";
+  if (isOpen) renderMobileUserList();
+}
+
+function renderMobileUserList() {
+  const list = document.getElementById("topbarMobileUserList");
+  if (!list) return;
+  list.innerHTML = "";
+  allUsers.forEach((user) => {
+    const name = getStoredInvestorName(user);
+    const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+    const isActive = user === currentUser;
+    const item = document.createElement("button");
+    item.className = `topbar-user-dropdown-item${isActive ? " active" : ""}`;
+    item.innerHTML = `
+      <div class="topbar-user-dropdown-avatar">${initials}</div>
+      <div class="topbar-user-dropdown-info">
+        <div class="topbar-user-dropdown-name">${name}</div>
+        <div class="topbar-user-dropdown-email">${user}</div>
+      </div>
+      ${isActive ? '<i class="fa-solid fa-check topbar-user-dropdown-check"></i>' : ""}
+    `;
+    item.onclick = () => {
+      list.classList.remove("open");
+      if (user !== currentUser) switchToUser(user);
+    };
+    list.appendChild(item);
+  });
+}
+
+function toggleUserSwitcher() {
+  if (allUsers.length <= 1) return;
+  const wrap = document.getElementById("topbarUserChipWrap");
+  if (!wrap) return;
+  const isOpen = wrap.classList.toggle("open");
+  if (isOpen) {
+    renderUserSwitcherDropdown();
+    setTimeout(() => document.addEventListener("click", closeUserSwitcherOutside, { once: true }), 0);
+  }
+}
+
+function closeUserSwitcherOutside(e) {
+  const wrap = document.getElementById("topbarUserChipWrap");
+  if (wrap && !wrap.contains(e.target)) {
+    wrap.classList.remove("open");
+  } else if (wrap && wrap.classList.contains("open")) {
+    document.addEventListener("click", closeUserSwitcherOutside, { once: true });
+  }
+}
+
+function renderUserSwitcherDropdown() {
+  const dropdown = document.getElementById("topbarUserDropdown");
+  if (!dropdown) return;
+  dropdown.innerHTML = `<div class="topbar-user-dropdown-header">Switch User</div>`;
+  allUsers.forEach((user) => {
+    const name = getStoredInvestorName(user);
+    const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+    const isActive = user === currentUser;
+    const item = document.createElement("button");
+    item.className = `topbar-user-dropdown-item${isActive ? " active" : ""}`;
+    item.innerHTML = `
+      <div class="topbar-user-dropdown-avatar">${initials}</div>
+      <div class="topbar-user-dropdown-info">
+        <div class="topbar-user-dropdown-name">${name}</div>
+        <div class="topbar-user-dropdown-email">${user}</div>
+      </div>
+      ${isActive ? '<i class="fa-solid fa-check topbar-user-dropdown-check"></i>' : ""}
+    `;
+    item.onclick = () => {
+      document.getElementById("topbarUserChipWrap")?.classList.remove("open");
+      if (user !== currentUser) switchToUser(user);
+    };
+    dropdown.appendChild(item);
+  });
+}
+
 function getStoredInvestorName(userName) {
   const toProperCase = (str) =>
     str.replace(
@@ -17450,24 +17643,17 @@ function updateTopbarMeta() {
     if (el) el.textContent = firstName;
   });
 
-  // Latest NAV date — find the most recent across active funds
-  let latestDate = null;
-  Object.values(fundWiseData).forEach(fund => {
-    if (!fund.advancedMetrics?.currentValue) return;
-    const isin = fund.isin;
-    const d = isin ? mfStats?.[isin]?.latest_nav_date : null;
-    if (d && (!latestDate || d > latestDate)) latestDate = d;
-  });
+  // Show caret only when multiple users available
+  const chipWrap = document.getElementById("topbarUserChipWrap");
+  if (chipWrap) chipWrap.classList.toggle("multi-user", allUsers.length > 1);
+  const caretMobile = document.getElementById("topbarUserChipCaretMobile");
+  if (caretMobile) caretMobile.style.display = allUsers.length > 1 ? "" : "none";
 
-  // Parse YYYY-MM-DD safely (avoid UTC midnight timezone shift)
-  let navLabel = "--";
-  if (latestDate) {
-    const parts = String(latestDate).split("-");
-    if (parts.length === 3) {
-      const d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
-      navLabel = d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" });
-    }
-  }
+  // NAV date — use manifest.lastNavUpdate (same reliable source as Manage Data tab)
+  const navManifest = storageManager.getManifest();
+  const navLabel = navManifest?.lastNavUpdate
+    ? new Date(navManifest.lastNavUpdate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+    : "--";
 
   ["topbarNavDate", "topbarNavDateMobile"].forEach(id => {
     const el = document.getElementById(id);
@@ -17518,29 +17704,54 @@ function updateFooterInfo() {
         })
       : "--";
 
+    const fmtDateTime = (ts) => {
+      if (!ts) return "--";
+      const d = new Date(ts);
+      const date = d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
+      const time = d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }).toUpperCase();
+      return `${date} ${time} IST`;
+    };
+
     // Stats update date
-    const statsDate = manifest.lastFullUpdate
-      ? new Date(manifest.lastFullUpdate).toLocaleDateString("en-IN", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        })
-      : "--";
+    const statsDate = fmtDateTime(manifest.lastFullUpdate);
 
     // NAV update date
-    const navDate = manifest.lastNavUpdate
-      ? new Date(manifest.lastNavUpdate).toLocaleDateString("en-IN", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        })
-      : "--";
+    const navDate = fmtDateTime(manifest.lastNavUpdate);
+
+    // Next NAV update — start of tomorrow IST
+    const fmtDateOnly = (d) =>
+      d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
+
+    const nextNavDate = (() => {
+      if (!manifest.lastNavUpdate) return "--";
+      const last = new Date(manifest.lastNavUpdate);
+      const todayIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      if (last.toDateString() !== todayIST.toDateString()) return "Today";
+      const tomorrow = new Date(last);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return fmtDateOnly(tomorrow);
+    })();
+
+    // Next Stats update — lastFullUpdate + 7 days
+    const nextStatsDate = (() => {
+      if (!manifest.lastFullUpdate) return "--";
+      const next = new Date(manifest.lastFullUpdate);
+      next.setDate(next.getDate() + 7);
+      const now = new Date();
+      if (next <= now) return "Now";
+      return fmtDateOnly(next);
+    })();
 
     // Update upload tab dates (elements may not exist on all views)
     const navEl = document.getElementById("lastNavUpdateDate");
     const statsEl = document.getElementById("lastStatsUpdateDate");
     if (navEl) navEl.textContent = navDate;
     if (statsEl) statsEl.textContent = statsDate;
+
+    const nextNavEl = document.getElementById("nextNavUpdateDate");
+    const nextStatsEl = document.getElementById("nextStatsUpdateDate");
+    if (nextNavEl) nextNavEl.textContent = nextNavDate;
+    if (nextStatsEl) nextStatsEl.textContent = nextStatsDate;
   }
 }
 
@@ -17730,15 +17941,42 @@ window.switchDashboardTab = function (tabId) {
   )?.id;
 
   if (previousTab && previousTab !== tabId && !window.isPopStateNavigation) {
-    tabHistory = tabHistory.slice(0, historyPointer + 1);
-    tabHistory.push(tabId);
-    historyPointer = tabHistory.length - 1;
+    if (tabId === "main") {
+      // Landing on main collapses the entire history stack — rewind the
+      // browser history by however many steps we pushed, then replaceState
+      // so there's only one entry left (main).
+      const stepsBack = historyPointer;
+      tabHistory = ["main"];
+      historyPointer = 0;
+      if (stepsBack > 0) {
+        window.isPopStateNavigation = true;
+        history.go(-stepsBack);
+        setTimeout(() => {
+          window.history.replaceState(
+            { tab: "main", pointer: 0 },
+            "",
+            window.location.pathname + "#main",
+          );
+          window.isPopStateNavigation = false;
+        }, 100);
+      } else {
+        window.history.replaceState(
+          { tab: "main", pointer: 0 },
+          "",
+          window.location.pathname + "#main",
+        );
+      }
+    } else {
+      tabHistory = tabHistory.slice(0, historyPointer + 1);
+      tabHistory.push(tabId);
+      historyPointer = tabHistory.length - 1;
 
-    window.history.pushState(
-      { tab: tabId, pointer: historyPointer },
-      "",
-      window.location.pathname + "#" + tabId,
-    );
+      window.history.pushState(
+        { tab: tabId, pointer: historyPointer },
+        "",
+        window.location.pathname + "#" + tabId,
+      );
+    }
   }
 
   originalSwitchDashboardTab(tabId);
@@ -18454,7 +18692,7 @@ function renderDashboardAllocationBar() {
   const analytics = calculatePortfolioAnalytics();
   const alloc = analytics.assetAllocation;
   const LABEL_MAP = {
-    "domestic equity": "Dom. Equity",
+    "domestic equity": "Domestic Eq.",
     "global equity": "Global Eq.",
     "hedged equity": "Hedged Eq.",
     debt: "Debt",
