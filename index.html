@@ -38,7 +38,7 @@
       data-cf-beacon='{"token": "4d8174ccb12041b3a010d11343f45f18"}'
     ></script> -->
     <!-- End Cloudflare Web Analytics -->
-    <link rel="stylesheet" href="styles.css?v=20260624a" />
+    <link rel="stylesheet" href="styles.css?v=20260624b" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -69,12 +69,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260624a" />
+    <link rel="manifest" href="/manifest.json?v=20260624b" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
     <div class="container">
-      <div class="dashboard" id="dashboard">
+      <div class="dashboard" id="app">
         <!-- ===== Top Bar ===== -->
         <div class="dashboard-tabs">
           <div class="topbar-left">
@@ -116,10 +116,6 @@
                 </span>
                 <div class="topbar-user-dropdown" id="topbarUserDropdown"></div>
               </div>
-              <span class="topbar-nav-chip" id="topbarNavChip">
-                <i class="fa-solid fa-rotate"></i>
-                <span id="topbarNavDate">--</span>
-              </span>
             </div>
             <div class="topbar-divider topbar-divider--meta"></div>
 
@@ -136,28 +132,31 @@
 
           <!-- Overflow menu -->
           <div class="topbar-overflow-menu" id="topbarOverflowMenu">
-            <!-- User + NAV shown only on mobile (chips not visible in topbar) -->
-            <div class="topbar-overflow-meta topbar-overflow-meta--mobile">
-              <span
-                class="topbar-user-chip topbar-user-chip--sm"
-                id="topbarUserChipMobile"
-                onclick="toggleMobileUserSwitcher()"
-              >
-                <span class="topbar-avatar" id="topbarAvatarMobile">--</span>
-                <span id="topbarUserNameMobile"></span>
-                <i
-                  class="fa-solid fa-chevron-down topbar-user-chip-caret"
-                  id="topbarUserChipCaretMobile"
-                ></i>
-              </span>
-              <span
-                class="topbar-nav-chip topbar-nav-chip--sm"
-                id="topbarNavChipMobile"
-              >
-                <i class="fa-solid fa-rotate"></i>
-                <span id="topbarNavDateMobile">--</span>
-              </span>
-            </div>
+            <!-- Current user row (mobile only) -->
+            <button
+              class="topbar-user-dropdown-item topbar-overflow-meta--mobile active"
+              id="topbarUserChipMobile"
+              onclick="toggleMobileUserSwitcher()"
+            >
+              <div class="topbar-user-dropdown-avatar" id="topbarAvatarMobile">
+                --
+              </div>
+              <div class="topbar-user-dropdown-info">
+                <div
+                  class="topbar-user-dropdown-name"
+                  id="topbarUserNameMobile"
+                ></div>
+                <div
+                  class="topbar-user-dropdown-email"
+                  id="topbarUserEmailMobile"
+                ></div>
+              </div>
+              <i
+                class="fa-solid fa-chevron-down topbar-user-chip-caret"
+                id="topbarUserChipCaretMobile"
+                style="margin-left: auto"
+              ></i>
+            </button>
             <div
               class="topbar-mobile-user-list"
               id="topbarMobileUserList"
@@ -195,7 +194,9 @@
                 <span class="topbar-overflow-date-label"
                   >Last Stats Update</span
                 >
-                <span class="topbar-overflow-date-val" id="lastStatsUpdateDate"
+                <span
+                  class="topbar-overflow-date-val"
+                  id="tbLastStatsUpdateDate"
                   >--</span
                 >
               </div>
@@ -203,19 +204,21 @@
                 <span class="topbar-overflow-date-label"
                   >Next Stats Update</span
                 >
-                <span class="topbar-overflow-date-val" id="nextStatsUpdateDate"
+                <span
+                  class="topbar-overflow-date-val"
+                  id="tbNextStatsUpdateDate"
                   >--</span
                 >
               </div>
               <div class="topbar-overflow-date-row">
                 <span class="topbar-overflow-date-label">Last NAV Update</span>
-                <span class="topbar-overflow-date-val" id="lastNavUpdateDate"
+                <span class="topbar-overflow-date-val" id="tbLastNavUpdateDate"
                   >--</span
                 >
               </div>
               <div class="topbar-overflow-date-row">
                 <span class="topbar-overflow-date-label">Next NAV Update</span>
-                <span class="topbar-overflow-date-val" id="nextNavUpdateDate"
+                <span class="topbar-overflow-date-val" id="tbNextNavUpdateDate"
                   >--</span
                 >
               </div>
@@ -254,7 +257,7 @@
               <button
                 class="sidebar-menu-item main-button active"
                 onclick="
-                  switchDashboardTab('main');
+                  switchDashboardTab('dashboard');
                   closeMobileMenu();
                 "
                 title="Dashboard"
@@ -265,7 +268,7 @@
               <button
                 class="sidebar-menu-item health-score-button"
                 onclick="
-                  switchDashboardTab('health-score');
+                  switchDashboardTab('health');
                   closeMobileMenu();
                 "
                 title="Portfolio Health"
@@ -281,7 +284,7 @@
               <button
                 class="sidebar-menu-item current-holding-button"
                 onclick="
-                  switchDashboardTab('current-holding');
+                  switchDashboardTab('current-holdings');
                   closeMobileMenu();
                 "
                 title="Current Holdings"
@@ -293,7 +296,7 @@
                 class="sidebar-menu-item past-holding-button"
                 id="show-past-mobile"
                 onclick="
-                  switchDashboardTab('past-holding');
+                  switchDashboardTab('past-holdings');
                   closeMobileMenu();
                 "
                 title="Past Holdings"
@@ -320,7 +323,7 @@
               <button
                 class="sidebar-menu-item charts-button"
                 onclick="
-                  switchDashboardTab('charts');
+                  switchDashboardTab('performance');
                   closeMobileMenu();
                 "
                 title="Performance"
@@ -408,296 +411,49 @@
           </div>
         </nav>
         <section id="manage-data">
-          <div class="cas-panels-row">
-            <!-- ── Left panel: all actions as rows ── -->
-            <div class="cas-panel">
-              <!-- Panel header -->
-              <div class="cas-panel-header">
-                <i class="fa-solid fa-upload cas-panel-header-icon"></i>
-                <span class="cas-panel-header-title">Manage Data</span>
-              </div>
-
-              <!-- Upload CAS row -->
-              <div class="cas-panel-row">
-                <div class="cas-row-meta">
-                  <span class="cas-row-icon"
-                    ><i class="fa-solid fa-file-lines"></i
-                  ></span>
-                  <div>
-                    <div class="cas-row-title">Upload New CAS</div>
-                    <div class="cas-row-sub">
-                      Add or update a user portfolio
-                    </div>
-                    <p
-                      id="currentUserDisplay"
-                      class="hidden"
-                      style="
-                        font-weight: 600;
-                        color: #667eea;
-                        margin: 4px 0 0;
-                        font-size: 12px;
-                      "
-                    ></p>
-                  </div>
-                </div>
-                <div class="cas-row-action">
-                  <div class="file-input-container cas-file-inputs">
+          <div class="md-layout">
+            <!-- LEFT COLUMN -->
+            <div class="md-col">
+              <!-- Upload -->
+              <div class="md-card">
+                <div class="md-sec-label">Upload</div>
+                <div class="md-upload-row">
+                  <div class="md-upload-inputs">
+                    <label class="md-file-label" for="fileInputTab">
+                      <i class="fa-solid fa-folder-open"></i>
+                      <span id="fileInputTabLabel">Choose File</span>
+                    </label>
                     <input
                       type="file"
                       id="fileInputTab"
-                      placeholder="Select CAS"
+                      style="display: none"
                       accept=".json,application/json,.pdf,application/pdf"
+                      onchange="
+                        this.previousElementSibling.querySelector(
+                          'span',
+                        ).textContent = this.files[0]?.name || 'Choose File'
+                      "
                     />
                     <input
                       type="password"
                       id="filePasswordTab"
-                      placeholder="Enter CAS password"
+                      class="md-inp"
+                      placeholder="CAS password"
                       onkeydown="if (event.key === 'Enter') loadFileFromTab();"
                     />
                     <button
                       type="button"
-                      class="load"
+                      class="md-btn md-btn-primary"
                       onclick="loadFileFromTab()"
                     >
                       Load Portfolio
                     </button>
                   </div>
-                </div>
-              </div>
-
-              <!-- Manage Users row -->
-              <div class="cas-panel-row">
-                <div class="cas-row-meta">
-                  <span class="cas-row-icon"
-                    ><i class="fa-solid fa-users"></i
-                  ></span>
-                  <div>
-                    <div class="cas-row-title">Manage Users</div>
-                    <div class="cas-row-sub">
-                      View and manage all user portfolios
+                  <div class="md-howto">
+                    <div class="md-howto-title">
+                      <i class="fa-solid fa-circle-info"></i> How to get CAS
                     </div>
-                  </div>
-                </div>
-                <div class="cas-row-action">
-                  <div class="user-list-container" id="userListContainer"></div>
-                  <div class="user-action-bar">
-                    <div class="user-action-bar-primary">
-                      <button
-                        type="button"
-                        id="userSettingsBtn"
-                        class="cas-row-btn user-action-icon-btn"
-                        title="Settings"
-                        onclick="showFolioManagementModal(currentUser)"
-                      >
-                        <i class="fa-solid fa-gear"></i>
-                      </button>
-                      <button
-                        type="button"
-                        id="deleteUserBtn"
-                        class="danger-btn cas-row-btn user-action-icon-btn"
-                        title="Delete User"
-                        onclick="deleteSingleUser(currentUser)"
-                      >
-                        <i class="fa-solid fa-trash"></i>
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      id="deleteAllUsersBtn"
-                      class="danger-btn cas-row-btn"
-                      onclick="deleteAllUsers()"
-                    >
-                      <i class="fa-solid fa-trash"></i> Delete All Users
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Update NAV row -->
-              <div class="cas-panel-row">
-                <div class="cas-row-meta">
-                  <span class="cas-row-icon"
-                    ><i class="fa-solid fa-rotate"></i
-                  ></span>
-                  <div>
-                    <div class="cas-row-title">Update NAV</div>
-                    <div class="cas-row-sub">
-                      Fetch latest Net Asset Values for all funds
-                    </div>
-                    <div class="cas-row-info">
-                      Updates daily· Last:
-                      <span id="lastNavUpdateDate">--</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="cas-row-action">
-                  <button
-                    type="button"
-                    id="updateNavBtn"
-                    class="primary-btn cas-row-btn"
-                    onclick="updateNavManually()"
-                  >
-                    Update NAV
-                  </button>
-                </div>
-              </div>
-
-              <!-- Update Stats row -->
-              <div class="cas-panel-row">
-                <div class="cas-row-meta">
-                  <span class="cas-row-icon"
-                    ><i class="fa-solid fa-database"></i
-                  ></span>
-                  <div>
-                    <div class="cas-row-title">Update Fund Statistics</div>
-                    <div class="cas-row-sub">
-                      Fetch composition, returns &amp; ratings
-                    </div>
-                    <div class="cas-row-info">
-                      Updates weekly· Last:
-                      <span id="lastStatsUpdateDate">--</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="cas-row-action">
-                  <button
-                    type="button"
-                    id="updateStatsBtn"
-                    class="primary-btn cas-row-btn"
-                    onclick="updateMFStats()"
-                  >
-                    Update Stats
-                  </button>
-                </div>
-              </div>
-
-              <!-- Clear Cache row -->
-              <div class="cas-panel-row cas-panel-row--last">
-                <div class="cas-row-meta">
-                  <span class="cas-row-icon"
-                    ><i class="fa-solid fa-trash"></i
-                  ></span>
-                  <div>
-                    <div class="cas-row-title">Clear Cache</div>
-                    <div class="cas-row-sub">
-                      Wipe all local data and reload the app fresh
-                    </div>
-                    <div class="cas-row-info clear-cache-checklist">
-                      <span
-                        ><i class="fa-solid fa-check"></i> localStorage</span
-                      >
-                      <span
-                        ><i class="fa-solid fa-check"></i> sessionStorage</span
-                      >
-                      <span><i class="fa-solid fa-check"></i> IndexedDB</span>
-                      <span
-                        ><i class="fa-solid fa-check"></i> Cache Storage</span
-                      >
-                      <span><i class="fa-solid fa-check"></i> Cookies</span>
-                      <span
-                        ><i class="fa-solid fa-check"></i> Service Workers</span
-                      >
-                    </div>
-                  </div>
-                </div>
-                <div class="cas-row-action">
-                  <button
-                    type="button"
-                    id="clearCacheBtn"
-                    class="danger-btn cas-row-btn"
-                    onclick="clearAllCacheAndReload()"
-                  >
-                    <i class="fa-solid fa-broom"></i> Clear Cache &amp; Reload
-                  </button>
-                </div>
-              </div>
-
-              <!-- Debug: Inject Parsed CAS JSON row (only in DEBUG_MODE) -->
-              <div
-                class="cas-panel-row debug-cas-inject-row hidden"
-                id="debugCASInjectRow"
-              >
-                <div class="cas-row-meta">
-                  <span class="cas-row-icon"
-                    ><i class="fa-solid fa-bug"></i
-                  ></span>
-                  <div>
-                    <div class="cas-row-title">
-                      Inject Parsed CAS
-                      <span class="debug-badge">DEBUG</span>
-                    </div>
-                    <div class="cas-row-sub">
-                      Paste parsed CAS JSON directly to populate portfolio. MF
-                      stats will be fetched if not present.
-                    </div>
-                  </div>
-                </div>
-                <div class="cas-row-action">
-                  <div class="debug-cas-upload-row">
-                    <label class="debug-cas-file-label" for="debugCASFileInput">
-                      <i class="fa-solid fa-file-arrow-up"></i>
-                      <span id="debugCASFileName">Upload JSON file…</span>
-                    </label>
-                    <input
-                      type="file"
-                      id="debugCASFileInput"
-                      accept=".json,application/json"
-                      style="display: none"
-                      onchange="debugCASFileSelected(this)"
-                    />
-                  </div>
-                  <textarea
-                    id="debugCASJsonInput"
-                    class="debug-cas-textarea"
-                    placeholder='…or paste parsed CAS JSON here {"investor_info": {…}, "folios": […]}'
-                    rows="6"
-                    spellcheck="false"
-                  ></textarea>
-                  <div class="debug-cas-actions">
-                    <button
-                      type="button"
-                      class="primary-btn cas-row-btn"
-                      onclick="loadParsedCASJson()"
-                    >
-                      <i class="fa-solid fa-code"></i> Load CAS JSON
-                    </button>
-                    <button
-                      type="button"
-                      class="secondary-btn cas-row-btn"
-                      onclick="debugCASClear()"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <!-- /.cas-panel -->
-
-            <!-- ── Right panel: How to get CAS ── -->
-            <div class="cas-panel cas-panel--instructions">
-              <!-- Desktop: shown as panel header -->
-              <div class="cas-panel-header">
-                <i class="fa-solid fa-clipboard cas-panel-header-icon"></i>
-                <span class="cas-panel-header-title"
-                  >How to Get Your CAS File</span
-                >
-              </div>
-
-              <!-- Works as single row on desktop, plain content on mobile -->
-              <div
-                class="cas-panel-row cas-panel-row--last cas-instructions-row"
-              >
-                <div class="cas-row-meta cas-instructions-meta">
-                  <!-- Mobile: title shown here; hidden on desktop via CSS -->
-                  <span class="cas-row-icon"
-                    ><i class="fa-solid fa-clipboard"></i
-                  ></span>
-                  <div class="cas-row-title">How to Get Your CAS File</div>
-                </div>
-                <div class="cas-row-action cas-instructions-action">
-                  <div class="cas-instructions-body">
-                    <ol class="cas-steps">
+                    <ol class="md-howto-steps">
                       <li>
                         Visit
                         <a
@@ -706,103 +462,234 @@
                           rel="noopener"
                           >CAMS Online</a
                         >
-                        or use the myCAMS mobile app
+                        or myCAMS app
                       </li>
                       <li>Select <strong>"Detailed Statement"</strong></li>
                       <li>
-                        Choose <strong>"With Zero Balance"</strong> or
-                        <strong>"Without Zero Balance"</strong>
+                        Choose <strong>"With / Without Zero Balance"</strong>
                       </li>
-                      <li>
-                        Enter your <strong>email address</strong> and set a
-                        <strong>password</strong>
-                      </li>
-                      <li>
-                        You'll receive the CAS PDF via email within minutes
-                      </li>
-                      <li>Upload it here and enter the same password</li>
+                      <li>Enter your email &amp; set a password</li>
+                      <li>Upload the PDF + password here</li>
                     </ol>
-                    <p class="cas-note">Currently supports CAMS CAS files.</p>
                   </div>
                 </div>
               </div>
-            </div>
-            <!-- /.cas-panel -->
-          </div>
-          <!-- /.cas-panels-row -->
 
-          <!-- ── Backup & Restore panel ── -->
-          <div class="cas-panels-row cas-panels-row--single">
-            <div class="cas-panel">
-              <div class="cas-panel-header">
-                <i class="fa-solid fa-database cas-panel-header-icon"></i>
-                <span class="cas-panel-header-title">Backup &amp; Restore</span>
+              <!-- Users -->
+              <div class="md-card">
+                <div class="md-sec-label">Users</div>
+                <div class="user-list-container" id="userListContainer"></div>
+                <div class="md-user-actions">
+                  <button
+                    type="button"
+                    id="userSettingsBtn"
+                    class="md-icon-btn"
+                    title="Settings"
+                    onclick="showFolioManagementModal(currentUser)"
+                  >
+                    <i class="fa-solid fa-gear"></i>
+                  </button>
+                  <button
+                    type="button"
+                    id="deleteUserBtn"
+                    class="md-icon-btn md-icon-btn-danger"
+                    title="Delete User"
+                    onclick="deleteSingleUser(currentUser)"
+                  >
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                  <button
+                    type="button"
+                    id="deleteAllUsersBtn"
+                    class="md-btn md-btn-danger md-btn-auto"
+                    onclick="deleteAllUsers()"
+                  >
+                    <i class="fa-solid fa-trash"></i> Delete All Users
+                  </button>
+                </div>
               </div>
 
-              <!-- Export row -->
-              <div class="cas-panel-row">
-                <div class="cas-row-meta">
-                  <span class="cas-row-icon">
-                    <i class="fa-solid fa-file-export"></i>
-                  </span>
+              <!-- Clear Cache -->
+              <div class="md-card">
+                <div class="md-card-header">
+                  <div class="md-card-icon md-card-icon-danger">
+                    <i class="fa-solid fa-trash"></i>
+                  </div>
                   <div>
-                    <div class="cas-row-title">Export Backup</div>
-                    <div class="cas-row-sub">
-                      Download all your portfolio data as a single JSON file —
-                      includes CAS data, fund statistics, and app settings for
-                      all users.
-                    </div>
-                    <div class="cas-row-info">
-                      <i class="fa-solid fa-lightbulb"></i> Use this before
-                      clearing cache or switching devices
+                    <div class="md-card-title">Clear Cache</div>
+                    <div class="md-card-sub">
+                      localStorage &middot; IndexedDB &middot; Cookies &middot;
+                      Service Workers
                     </div>
                   </div>
                 </div>
-                <div class="cas-row-action">
+                <button
+                  type="button"
+                  id="clearCacheBtn"
+                  class="md-btn md-btn-danger"
+                  onclick="clearAllCacheAndReload()"
+                >
+                  <i class="fa-solid fa-broom"></i> Clear Cache &amp; Reload
+                </button>
+              </div>
+
+              <!-- Debug (hidden unless DEBUG_MODE) -->
+              <div class="md-card hidden" id="debugCASInjectRow">
+                <div class="md-card-header">
+                  <div class="md-card-icon">
+                    <i class="fa-solid fa-bug"></i>
+                  </div>
+                  <div>
+                    <div class="md-card-title">
+                      Inject Parsed CAS <span class="debug-badge">DEBUG</span>
+                    </div>
+                    <div class="md-card-sub">
+                      Paste parsed CAS JSON to populate portfolio
+                    </div>
+                  </div>
+                </div>
+                <div class="debug-cas-upload-row">
+                  <label class="debug-cas-file-label" for="debugCASFileInput">
+                    <i class="fa-solid fa-file-arrow-up"></i>
+                    <span id="debugCASFileName">Upload JSON file&hellip;</span>
+                  </label>
+                  <input
+                    type="file"
+                    id="debugCASFileInput"
+                    accept=".json,application/json"
+                    style="display: none"
+                    onchange="debugCASFileSelected(this)"
+                  />
+                </div>
+                <textarea
+                  id="debugCASJsonInput"
+                  class="debug-cas-textarea"
+                  placeholder="paste parsed CAS JSON here"
+                  rows="5"
+                  spellcheck="false"
+                ></textarea>
+                <div class="debug-cas-actions">
                   <button
                     type="button"
                     class="primary-btn cas-row-btn"
-                    onclick="exportBackup()"
+                    onclick="loadParsedCASJson()"
                   >
-                    <i class="fa-solid fa-download"></i> Export Backup
+                    <i class="fa-solid fa-code"></i> Load CAS JSON
+                  </button>
+                  <button
+                    type="button"
+                    class="secondary-btn cas-row-btn"
+                    onclick="debugCASClear()"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- RIGHT COLUMN -->
+            <div class="md-col">
+              <!-- NAV + Stats -->
+              <div class="md-two-col">
+                <div class="md-card">
+                  <div class="md-card-header">
+                    <div class="md-card-icon">
+                      <i class="fa-solid fa-rotate"></i>
+                    </div>
+                    <div>
+                      <div class="md-card-title">Update NAV</div>
+                      <div class="md-card-sub">
+                        Daily &middot; Last:
+                        <span id="lastNavUpdateDate">--</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    id="updateNavBtn"
+                    class="md-btn md-btn-outline"
+                    onclick="updateNavManually()"
+                  >
+                    Update NAV
+                  </button>
+                </div>
+                <div class="md-card">
+                  <div class="md-card-header">
+                    <div class="md-card-icon">
+                      <i class="fa-solid fa-database"></i>
+                    </div>
+                    <div>
+                      <div class="md-card-title">Fund Stats</div>
+                      <div class="md-card-sub">
+                        Weekly &middot; Last:
+                        <span id="lastStatsUpdateDate">--</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    id="updateStatsBtn"
+                    class="md-btn md-btn-outline"
+                    onclick="updateMFStats()"
+                  >
+                    Update Stats
                   </button>
                 </div>
               </div>
 
-              <!-- Import row -->
-              <div class="cas-panel-row cas-panel-row--last">
-                <div class="cas-row-meta">
-                  <span class="cas-row-icon">
-                    <i class="fa-solid fa-file-import"></i>
-                  </span>
-                  <div>
-                    <div class="cas-row-title">Import Backup</div>
-                    <div class="cas-row-sub">
-                      Restore portfolio data from a previously exported backup
-                      file. Existing data for matching users will be
-                      overwritten; other users are left untouched.
+              <!-- Export + Import -->
+              <div class="md-two-col">
+                <div class="md-card">
+                  <div class="md-card-header">
+                    <div class="md-card-icon">
+                      <i class="fa-solid fa-download"></i>
                     </div>
-                    <div class="cas-row-info">
-                      <i class="fa-solid fa-triangle-exclamation"></i> Only
-                      import backups exported from this app
+                    <div>
+                      <div class="md-card-title">Export Backup</div>
+                      <div class="md-card-sub">All users &middot; JSON</div>
                     </div>
                   </div>
-                </div>
-                <div class="cas-row-action">
+                  <div class="md-card-note">
+                    <i class="fa-solid fa-lightbulb"></i> Use before clearing
+                    cache or switching devices
+                  </div>
                   <button
                     type="button"
-                    class="secondary-btn cas-row-btn"
+                    class="md-btn md-btn-outline"
+                    onclick="exportBackup()"
+                  >
+                    <i class="fa-solid fa-download"></i> Export
+                  </button>
+                </div>
+                <div class="md-card">
+                  <div class="md-card-header">
+                    <div class="md-card-icon">
+                      <i class="fa-solid fa-upload"></i>
+                    </div>
+                    <div>
+                      <div class="md-card-title">Import Backup</div>
+                      <div class="md-card-sub">
+                        Restore &middot; merge users
+                      </div>
+                    </div>
+                  </div>
+                  <div class="md-card-note">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Only import
+                    backups from this app
+                  </div>
+                  <button
+                    type="button"
+                    class="md-btn md-btn-outline"
                     onclick="importBackup()"
                   >
-                    <i class="fa-solid fa-upload"></i> Import Backup
+                    <i class="fa-solid fa-upload"></i> Import
                   </button>
                 </div>
               </div>
             </div>
           </div>
-          <!-- /.backup panel -->
         </section>
-        <section id="main">
+        <section id="dashboard">
           <!-- ── Mobile-only summary card (Dashboard tab) ── -->
           <div class="compact-dashboard" id="mainMobileSummary">
             <div class="compact-summary-card">
@@ -865,7 +752,7 @@
               <div class="value" id="overallGain">₹0</div>
               <div class="subtext" id="overallGainPercent">XIRR: --</div>
             </div>
-            <div class="card">
+            <div class="card" id="avgHoldingCard">
               <h3>Avg. Holding</h3>
               <div class="value" id="avgHoldingDays">--</div>
               <div class="subtext">days</div>
@@ -892,7 +779,7 @@
                 <span class="dash-section-card-title">Portfolio Health</span>
                 <button
                   class="dash-section-link"
-                  onclick="switchDashboardTab('health-score')"
+                  onclick="switchDashboardTab('health')"
                 >
                   Details →
                 </button>
@@ -947,8 +834,10 @@
           </div>
 
           <!-- ── Milestones & Monthly Flow ── -->
-          <div class="dash-section-divider">Portfolio Journey</div>
-          <div class="dash-milestone-grid">
+          <div class="dash-section-divider" id="dashMilestoneDivider">
+            Portfolio Journey
+          </div>
+          <div class="dash-milestone-grid" id="dashMilestoneGrid">
             <div class="dash-section-card" id="dashMilestonesCard">
               <div class="dash-section-card-header">
                 <span class="dash-section-card-title">Milestones</span>
@@ -986,7 +875,7 @@
               <button
                 class="dash-section-link"
                 id="dashHoldingsViewAllBtn"
-                onclick="switchDashboardTab('current-holding')"
+                onclick="switchDashboardTab('current-holdings')"
               >
                 View all →
               </button>
@@ -1117,7 +1006,7 @@
           </div>
         </section>
 
-        <section id="current-holding">
+        <section id="current-holdings">
           <div class="compact-dashboard" id="compactDashboard">
             <div class="compact-summary-card">
               <div class="compact-header">
@@ -1203,13 +1092,13 @@
             </div>
           </div>
         </section>
-        <section id="past-holding">
+        <section id="past-holdings">
           <div id="pastSection" class="past-section folio-section">
             <div id="pastFolioGrid" class="folio-grid"></div>
           </div>
           <div class="compact-dashboard" id="compactPastDashboard"></div>
         </section>
-        <section id="charts">
+        <section id="performance">
           <div class="chart-section">
             <div class="section-header">
               <h3><i class="fa-solid fa-chart-line"></i> Portfolio History</h3>
@@ -1268,7 +1157,7 @@
           <div id="expenseContent"></div>
         </section>
 
-        <section id="health-score">
+        <section id="health">
           <div id="healthScoreContent"></div>
         </section>
         <section id="family-dashboard">
@@ -1432,8 +1321,8 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260624a"></script>
-    <script src="utils.js?v=20260624a"></script>
-    <script src="scripts.js?v=20260624a"></script>
+    <script src="indexeddb-helper.js?v=20260624b"></script>
+    <script src="utils.js?v=20260624b"></script>
+    <script src="scripts.js?v=20260624b"></script>
   </body>
 </html>

@@ -59,18 +59,18 @@ let compactPastSortMode = "returns";
 let pendingFolioChanges = {};
 
 // Tab history
-let tabHistory = ["main"];
+let tabHistory = ["dashboard"];
 let historyPointer = 0;
 
 function getInitialTabFromHash() {
-  const dashboard = document.getElementById("dashboard");
-  if (!dashboard) return "main";
+  const dashboard = document.getElementById("app");
+  if (!dashboard) return "dashboard";
 
   const summaryDisabledTabs = [
-    "charts",
+    "performance",
     "transactions",
     "capital-gains",
-    "past-holding",
+    "past-holdings",
     "portfolio-composition",
   ];
   const validTabIds = Array.from(
@@ -80,9 +80,15 @@ function getInitialTabFromHash() {
     .filter((id) => !isSummaryCAS || !summaryDisabledTabs.includes(id));
 
   const requestedTab = window.location.hash.slice(1);
-  return requestedTab && validTabIds.includes(requestedTab)
-    ? requestedTab
-    : "main";
+  if (requestedTab && validTabIds.includes(requestedTab)) return requestedTab;
+  if (requestedTab && requestedTab !== "dashboard") {
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + "#dashboard",
+    );
+  }
+  return "dashboard";
 }
 
 // Backend configuration
@@ -419,7 +425,7 @@ async function loadParsedCASJson() {
     populateUserList(allUsers);
     updateCurrentUserDisplay();
 
-    const dashboard = document.getElementById("dashboard");
+    const dashboard = document.getElementById("app");
     dashboard.classList.remove("disabled");
     enableAllTabs();
 
@@ -439,7 +445,7 @@ async function loadParsedCASJson() {
     );
     updateFooterInfo();
     invalidateFamilyDashboardCache();
-    switchDashboardTab("main");
+    switchDashboardTab("dashboard");
   } catch (err) {
     hideProcessingSplash();
     console.error("❌ loadParsedCASJson error:", err);
@@ -530,8 +536,14 @@ async function loadFileFromTab() {
     }
 
     // Extract investor info from CAS
-    const fullInvestorName =
-      portfolioData.investor_info?.name?.trim() || "User";
+    const _toProperCase = (str) =>
+      str.replace(
+        /\w\S*/g,
+        (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(),
+      );
+    const fullInvestorName = _toProperCase(
+      portfolioData.investor_info?.name?.trim() || "User",
+    );
     const firstNameFromCAS = fullInvestorName.split(" ")[0]?.trim() || "User";
 
     // Check if user with same FULL investor name exists (regardless of CAS type)
@@ -599,7 +611,7 @@ async function loadFileFromTab() {
     populateUserList(allUsers);
     updateCurrentUserDisplay();
 
-    const dashboard = document.getElementById("dashboard");
+    const dashboard = document.getElementById("app");
     dashboard.classList.remove("disabled");
 
     enableAllTabs();
@@ -627,7 +639,7 @@ async function loadFileFromTab() {
 
     invalidateFamilyDashboardCache();
 
-    switchDashboardTab("main");
+    switchDashboardTab("dashboard");
   } catch (err) {
     hideProcessingSplash();
     console.error("ERROR:", err);
@@ -681,7 +693,7 @@ async function getSearchKeys() {
 
 // PORTFOLIO PROCESSING
 async function processPortfolio(skipAnalytics = false) {
-  const dashboard = document.getElementById("dashboard");
+  const dashboard = document.getElementById("app");
   if (!dashboard) {
     console.warn("Dashboard element not found");
     return;
@@ -6944,7 +6956,9 @@ function updateSummaryCards(summary) {
   updateMainMobileSummary();
   updateCompactDashboard();
 
-  const summaryCardsContainer = document.querySelector("#main .summary-cards");
+  const summaryCardsContainer = document.querySelector(
+    "#dashboard .summary-cards",
+  );
   const firstCard = summaryCardsContainer?.querySelector(".card:first-child");
   if (!summaryCardsContainer || !firstCard) return;
 
@@ -7935,7 +7949,7 @@ function wrapGridInTable(gridEl) {
       ${mkTh(valueLabel, "value", true)}
       ${isCurrentGrid ? mkTh("1D", "oneday", true) : ""}
       ${mkTh("P&amp;L", "pnl", true)}
-      ${mkTh("XIRR", "xirr", true)}
+      ${!isSummaryCAS ? mkTh("XIRR", "xirr", true) : ""}
       ${mkTh("", null, true)}
     </tr>`;
   table.appendChild(thead);
@@ -8424,8 +8438,10 @@ function createFundCardWithTransactions(
     // P&L
     `<span class="flt-val ${pnlClass}">${pnlSign}₹${formatNumber(Math.abs(pnl))}</span>
      <span class="flt-sub ${pnlClass}">${pnlSign}${Math.abs(pnlPct)}%</span>`,
-    // XIRR
-    `<span class="flt-val ${xirrClass}">${xirrText}</span>`,
+    // XIRR — hidden for Summary CAS (no transaction history)
+    ...(!isSummaryCAS
+      ? [`<span class="flt-val ${xirrClass}">${xirrText}</span>`]
+      : []),
     // Details button
     detailsBtnHTML,
   ];
@@ -15293,11 +15309,11 @@ function populateUserList(users) {
 // (which may no longer be valid/relevant after a user switch, delete, or
 // data import).
 function resetHashToMain() {
-  if (window.location.hash && window.location.hash !== "#main") {
+  if (window.location.hash && window.location.hash !== "#dashboard") {
     history.replaceState(
       null,
       "",
-      window.location.pathname + window.location.search + "#main",
+      window.location.pathname + window.location.search + "#dashboard",
     );
   }
 }
@@ -15679,7 +15695,7 @@ function renderMobileUserList() {
         <div class="topbar-user-dropdown-name">${name}</div>
         <div class="topbar-user-dropdown-email">${user}</div>
       </div>
-      ${isActive ? '<i class="fa-solid fa-check topbar-user-dropdown-check"></i>' : ""}
+      <i class="fa-solid fa-check topbar-user-dropdown-check"></i>
     `;
     item.onclick = () => {
       list.classList.remove("open");
@@ -15738,7 +15754,7 @@ function renderUserSwitcherDropdown() {
         <div class="topbar-user-dropdown-name">${name}</div>
         <div class="topbar-user-dropdown-email">${user}</div>
       </div>
-      ${isActive ? '<i class="fa-solid fa-check topbar-user-dropdown-check"></i>' : ""}
+      <i class="fa-solid fa-check topbar-user-dropdown-check"></i>
     `;
     item.onclick = () => {
       document.getElementById("topbarUserChipWrap")?.classList.remove("open");
@@ -17603,10 +17619,10 @@ function switchDashboardTab(tabId) {
   // Prevent switching to disabled tabs for summary CAS
   if (isSummaryCAS) {
     const disabledTabs = [
-      "charts",
+      "performance",
       "transactions",
       "capital-gains",
-      "past-holding",
+      "past-holdings",
       "portfolio-composition",
     ];
     if (disabledTabs.includes(tabId)) {
@@ -17644,11 +17660,11 @@ function switchDashboardTab(tabId) {
   const activeButtons = document.querySelectorAll(buttonClass);
   activeButtons.forEach((btn) => btn.classList.add("active"));
 
-  if (tabId === "current-holding") {
+  if (tabId === "current-holdings") {
     if (fundWiseData) updateCompactDashboard();
   }
 
-  if (tabId === "charts") {
+  if (tabId === "performance") {
     if (!isSummaryCAS) {
       updateChart();
       displayMonthlySummaryAndProjections();
@@ -17667,7 +17683,7 @@ function switchDashboardTab(tabId) {
     displayOverlapAnalysis();
   } else if (tabId === "expense-impact") {
     displayExpenseImpact();
-  } else if (tabId === "health-score") {
+  } else if (tabId === "health") {
     displayHealthScore();
   } else if (tabId === "tax-planning") {
     displayTaxPlanning();
@@ -17717,7 +17733,7 @@ function toggleSidebar() {
   localStorage.setItem("sidebarExpanded", expanded ? "1" : "0");
 }
 function showUploadSection() {
-  const dashboard = document.getElementById("dashboard");
+  const dashboard = document.getElementById("app");
   if (!dashboard) {
     console.warn("Dashboard element not found");
     return;
@@ -17780,6 +17796,7 @@ function disableSummaryIncompatibleTabs() {
     ".transactions-button",
     ".capital-gains-button",
     ".past-holding-button",
+    ".portfolio-composition-button",
     ".tax-planning-button",
   ];
 
@@ -17804,6 +17821,13 @@ function disableSummaryIncompatibleTabs() {
 
   document.getElementById("show-past")?.classList.add("hidden");
   document.getElementById("show-past-mobile")?.classList.add("hidden");
+  const mg = document.getElementById("dashMilestoneGrid");
+  const md = document.getElementById("dashMilestoneDivider");
+  if (mg) mg.style.display = "none";
+  if (md) md.style.display = "none";
+  document
+    .querySelector("#dashboard .summary-cards")
+    ?.classList.add("summary-cas");
 }
 function enableSummaryIncompatibleTabs() {
   const tabsToEnable = [
@@ -17811,6 +17835,7 @@ function enableSummaryIncompatibleTabs() {
     ".transactions-button",
     ".capital-gains-button",
     ".past-holding-button",
+    ".portfolio-composition-button",
     ".overlap-analysis-button",
     ".expense-impact-button",
     ".health-score-button",
@@ -17828,7 +17853,7 @@ function enableSummaryIncompatibleTabs() {
 
       if (btn.classList.contains("charts-button")) {
         btn.onclick = () => {
-          switchDashboardTab("charts");
+          switchDashboardTab("performance");
           if (btn.classList.contains("sidebar-menu-item")) {
             closeMobileMenu();
           }
@@ -17849,7 +17874,14 @@ function enableSummaryIncompatibleTabs() {
         };
       } else if (btn.classList.contains("past-holding-button")) {
         btn.onclick = () => {
-          switchDashboardTab("past-holding");
+          switchDashboardTab("past-holdings");
+          if (btn.classList.contains("sidebar-menu-item")) {
+            closeMobileMenu();
+          }
+        };
+      } else if (btn.classList.contains("portfolio-composition-button")) {
+        btn.onclick = () => {
+          switchDashboardTab("portfolio-composition");
           if (btn.classList.contains("sidebar-menu-item")) {
             closeMobileMenu();
           }
@@ -17870,7 +17902,14 @@ function enableSummaryIncompatibleTabs() {
         };
       } else if (btn.classList.contains("health-score-button")) {
         btn.onclick = () => {
-          switchDashboardTab("health-score");
+          switchDashboardTab("health");
+          if (btn.classList.contains("sidebar-menu-item")) {
+            closeMobileMenu();
+          }
+        };
+      } else if (btn.classList.contains("tax-planning-button")) {
+        btn.onclick = () => {
+          switchDashboardTab("tax-planning");
           if (btn.classList.contains("sidebar-menu-item")) {
             closeMobileMenu();
           }
@@ -17878,6 +17917,14 @@ function enableSummaryIncompatibleTabs() {
       }
     });
   });
+  document.getElementById("avgHoldingCard")?.style.removeProperty("display");
+  const mg = document.getElementById("dashMilestoneGrid");
+  const md = document.getElementById("dashMilestoneDivider");
+  if (mg) mg.style.removeProperty("display");
+  if (md) md.style.removeProperty("display");
+  document
+    .querySelector("#dashboard .summary-cards")
+    ?.classList.remove("summary-cas");
 }
 function toggleFamilyDashboard() {
   const users = storageManager.getAllUsers();
@@ -17995,8 +18042,14 @@ function updateTopbarMeta() {
   if (!portfolioData || !fundWiseData) return;
 
   // User name
-  const fullName =
+  const toProperCase = (str) =>
+    str.replace(
+      /\w\S*/g,
+      (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(),
+    );
+  const rawName =
     portfolioData.investor_info?.name?.trim() || currentUser || "";
+  const fullName = toProperCase(rawName);
   const firstName = fullName.split(" ")[0] || "";
   const initials =
     fullName
@@ -18011,8 +18064,12 @@ function updateTopbarMeta() {
   });
   ["topbarUserName", "topbarUserNameMobile"].forEach((id) => {
     const el = document.getElementById(id);
-    if (el) el.textContent = firstName;
+    if (el)
+      el.textContent = id === "topbarUserNameMobile" ? fullName : firstName;
   });
+
+  const emailMobile = document.getElementById("topbarUserEmailMobile");
+  if (emailMobile) emailMobile.textContent = currentUser;
 
   // Show caret only when multiple users available
   const chipWrap = document.getElementById("topbarUserChipWrap");
@@ -18020,21 +18077,6 @@ function updateTopbarMeta() {
   const caretMobile = document.getElementById("topbarUserChipCaretMobile");
   if (caretMobile)
     caretMobile.style.display = allUsers.length > 1 ? "" : "none";
-
-  // NAV date — use manifest.lastNavUpdate (same reliable source as Manage Data tab)
-  const navManifest = storageManager.getManifest();
-  const navLabel = navManifest?.lastNavUpdate
-    ? new Date(navManifest.lastNavUpdate).toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    : "--";
-
-  ["topbarNavDate", "topbarNavDateMobile"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = navLabel;
-  });
 
   // Show chips now that data is ready
   const meta = document.getElementById("topbarMeta");
@@ -18142,13 +18184,20 @@ function updateFooterInfo() {
     })();
 
     // Update upload tab dates (elements may not exist on all views)
+    // Manage Data tab
     const navEl = document.getElementById("lastNavUpdateDate");
     const statsEl = document.getElementById("lastStatsUpdateDate");
     if (navEl) navEl.textContent = navDate;
     if (statsEl) statsEl.textContent = statsDate;
 
-    const nextNavEl = document.getElementById("nextNavUpdateDate");
-    const nextStatsEl = document.getElementById("nextStatsUpdateDate");
+    // Topbar overflow menu (separate IDs to avoid duplicates)
+    const tbNavEl = document.getElementById("tbLastNavUpdateDate");
+    const tbStatsEl = document.getElementById("tbLastStatsUpdateDate");
+    if (tbNavEl) tbNavEl.textContent = navDate;
+    if (tbStatsEl) tbStatsEl.textContent = statsDate;
+
+    const nextNavEl = document.getElementById("tbNextNavUpdateDate");
+    const nextStatsEl = document.getElementById("tbNextStatsUpdateDate");
     if (nextNavEl) nextNavEl.textContent = nextNavDate;
     if (nextStatsEl) nextStatsEl.textContent = nextStatsDate;
   }
@@ -18231,7 +18280,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  const dashboard = document.getElementById("dashboard");
+  const dashboard = document.getElementById("app");
 
   const hasUsers = initializeUserManagement();
 
@@ -18340,29 +18389,29 @@ window.switchDashboardTab = function (tabId) {
   )?.id;
 
   if (previousTab && previousTab !== tabId && !window.isPopStateNavigation) {
-    if (tabId === "main") {
+    if (tabId === "dashboard") {
       // Landing on main collapses the entire history stack — rewind the
       // browser history by however many steps we pushed, then replaceState
       // so there's only one entry left (main).
       const stepsBack = historyPointer;
-      tabHistory = ["main"];
+      tabHistory = ["dashboard"];
       historyPointer = 0;
       if (stepsBack > 0) {
         window.isPopStateNavigation = true;
         history.go(-stepsBack);
         setTimeout(() => {
           window.history.replaceState(
-            { tab: "main", pointer: 0 },
+            { tab: "dashboard", pointer: 0 },
             "",
-            window.location.pathname + "#main",
+            window.location.pathname + "#dashboard",
           );
           window.isPopStateNavigation = false;
         }, 100);
       } else {
         window.history.replaceState(
-          { tab: "main", pointer: 0 },
+          { tab: "dashboard", pointer: 0 },
           "",
-          window.location.pathname + "#main",
+          window.location.pathname + "#dashboard",
         );
       }
     } else {
@@ -18382,15 +18431,15 @@ window.switchDashboardTab = function (tabId) {
 
   // Update dashboard-title to reflect the active tab name
   const tabNames = {
-    main: "Dashboard",
-    charts: "Performance",
+    dashboard: "Dashboard",
+    performance: "Performance",
     transactions: "Transactions",
     "capital-gains": "Capital Gains",
-    "past-holding": "Past Holdings",
-    "current-holding": "Current Holdings",
+    "past-holdings": "Past Holdings",
+    "current-holdings": "Current Holdings",
     "overlap-analysis": "Overlap Analysis",
     "expense-impact": "Expense Impact",
-    "health-score": "Portfolio Health",
+    health: "Portfolio Health",
     "portfolio-composition": "Portfolio Composition",
     "family-dashboard": "Family Dashboard",
     "manage-data": "Manage Data",
@@ -18466,9 +18515,9 @@ window.addEventListener("popstate", function (event) {
       _exitPending = false;
     }, 2000);
     window.history.pushState(
-      { tab: "main", pointer: 0 },
+      { tab: "dashboard", pointer: 0 },
       "",
-      window.location.pathname + "#main",
+      window.location.pathname + "#dashboard",
     );
     return;
   }
@@ -18546,7 +18595,7 @@ window.addEventListener("popstate", function (event) {
   // ── 4. Tab navigation ────────────────────────────────────────────────────
   if (event.state.pointer !== undefined) {
     const newPointer = event.state.pointer;
-    const targetTab = tabHistory[newPointer] || "main";
+    const targetTab = tabHistory[newPointer] || "dashboard";
 
     historyPointer = newPointer;
     window.isPopStateNavigation = true;
@@ -18582,26 +18631,25 @@ window.addEventListener("popstate", function (event) {
   // null state as the floor, so going back to this never-modified entry
   // behaves exactly like hitting the old sentinel — but can't be skipped,
   // because we never rewrote it.
-  const initialTab = (window.location.hash || "#main").slice(1) || "main";
+  const initialTab =
+    (window.location.hash || "#dashboard").slice(1) || "dashboard";
 
-  tabHistory = ["main"];
-  historyPointer = 0;
+  tabHistory = ["dashboard", initialTab];
+  historyPointer = 1;
 
+  // Always push sentinel (#dashboard, pointer 0) then the actual tab (pointer 1).
+  // Even when initialTab === "dashboard" this gives two entries so one back press
+  // stays on the dashboard rather than immediately hitting the exit sentinel.
   window.history.pushState(
-    { tab: "main", pointer: 0 },
+    { tab: "dashboard", pointer: 0 },
     "",
-    window.location.pathname + "#main",
+    window.location.pathname + "#dashboard",
   );
-
-  if (initialTab !== "main") {
-    tabHistory.push(initialTab);
-    historyPointer = 1;
-    window.history.pushState(
-      { tab: initialTab, pointer: 1 },
-      "",
-      window.location.pathname + "#" + initialTab,
-    );
-  }
+  window.history.pushState(
+    { tab: initialTab, pointer: 1 },
+    "",
+    window.location.pathname + "#" + initialTab,
+  );
 }
 
 // ============================================
@@ -18729,7 +18777,8 @@ async function takeFullPageScreenshot() {
       .replace(/\//g, "-");
 
     const link = document.createElement("a");
-    link.download = `mf-dashboard-${timestamp}.png`;
+    const activeTab = window.location.hash.slice(1) || "dashboard";
+    link.download = `mf-dashboard-${activeTab}-${timestamp}.png`;
     link.href = canvas.toDataURL("image/png");
     link.click();
 
