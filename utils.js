@@ -385,7 +385,10 @@ function buildDoughnutChart(canvasId, labels, data, totalValue = 0) {
 
   const centerTextCfg = {
     display: true,
-    value: totalValue > 0 ? `₹${formatNumber(Math.round(totalValue))}` : `${labels.length} items`,
+    value:
+      totalValue > 0
+        ? `₹${formatNumber(Math.round(totalValue))}`
+        : `${labels.length} items`,
     labelColor: isDark ? "rgba(156,163,175,0.85)" : "rgba(107,114,128,0.85)",
     valueColor: isDark ? "#e5e7eb" : "#1f2937",
   };

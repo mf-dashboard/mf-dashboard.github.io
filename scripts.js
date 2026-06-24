@@ -50,7 +50,6 @@ const PORTFOLIO_BENCHMARKS = {
 // Chart instances
 let projectionChartInstance = null;
 
-
 // Compact dashboard state
 let compactDisplayMode = "xirr";
 let compactSortMode = "currentValue";
@@ -101,7 +100,7 @@ const DEBUG_MODE = false;
 // copies). Bumping this forces an immediate full update — bypassing the
 // 6 AM gate and the 7-day cadence — the next time the app loads, and also
 // resets the 7-day weekly-update counter.
-const STATS_SCHEMA_VERSION = 3;
+const STATS_SCHEMA_VERSION = 4;
 const STATS_SCHEMA_VERSION_KEY = "statsSchemaVersion";
 
 // Warm Financial Intelligence palette — mirrors the CSS tbc-fill nth-child rules
@@ -1541,9 +1540,14 @@ function calculateadvancedMetrics(fund) {
       unrealizedGainPercentage: folioUnrealizedGainPercentage,
       averageHoldingDays: folioAverageHoldingDays,
       cashflows: folioCashflows[folio],
-      remainingLots: folioRemainingUnits > 0.001
-        ? unitQueue.map(b => ({ units: b.units, nav: b.nav, purchaseDate: b.purchaseDate }))
-        : [],
+      remainingLots:
+        folioRemainingUnits > 0.001
+          ? unitQueue.map((b) => ({
+              units: b.units,
+              nav: b.nav,
+              purchaseDate: b.purchaseDate,
+            }))
+          : [],
     };
 
     if (folioRemainingUnits > 0.001) {
@@ -2508,7 +2512,8 @@ function calculateMonthlySummary() {
     const inflow = Math.max(0, medianNetInflow);
 
     // Flag when mean and median diverge significantly (outlier month detected)
-    const hasOutlier = medianNetInflow > 1000 &&
+    const hasOutlier =
+      medianNetInflow > 1000 &&
       Math.abs(avgNetInflow - medianNetInflow) / medianNetInflow > 0.3;
 
     return {
@@ -2677,7 +2682,7 @@ function classifyMFHoldingByCompany(companyName) {
     c.includes("constant maturity") ||
     c.includes("corporate bond") ||
     c.includes("floater") ||
-    c.includes(" sdl") ||        // State Development Loans
+    c.includes(" sdl") || // State Development Loans
     c.includes("sdl ")
   )
     return "debt";
@@ -3062,7 +3067,7 @@ function renderMarketCapGroupedLegend(
 
   container.innerHTML = `
     ${domestic.length ? `<div class="donut-section-title">Domestic</div>${renderItems(domestic)}` : ""}
-    ${other.length   ? `<div class="donut-section-title">Other</div>${renderItems(other)}`    : ""}
+    ${other.length ? `<div class="donut-section-title">Other</div>${renderItems(other)}` : ""}
   `;
 }
 
@@ -3239,7 +3244,13 @@ function calculatePortfolioAnalytics() {
           const nat = (h.nature_name || "").toUpperCase();
           const inst = (h.instrument_name || "").toLowerCase();
           if (nat === "CASH" || nat === "DEBT") return false;
-          if (inst === "cblo" || inst === "reverse repo" || inst === "tri-party repo" || inst === "net receivables") return false;
+          if (
+            inst === "cblo" ||
+            inst === "reverse repo" ||
+            inst === "tri-party repo" ||
+            inst === "net receivables"
+          )
+            return false;
           return true;
         });
         equityCorpusTotal = holdingsToProcess.reduce(
@@ -3532,7 +3543,10 @@ function displayAssetAllocation(assetAllocation) {
       totalValue,
     );
 
-    setAnalyticsCardSub("assetAllocationSub", `₹${formatNumber(Math.round(totalValue))}`);
+    setAnalyticsCardSub(
+      "assetAllocationSub",
+      `₹${formatNumber(Math.round(totalValue))}`,
+    );
     container.classList.remove("loading");
   }, 50);
 }
@@ -3720,7 +3734,10 @@ function displayFamilyDebtDistribution(metrics) {
     debtRupees,
   );
 
-  setAnalyticsCardSub("familyDebtDistributionSub", `${labels.length} instruments`);
+  setAnalyticsCardSub(
+    "familyDebtDistributionSub",
+    `${labels.length} instruments`,
+  );
   container.classList.remove("loading");
 }
 
@@ -3767,7 +3784,10 @@ function displayFamilyDebtSectorSplit(metrics) {
     normalisedDS,
     debtSectorRupees,
   );
-  setAnalyticsCardSub("familyDebtSectorSub", `${sortedLabels.filter(l => l !== "Others").length} instruments`);
+  setAnalyticsCardSub(
+    "familyDebtSectorSub",
+    `${sortedLabels.filter((l) => l !== "Others").length} instruments`,
+  );
   card.classList.remove("loading");
 }
 
@@ -3869,7 +3889,10 @@ function displaySectorSplit(sectorObj, assetAllocation, totalValue) {
   const normalisedData = sortedRaw.map((v) => (v / rawSum) * 100);
 
   buildDoughnutChart("sectorChart", sortedLabels, normalisedData, equityRupees);
-  setAnalyticsCardSub("sectorSub", `${sortedLabels.filter(l => l !== "Others").length} sectors`);
+  setAnalyticsCardSub(
+    "sectorSub",
+    `${sortedLabels.filter((l) => l !== "Others").length} sectors`,
+  );
   sectorCard.classList.remove("loading");
 }
 
@@ -3914,7 +3937,10 @@ function displayDebtSectorSplit(debtSectorObj, assetAllocation, totalValue) {
     normalisedData,
     debtRupees,
   );
-  setAnalyticsCardSub("debtSectorSub", `${sortedLabels.filter(l => l !== "Others").length} instruments`);
+  setAnalyticsCardSub(
+    "debtSectorSub",
+    `${sortedLabels.filter((l) => l !== "Others").length} instruments`,
+  );
   card.classList.remove("loading");
 }
 
@@ -3944,7 +3970,10 @@ function displayAMCSplit(amcObj, totalValue) {
   }
 
   buildDoughnutChart("amcChart", sortedLabels, sortedData, totalValue);
-  setAnalyticsCardSub("amcSub", `${sortedLabels.filter(l => l !== "Others").length} AMCs`);
+  setAnalyticsCardSub(
+    "amcSub",
+    `${sortedLabels.filter((l) => l !== "Others").length} AMCs`,
+  );
   document.getElementById("amcCard")?.classList.remove("loading");
 }
 function displayHoldingsSplit(holdingsObj, assetAllocation, totalValue) {
@@ -4193,7 +4222,11 @@ function displayCapitalGains() {
 
     html += `<div class="cg-year-cat-grid">`;
 
-    const catIconsAt = { equity: '<i class="fa-solid fa-chart-line"></i>', hybrid: '<i class="fa-solid fa-scale-balanced"></i>', debt: '<i class="fa-solid fa-building-columns"></i>' };
+    const catIconsAt = {
+      equity: '<i class="fa-solid fa-chart-line"></i>',
+      hybrid: '<i class="fa-solid fa-scale-balanced"></i>',
+      debt: '<i class="fa-solid fa-building-columns"></i>',
+    };
     const catLabelAt = { equity: "Equity", hybrid: "Hybrid", debt: "Debt" };
     ["equity", "hybrid", "debt"].forEach((cat) => {
       const data = capitalGainsData.allTime[cat] || {
@@ -4463,14 +4496,16 @@ function showYearGainsWithTransactions(fy) {
   display.innerHTML = html;
 
   requestAnimationFrame(() => {
-    display.querySelectorAll('.gains-trans').forEach(container => {
-      const firstRow = container.querySelector('tbody tr');
+    display.querySelectorAll(".gains-trans").forEach((container) => {
+      const firstRow = container.querySelector("tbody tr");
       if (!firstRow) return;
       const rowH = firstRow.getBoundingClientRect().height;
-      const theadH = container.querySelector('thead')?.getBoundingClientRect().height ?? 0;
-      container.style.scrollPaddingTop = theadH + 'px';
+      const theadH =
+        container.querySelector("thead")?.getBoundingClientRect().height ?? 0;
+      container.style.scrollPaddingTop = theadH + "px";
       const maxRows = Math.floor((600 - theadH) / rowH);
-      if (maxRows > 0) container.style.maxHeight = (theadH + maxRows * rowH) + 'px';
+      if (maxRows > 0)
+        container.style.maxHeight = theadH + maxRows * rowH + "px";
     });
   });
 }
@@ -4956,7 +4991,11 @@ function getCGQuarterIndex(saleDate, fyStartYear) {
 function buildITR2Cards(fyTransactions, fy) {
   const EXEMPTION = 125000;
   const categories = ["Equity", "Hybrid", "Debt"];
-  const catIcons = { Equity: '<i class="fa-solid fa-chart-line"></i>', Hybrid: '<i class="fa-solid fa-scale-balanced"></i>', Debt: '<i class="fa-solid fa-building-columns"></i>' };
+  const catIcons = {
+    Equity: '<i class="fa-solid fa-chart-line"></i>',
+    Hybrid: '<i class="fa-solid fa-scale-balanced"></i>',
+    Debt: '<i class="fa-solid fa-building-columns"></i>',
+  };
   const agg = {};
   categories.forEach((cat) => {
     agg[cat] = {
@@ -6012,33 +6051,69 @@ function displayHealthScore() {
 
   const isDark = document.documentElement.dataset.theme === "dark";
   const successColor = isDark ? "#4dcc88" : "#2F8F5B";
-  const successBg = isDark ? "rgba(77, 204, 136, 0.14)" : "rgba(47, 143, 91, 0.12)";
+  const successBg = isDark
+    ? "rgba(77, 204, 136, 0.14)"
+    : "rgba(47, 143, 91, 0.12)";
   const blueColor = isDark ? "#6aaee8" : "#4482C9";
-  const blueBg = isDark ? "rgba(106, 174, 232, 0.14)" : "rgba(68, 130, 201, 0.12)";
+  const blueBg = isDark
+    ? "rgba(106, 174, 232, 0.14)"
+    : "rgba(68, 130, 201, 0.12)";
   const warningColor = isDark ? "#e4a040" : "#C9872D";
-  const warningBg = isDark ? "rgba(228, 160, 64, 0.14)" : "rgba(201, 135, 45, 0.12)";
+  const warningBg = isDark
+    ? "rgba(228, 160, 64, 0.14)"
+    : "rgba(201, 135, 45, 0.12)";
   const dangerColor = isDark ? "#e07870" : "#C65A52";
-  const dangerBg = isDark ? "rgba(224, 120, 112, 0.14)" : "rgba(198, 90, 82, 0.12)";
+  const dangerBg = isDark
+    ? "rgba(224, 120, 112, 0.14)"
+    : "rgba(198, 90, 82, 0.12)";
 
   const getGrade = (score) => {
     if (score >= 85)
-      return { grade: "A+", color: successColor, bg: successBg, message: "Excellent" };
+      return {
+        grade: "A+",
+        color: successColor,
+        bg: successBg,
+        message: "Excellent",
+      };
     if (score >= 75)
-      return { grade: "A", color: successColor, bg: successBg, message: "Great" };
+      return {
+        grade: "A",
+        color: successColor,
+        bg: successBg,
+        message: "Great",
+      };
     if (score >= 65)
       return { grade: "B+", color: blueColor, bg: blueBg, message: "Good" };
     if (score >= 55)
-      return { grade: "B", color: blueColor, bg: blueBg, message: "Above Average" };
+      return {
+        grade: "B",
+        color: blueColor,
+        bg: blueBg,
+        message: "Above Average",
+      };
     if (score >= 45)
-      return { grade: "C", color: warningColor, bg: warningBg, message: "Average" };
-    return { grade: "D", color: dangerColor, bg: dangerBg, message: "Needs Improvement" };
+      return {
+        grade: "C",
+        color: warningColor,
+        bg: warningBg,
+        message: "Average",
+      };
+    return {
+      grade: "D",
+      color: dangerColor,
+      bg: dangerBg,
+      message: "Needs Improvement",
+    };
   };
 
   const getDetailColor = (pct) =>
-    pct >= 80 ? successColor
-    : pct >= 60 ? blueColor
-    : pct >= 40 ? warningColor
-    : dangerColor;
+    pct >= 80
+      ? successColor
+      : pct >= 60
+        ? blueColor
+        : pct >= 40
+          ? warningColor
+          : dangerColor;
 
   const detailIcons = {
     diversification: "fa-solid fa-sitemap",
@@ -7033,15 +7108,28 @@ function updateGainCard(valueId, percentId, gain, percent, xirr) {
 // ── Holdings Charts ──────────────────────────────────────────────────────────
 let perfChartInstance = null;
 let perfLatestStatsData = null; // { labels, datasets, sinceInfo } — kept current to avoid stale onComplete closure
-let perfChipData = [];       // module-level: persists visibility across period switches
+let perfChipData = []; // module-level: persists visibility across period switches
 let perfActivePeriod = "3Y"; // default period
 
 const HC_COLORS = [
-  "#9a6b46","#3d78c0","#2f8f5b","#c9872d",
-  "#9068a8","#c65a52","#5a8f82","#8b7355",
+  "#9a6b46",
+  "#3d78c0",
+  "#2f8f5b",
+  "#c9872d",
+  "#9068a8",
+  "#c65a52",
+  "#5a8f82",
+  "#8b7355",
 ];
 const HC_DASHES = [
-  [], [6,3], [2,2], [8,4,2,4], [4,4], [2,4], [6,2], [3,3],
+  [],
+  [6, 3],
+  [2, 2],
+  [8, 4, 2, 4],
+  [4, 4],
+  [2, 4],
+  [6, 2],
+  [3, 3],
 ];
 
 function shortFundName(name) {
@@ -7075,12 +7163,22 @@ function getNavOnOrBefore(navHistory, targetDate) {
 // Returns the start Date for a given period label, given the oldest available nav date
 function perfPeriodStart(period, oldestNavDate) {
   const today = new Date();
-  if (period === "1Y")  return new Date(today.getFullYear() - 1,  today.getMonth(), today.getDate());
-  if (period === "2Y")  return new Date(today.getFullYear() - 2,  today.getMonth(), today.getDate());
-  if (period === "3Y")  return new Date(today.getFullYear() - 3,  today.getMonth(), today.getDate());
-  if (period === "5Y")  return new Date(today.getFullYear() - 5,  today.getMonth(), today.getDate());
-  if (period === "7Y")  return new Date(today.getFullYear() - 7,  today.getMonth(), today.getDate());
-  if (period === "10Y") return new Date(today.getFullYear() - 10, today.getMonth(), today.getDate());
+  if (period === "1Y")
+    return new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+  if (period === "2Y")
+    return new Date(today.getFullYear() - 2, today.getMonth(), today.getDate());
+  if (period === "3Y")
+    return new Date(today.getFullYear() - 3, today.getMonth(), today.getDate());
+  if (period === "5Y")
+    return new Date(today.getFullYear() - 5, today.getMonth(), today.getDate());
+  if (period === "7Y")
+    return new Date(today.getFullYear() - 7, today.getMonth(), today.getDate());
+  if (period === "10Y")
+    return new Date(
+      today.getFullYear() - 10,
+      today.getMonth(),
+      today.getDate(),
+    );
   return oldestNavDate; // Max
 }
 
@@ -7093,7 +7191,9 @@ function buildPerfDatasets(startDate, activeFunds) {
   while (cur <= today) {
     const monthEnd = new Date(cur.getFullYear(), cur.getMonth() + 1, 0);
     const point = monthEnd > today ? today : monthEnd;
-    labels.push(point.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }));
+    labels.push(
+      point.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
+    );
     monthDates.push(point);
     cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
   }
@@ -7123,13 +7223,15 @@ function buildPerfDatasets(startDate, activeFunds) {
 
     const color = HC_COLORS[idx % HC_COLORS.length];
     const name = fund.schemeDisplay || fund.scheme || "Fund";
-    const chipEntry = perfChipData.find(c => c.label === name);
+    const chipEntry = perfChipData.find((c) => c.label === name);
 
     sinceInfo[name] = sinceDate
-      ? sinceDate.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }).replace(" ", " '")
+      ? sinceDate
+          .toLocaleDateString("en-IN", { month: "short", year: "2-digit" })
+          .replace(" ", " '")
       : null;
 
-    const data = monthDates.map(d => {
+    const data = monthDates.map((d) => {
       if (sinceDate && d < sinceDate) return null;
       const nav = getNavOnOrBefore(navH, d);
       return nav != null ? Math.round((nav / baseNav) * 1000) / 10 : null;
@@ -7153,8 +7255,8 @@ function buildPerfDatasets(startDate, activeFunds) {
     if (!navH || navH.length < 2) return;
     const baseNav = getNavOnOrBefore(navH, startDate);
     if (!baseNav) return;
-    const chipEntry = perfChipData.find(c => c.label === label);
-    const data = monthDates.map(d => {
+    const chipEntry = perfChipData.find((c) => c.label === label);
+    const data = monthDates.map((d) => {
       const nav = getNavOnOrBefore(navH, d);
       return nav != null ? Math.round((nav / baseNav) * 1000) / 10 : null;
     });
@@ -7172,21 +7274,33 @@ function buildPerfDatasets(startDate, activeFunds) {
     });
     sinceInfo[label] = null;
   };
-  addBenchmark(PORTFOLIO_BENCHMARKS.nifty50.isin, "Nifty 50", "#7A6C61", [4, 4]);
-  addBenchmark(PORTFOLIO_BENCHMARKS.nifty500.isin, "Nifty 500", "#B0A89E", [2, 3]);
+  addBenchmark(
+    PORTFOLIO_BENCHMARKS.nifty50.isin,
+    "Nifty 50",
+    "#7A6C61",
+    [4, 4],
+  );
+  addBenchmark(
+    PORTFOLIO_BENCHMARKS.nifty500.isin,
+    "Nifty 500",
+    "#B0A89E",
+    [2, 3],
+  );
 
   return { labels, monthDates, datasets, sinceInfo };
 }
 
 function updatePerfBottomStats(labels, datasets, sinceInfo) {
   const lastIdx = labels.length - 1;
-  const fmt = r => `${r >= 0 ? "+" : ""}${r.toFixed(1)}%`;
+  const fmt = (r) => `${r >= 0 ? "+" : ""}${r.toFixed(1)}%`;
 
   // update return % directly on each chip
-  perfChipData.forEach(c => {
-    const chip = document.querySelector(`#perfChipRow [data-label="${c.label}"]`);
+  perfChipData.forEach((c) => {
+    const chip = document.querySelector(
+      `#perfChipRow [data-label="${c.label}"]`,
+    );
     if (!chip) return;
-    const ds = datasets.find(d => d.label === c.label);
+    const ds = datasets.find((d) => d.label === c.label);
     const val = ds?.data?.[lastIdx];
     const ret = val != null ? val - 100 : null;
     const since = sinceInfo?.[c.label];
@@ -7202,7 +7316,10 @@ function updatePerfBottomStats(labels, datasets, sinceInfo) {
   });
 
   // best / worst — only funds with full period history (sinceInfo[label] === null)
-  const periodYears = { "1Y":1,"2Y":2,"3Y":3,"5Y":5,"7Y":7,"10Y":10 }[perfActivePeriod] || null;
+  const periodYears =
+    { "1Y": 1, "2Y": 2, "3Y": 3, "5Y": 5, "7Y": 7, "10Y": 10 }[
+      perfActivePeriod
+    ] || null;
   const annualized = (ret) => {
     if (!periodYears || periodYears <= 1) return null;
     const cagr = (Math.pow(1 + ret / 100, 1 / periodYears) - 1) * 100;
@@ -7210,13 +7327,13 @@ function updatePerfBottomStats(labels, datasets, sinceInfo) {
   };
 
   const fundEntries = perfChipData
-    .filter(c => !c.isBenchmark && !sinceInfo?.[c.label])
-    .map(c => {
-      const ds = datasets.find(d => d.label === c.label);
+    .filter((c) => !c.isBenchmark && !sinceInfo?.[c.label])
+    .map((c) => {
+      const ds = datasets.find((d) => d.label === c.label);
       const val = ds?.data?.[lastIdx];
       return { ...c, ret: val != null ? val - 100 : null };
     })
-    .filter(c => c.ret != null)
+    .filter((c) => c.ret != null)
     .sort((a, b) => b.ret - a.ret);
 
   const bwRow = document.getElementById("perfBestWorstRow");
@@ -7245,8 +7362,11 @@ function switchPerfPeriod(period, activeFunds, oldestNavDate) {
   perfActivePeriod = period;
 
   // update active state on period buttons
-  document.querySelectorAll(".hc-period-btn").forEach(btn => {
-    btn.classList.toggle("hc-period-btn--active", btn.dataset.period === period);
+  document.querySelectorAll(".hc-period-btn").forEach((btn) => {
+    btn.classList.toggle(
+      "hc-period-btn--active",
+      btn.dataset.period === period,
+    );
   });
 
   const perfWrap = document.getElementById("perfChartWrap");
@@ -7254,7 +7374,10 @@ function switchPerfPeriod(period, activeFunds, oldestNavDate) {
 
   setTimeout(() => {
     const startDate = perfPeriodStart(period, oldestNavDate);
-    const { labels, datasets, sinceInfo } = buildPerfDatasets(startDate, activeFunds);
+    const { labels, datasets, sinceInfo } = buildPerfDatasets(
+      startDate,
+      activeFunds,
+    );
 
     perfLatestStatsData = { labels, datasets, sinceInfo };
 
@@ -7275,16 +7398,27 @@ function renderHoldingsCharts() {
 
   const activeFunds = Object.entries(fundWiseData)
     .filter(([, f]) => (f.advancedMetrics?.currentValue || 0) > 0)
-    .sort((a, b) => (b[1].advancedMetrics?.currentValue || 0) - (a[1].advancedMetrics?.currentValue || 0));
+    .sort(
+      (a, b) =>
+        (b[1].advancedMetrics?.currentValue || 0) -
+        (a[1].advancedMetrics?.currentValue || 0),
+    );
 
-  if (activeFunds.length === 0) { section.style.display = "none"; return; }
+  if (activeFunds.length === 0) {
+    section.style.display = "none";
+    return;
+  }
 
   // --- allocation bars (top 9 + Others if > 10) ---
-  const totalValue = activeFunds.reduce((s, [, f]) => s + (f.advancedMetrics?.currentValue || 0), 0);
+  const totalValue = activeFunds.reduce(
+    (s, [, f]) => s + (f.advancedMetrics?.currentValue || 0),
+    0,
+  );
   const allocCont = document.getElementById("holdingsAllocBars");
   if (allocCont && totalValue > 0) {
     allocCont.innerHTML = "";
-    const allocFunds = activeFunds.length > 10 ? activeFunds.slice(0, 9) : activeFunds;
+    const allocFunds =
+      activeFunds.length > 10 ? activeFunds.slice(0, 9) : activeFunds;
     const otherFunds = activeFunds.length > 10 ? activeFunds.slice(9) : [];
     allocFunds.forEach(([, fund], idx) => {
       const val = fund.advancedMetrics?.currentValue || 0;
@@ -7305,7 +7439,10 @@ function renderHoldingsCharts() {
       allocCont.appendChild(row);
     });
     if (otherFunds.length > 0) {
-      const othersVal = otherFunds.reduce((s, [, f]) => s + (f.advancedMetrics?.currentValue || 0), 0);
+      const othersVal = otherFunds.reduce(
+        (s, [, f]) => s + (f.advancedMetrics?.currentValue || 0),
+        0,
+      );
       const othersPct = (othersVal / totalValue) * 100;
       const row = document.createElement("div");
       row.className = "hc-alloc-row";
@@ -7329,24 +7466,40 @@ function renderHoldingsCharts() {
     mfStats?.[PORTFOLIO_BENCHMARKS.nifty50.isin]?.nav_history,
     mfStats?.[PORTFOLIO_BENCHMARKS.nifty500.isin]?.nav_history,
   ].filter(Boolean);
-  allNavSources.forEach(navH => {
+  allNavSources.forEach((navH) => {
     if (!navH.length) return;
     const oldest = parseNavHistDate(navH[navH.length - 1].date);
     if (oldest && oldest < oldestNavDate) oldestNavDate = oldest;
   });
 
   // --- build chip data once (preserving visibility across re-renders) ---
-  const prevVisibility = Object.fromEntries(perfChipData.map(c => [c.label, c.visible]));
+  const prevVisibility = Object.fromEntries(
+    perfChipData.map((c) => [c.label, c.visible]),
+  );
   perfChipData = [];
   activeFunds.forEach(([, fund], idx) => {
     const navH = fund.navHistory;
     if (!navH || navH.length < 2) return;
     const name = fund.schemeDisplay || fund.scheme || "Fund";
     const color = HC_COLORS[idx % HC_COLORS.length];
-    perfChipData.push({ label: name, color, visible: prevVisibility[name] ?? true });
+    perfChipData.push({
+      label: name,
+      color,
+      visible: prevVisibility[name] ?? true,
+    });
   });
-  perfChipData.push({ label: "Nifty 50",  color: "#7A6C61", visible: prevVisibility["Nifty 50"]  ?? true, isBenchmark: true });
-  perfChipData.push({ label: "Nifty 500", color: "#B0A89E", visible: prevVisibility["Nifty 500"] ?? true, isBenchmark: true });
+  perfChipData.push({
+    label: "Nifty 50",
+    color: "#7A6C61",
+    visible: prevVisibility["Nifty 50"] ?? true,
+    isBenchmark: true,
+  });
+  perfChipData.push({
+    label: "Nifty 500",
+    color: "#B0A89E",
+    visible: prevVisibility["Nifty 500"] ?? true,
+    isBenchmark: true,
+  });
 
   // --- period selector ---
   const chipRow = document.getElementById("perfChipRow");
@@ -7362,7 +7515,7 @@ function renderHoldingsCharts() {
     filterToggle.className = "hc-filter-toggle";
     const updateToggleLabel = () => {
       const total = perfChipData.length;
-      const active = perfChipData.filter(c => c.visible).length;
+      const active = perfChipData.filter((c) => c.visible).length;
       const isOpen = chipsWrap.classList.contains("hc-chips-inner--open");
       const countLabel = active < total ? `${active}/${total}` : `${total}`;
       filterToggle.innerHTML = `Funds <span class="hc-filter-badge">${countLabel}</span> ${isOpen ? "▲" : "▼"}`;
@@ -7377,12 +7530,16 @@ function renderHoldingsCharts() {
     periodWrap.className = "hc-period-row";
     const periodBtns = document.createElement("div");
     periodBtns.className = "hc-period-btns";
-    ["1Y","2Y","3Y","5Y","7Y","10Y"].forEach(p => {
+    ["1Y", "2Y", "3Y", "5Y", "7Y", "10Y"].forEach((p) => {
       const btn = document.createElement("button");
-      btn.className = "hc-period-btn" + (p === perfActivePeriod ? " hc-period-btn--active" : "");
+      btn.className =
+        "hc-period-btn" +
+        (p === perfActivePeriod ? " hc-period-btn--active" : "");
       btn.dataset.period = p;
       btn.textContent = p;
-      btn.addEventListener("click", () => switchPerfPeriod(p, activeFunds, oldestNavDate));
+      btn.addEventListener("click", () =>
+        switchPerfPeriod(p, activeFunds, oldestNavDate),
+      );
       periodBtns.appendChild(btn);
     });
     periodWrap.appendChild(periodBtns);
@@ -7390,7 +7547,7 @@ function renderHoldingsCharts() {
     chipRow.appendChild(periodWrap);
 
     // filter chips
-    perfChipData.forEach(c => {
+    perfChipData.forEach((c) => {
       const chip = document.createElement("span");
       chip.className = "hc-chip" + (c.visible ? "" : " hc-chip--off");
       chip.dataset.label = c.label;
@@ -7400,8 +7557,13 @@ function renderHoldingsCharts() {
         chip.classList.toggle("hc-chip--off", !c.visible);
         updateToggleLabel();
         if (perfChartInstance) {
-          const ds = perfChartInstance.data.datasets.find(d => d.label === c.label);
-          if (ds) { ds.hidden = !c.visible; perfChartInstance.update(); }
+          const ds = perfChartInstance.data.datasets.find(
+            (d) => d.label === c.label,
+          );
+          if (ds) {
+            ds.hidden = !c.visible;
+            perfChartInstance.update();
+          }
         }
       });
       chipsWrap.appendChild(chip);
@@ -7417,12 +7579,21 @@ function renderHoldingsCharts() {
 
   setTimeout(() => {
     const startDate = perfPeriodStart(perfActivePeriod, oldestNavDate);
-    const { labels, datasets, sinceInfo } = buildPerfDatasets(startDate, activeFunds);
+    const { labels, datasets, sinceInfo } = buildPerfDatasets(
+      startDate,
+      activeFunds,
+    );
 
     const canvas = document.getElementById("holdingsPerfChart");
-    if (!canvas || !datasets.length) { if (perfWrap) perfWrap.classList.remove("loading"); return; }
+    if (!canvas || !datasets.length) {
+      if (perfWrap) perfWrap.classList.remove("loading");
+      return;
+    }
 
-    if (perfChartInstance) { perfChartInstance.destroy(); perfChartInstance = null; }
+    if (perfChartInstance) {
+      perfChartInstance.destroy();
+      perfChartInstance = null;
+    }
     perfLatestStatsData = { labels, datasets, sinceInfo };
     perfChartInstance = new Chart(canvas, {
       type: "line",
@@ -7436,15 +7607,28 @@ function renderHoldingsCharts() {
           datalabels: { display: false },
           tooltip: {
             enabled: window.innerWidth > 768,
-            backgroundColor: getComputedStyle(document.documentElement).getPropertyValue("--bg-white").trim() || "#FFFCF8",
-            borderColor: getComputedStyle(document.documentElement).getPropertyValue("--border-medium").trim() || "#E7DED3",
+            backgroundColor:
+              getComputedStyle(document.documentElement)
+                .getPropertyValue("--bg-white")
+                .trim() || "#FFFCF8",
+            borderColor:
+              getComputedStyle(document.documentElement)
+                .getPropertyValue("--border-medium")
+                .trim() || "#E7DED3",
             borderWidth: 1,
-            titleColor: getComputedStyle(document.documentElement).getPropertyValue("--text-primary").trim() || "#2F241D",
-            bodyColor: getComputedStyle(document.documentElement).getPropertyValue("--text-secondary").trim() || "#7A6C61",
+            titleColor:
+              getComputedStyle(document.documentElement)
+                .getPropertyValue("--text-primary")
+                .trim() || "#2F241D",
+            bodyColor:
+              getComputedStyle(document.documentElement)
+                .getPropertyValue("--text-secondary")
+                .trim() || "#7A6C61",
             padding: 10,
-            itemSort: (a, b) => (b.parsed.y ?? -Infinity) - (a.parsed.y ?? -Infinity),
+            itemSort: (a, b) =>
+              (b.parsed.y ?? -Infinity) - (a.parsed.y ?? -Infinity),
             callbacks: {
-              label: ctx => {
+              label: (ctx) => {
                 if (ctx.parsed.y == null) return ` ${ctx.dataset.label}: --`;
                 const ret = ctx.parsed.y - 100;
                 return ` ${ctx.dataset.label}: ${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%`;
@@ -7455,18 +7639,33 @@ function renderHoldingsCharts() {
         scales: {
           x: {
             grid: { color: "rgba(231,222,211,0.5)" },
-            ticks: { color: "#7A6C61", font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: window.innerWidth <= 768 ? 5 : 10 },
+            ticks: {
+              color: "#7A6C61",
+              font: { size: 10 },
+              maxRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: window.innerWidth <= 768 ? 5 : 10,
+            },
           },
           y: {
             grid: { color: "rgba(231,222,211,0.5)" },
-            ticks: { color: "#7A6C61", font: { size: 10 }, callback: v => v.toFixed(0) },
+            ticks: {
+              color: "#7A6C61",
+              font: { size: 10 },
+              callback: (v) => v.toFixed(0),
+            },
           },
         },
         animation: {
           duration: 0,
           onComplete: () => {
             if (perfWrap) perfWrap.classList.remove("loading");
-            if (perfLatestStatsData) updatePerfBottomStats(perfLatestStatsData.labels, perfLatestStatsData.datasets, perfLatestStatsData.sinceInfo);
+            if (perfLatestStatsData)
+              updatePerfBottomStats(
+                perfLatestStatsData.labels,
+                perfLatestStatsData.datasets,
+                perfLatestStatsData.sinceInfo,
+              );
           },
         },
       },
@@ -8646,30 +8845,44 @@ function showFundDetailsModal(
   }
 
   // ── Tax-aware exit section (current holdings, detailed CAS only) ──
-  let taxExitHTML = '';
-  if (!isPastHolding && !isSummaryCAS && current > 0 && fund.advancedMetrics?.folioSummaries) {
+  let taxExitHTML = "";
+  if (
+    !isPastHolding &&
+    !isSummaryCAS &&
+    current > 0 &&
+    fund.advancedMetrics?.folioSummaries
+  ) {
     const category = fund.advancedMetrics.category;
-    const stcgThreshold = category === 'equity' ? 365 : 730;
-    const isEquity = category === 'equity';
+    const stcgThreshold = category === "equity" ? 365 : 730;
+    const isEquity = category === "equity";
     const navPerUnit = units > 0 ? current / units : 0;
 
     if (navPerUnit > 0) {
       const today = new Date();
-      let stcgGain = 0, ltcgGain = 0;
+      let stcgGain = 0,
+        ltcgGain = 0;
       let earliestStcg = null;
 
-      targetFolios.forEach(folioNum => {
+      targetFolios.forEach((folioNum) => {
         const fs = fund.advancedMetrics.folioSummaries[folioNum];
         if (!fs?.remainingLots?.length) return;
-        fs.remainingLots.forEach(lot => {
-          const holdingDays = Math.floor((today - lot.purchaseDate) / (1000 * 60 * 60 * 24));
+        fs.remainingLots.forEach((lot) => {
+          const holdingDays = Math.floor(
+            (today - lot.purchaseDate) / (1000 * 60 * 60 * 24),
+          );
           const lotGain = lot.units * (navPerUnit - lot.nav);
           if (holdingDays < stcgThreshold) {
             stcgGain += lotGain;
             const daysLeft = stcgThreshold - holdingDays;
             if (!earliestStcg || daysLeft < earliestStcg.daysLeft) {
-              const turnDate = new Date(lot.purchaseDate.getTime() + stcgThreshold * 86400000);
-              earliestStcg = { daysLeft, turnDate, stcgTaxOnLot: lotGain > 0 ? Math.round(lotGain * 0.20) : 0 };
+              const turnDate = new Date(
+                lot.purchaseDate.getTime() + stcgThreshold * 86400000,
+              );
+              earliestStcg = {
+                daysLeft,
+                turnDate,
+                stcgTaxOnLot: lotGain > 0 ? Math.round(lotGain * 0.2) : 0,
+              };
             }
           } else {
             ltcgGain += lotGain;
@@ -8689,40 +8902,58 @@ function showFundDetailsModal(
       }
       const ltcgTaxFull = ltcgGain > 0 ? Math.round(ltcgGain * 0.125) : 0;
 
-      const stcgTax = isEquity && stcgGain > 0 ? Math.round(stcgGain * 0.20) : null;
+      const stcgTax =
+        isEquity && stcgGain > 0 ? Math.round(stcgGain * 0.2) : null;
       const totalTax = (stcgTax ?? 0) + ltcgTax;
 
       // Exit load: parse string to compute rupee amount
-      const exitLoadStr = extendedData?.exit_load || '';
+      const exitLoadStr = extendedData?.exit_load || "";
       let exitLoadAmount = 0;
-      let exitLoadDisplay = exitLoadStr && exitLoadStr !== '--' ? exitLoadStr : '';
+      let exitLoadDisplay =
+        exitLoadStr && exitLoadStr !== "--" ? exitLoadStr : "";
 
       const toDays = (val, unit) => {
         const u = unit.toLowerCase();
-        return u.startsWith('year') ? val * 365 : u.startsWith('month') ? val * 30 : val;
+        return u.startsWith("year")
+          ? val * 365
+          : u.startsWith("month")
+            ? val * 30
+            : val;
       };
 
       const parseExitLoad = (str) => {
-        if (!str || str === '--') return null;
+        if (!str || str === "--") return null;
 
         // Tiered with free-quota: "units above/in excess of X% of the investment, ..."
-        const freeM = str.match(/units?\s+(?:above|in\s+excess\s+of)\s+(\d+(?:\.\d+)?)\s*%/i);
+        const freeM = str.match(
+          /units?\s+(?:above|in\s+excess\s+of)\s+(\d+(?:\.\d+)?)\s*%/i,
+        );
         if (freeM) {
           const freePercent = parseFloat(freeM[1]);
           const tiers = [];
           // Search only after the free-quota clause to avoid matching its percentage as a rate
           const afterFree = str.slice(freeM.index + freeM[0].length);
           // Handles both "2% if redeemed within 365 days" and "1% will be charged for redemption within 12 months"
-          const withinRe = /(\d+(?:\.\d+)?)\s*%[^.]*?within\s+(\d+(?:\.\d+)?)\s*(days?|months?|years?)/gi;
-          const betweenRe = /(\d+(?:\.\d+)?)\s*%[^.]*?after\s+(\d+(?:\.\d+)?)\s*(days?|months?|years?)\s+but\s+on\s+or\s+before\s+(\d+(?:\.\d+)?)\s*(days?|months?|years?)/gi;
+          const withinRe =
+            /(\d+(?:\.\d+)?)\s*%[^.]*?within\s+(\d+(?:\.\d+)?)\s*(days?|months?|years?)/gi;
+          const betweenRe =
+            /(\d+(?:\.\d+)?)\s*%[^.]*?after\s+(\d+(?:\.\d+)?)\s*(days?|months?|years?)\s+but\s+on\s+or\s+before\s+(\d+(?:\.\d+)?)\s*(days?|months?|years?)/gi;
           let m;
           while ((m = withinRe.exec(afterFree)) !== null)
-            tiers.push({ rate: parseFloat(m[1]) / 100, fromDays: 0, toDays: toDays(parseFloat(m[2]), m[3]) });
+            tiers.push({
+              rate: parseFloat(m[1]) / 100,
+              fromDays: 0,
+              toDays: toDays(parseFloat(m[2]), m[3]),
+            });
           while ((m = betweenRe.exec(afterFree)) !== null)
-            tiers.push({ rate: parseFloat(m[1]) / 100, fromDays: toDays(parseFloat(m[2]), m[3]), toDays: toDays(parseFloat(m[4]), m[5]) });
+            tiers.push({
+              rate: parseFloat(m[1]) / 100,
+              fromDays: toDays(parseFloat(m[2]), m[3]),
+              toDays: toDays(parseFloat(m[4]), m[5]),
+            });
           if (tiers.length) {
             tiers.sort((a, b) => a.fromDays - b.fromDays);
-            return { type: 'tiered', freePercent, tiers };
+            return { type: "tiered", freePercent, tiers };
           }
           return null;
         }
@@ -8735,41 +8966,53 @@ function showFundDetailsModal(
         const dm = low.match(/within\s+(\d+)\s*days?/);
         const mm = low.match(/within\s+(\d+)\s*months?/);
         const ym = low.match(/within\s+(\d+)\s*years?/);
-        const days = dm ? parseInt(dm[1]) : mm ? parseInt(mm[1]) * 30 : ym ? parseInt(ym[1]) * 365 : null;
-        return days ? { type: 'simple', rate, days } : null;
+        const days = dm
+          ? parseInt(dm[1])
+          : mm
+            ? parseInt(mm[1]) * 30
+            : ym
+              ? parseInt(ym[1]) * 365
+              : null;
+        return days ? { type: "simple", rate, days } : null;
       };
 
       const parsedLoad = parseExitLoad(exitLoadStr);
       if (parsedLoad) {
-        if (parsedLoad.type === 'simple') {
-          targetFolios.forEach(folioNum => {
+        if (parsedLoad.type === "simple") {
+          targetFolios.forEach((folioNum) => {
             const fs = fund.advancedMetrics.folioSummaries[folioNum];
             if (!fs?.remainingLots?.length) return;
-            fs.remainingLots.forEach(lot => {
-              const holdingDays = Math.floor((today - lot.purchaseDate) / (1000 * 60 * 60 * 24));
+            fs.remainingLots.forEach((lot) => {
+              const holdingDays = Math.floor(
+                (today - lot.purchaseDate) / (1000 * 60 * 60 * 24),
+              );
               if (holdingDays < parsedLoad.days)
                 exitLoadAmount += lot.units * navPerUnit * parsedLoad.rate;
             });
           });
-        } else if (parsedLoad.type === 'tiered') {
+        } else if (parsedLoad.type === "tiered") {
           // Collect all lots sorted oldest-first (FIFO) across target folios
           const allLots = [];
-          targetFolios.forEach(folioNum => {
+          targetFolios.forEach((folioNum) => {
             const fs = fund.advancedMetrics.folioSummaries[folioNum];
             if (fs?.remainingLots?.length)
-              fs.remainingLots.forEach(lot => allLots.push(lot));
+              fs.remainingLots.forEach((lot) => allLots.push(lot));
           });
           allLots.sort((a, b) => a.purchaseDate - b.purchaseDate);
 
           const totalUnits = allLots.reduce((s, l) => s + l.units, 0);
-          let freeLeft = totalUnits * parsedLoad.freePercent / 100;
+          let freeLeft = (totalUnits * parsedLoad.freePercent) / 100;
 
-          allLots.forEach(lot => {
+          allLots.forEach((lot) => {
             const chargedUnits = Math.max(0, lot.units - freeLeft);
             freeLeft = Math.max(0, freeLeft - lot.units);
             if (chargedUnits <= 0) return;
-            const holdingDays = Math.floor((today - lot.purchaseDate) / (1000 * 60 * 60 * 24));
-            const tier = parsedLoad.tiers.find(t => holdingDays >= t.fromDays && holdingDays < t.toDays);
+            const holdingDays = Math.floor(
+              (today - lot.purchaseDate) / (1000 * 60 * 60 * 24),
+            );
+            const tier = parsedLoad.tiers.find(
+              (t) => holdingDays >= t.fromDays && holdingDays < t.toDays,
+            );
             if (tier) exitLoadAmount += chargedUnits * navPerUnit * tier.rate;
           });
         }
@@ -8777,11 +9020,15 @@ function showFundDetailsModal(
       }
 
       const netProceeds = current - totalTax - exitLoadAmount;
-      const fmtR = v => '₹' + formatNumber(Math.round(Math.abs(v)));
-      const threshLabel = stcgThreshold === 365 ? '1 yr' : '2 yrs';
+      const fmtR = (v) => "₹" + formatNumber(Math.round(Math.abs(v)));
+      const threshLabel = stcgThreshold === 365 ? "1 yr" : "2 yrs";
       const turnDateStr = earliestStcg
-        ? earliestStcg.turnDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
-        : '';
+        ? earliestStcg.turnDate.toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "2-digit",
+          })
+        : "";
 
       taxExitHTML = `
         <div class="fund-tax-exit-section">
@@ -8793,35 +9040,41 @@ function showFundDetailsModal(
           <div class="fund-tax-split-grid">
             <div class="fund-tax-split-card fund-tax-split-card--stcg">
               <div class="fund-tax-split-label">STCG <span class="fund-tax-split-threshold">&lt; ${threshLabel}</span></div>
-              <div class="fund-tax-split-value ${stcgGain >= 0 ? 'positive' : 'negative'}">${fmtR(stcgGain)}</div>
-              <div class="fund-tax-split-sub">Tax: ${stcgGain > 0 ? (stcgTax !== null ? fmtR(stcgTax) : '<em>at slab</em>') : '<span class="tax-nil">₹0</span>'} <span class="fund-tax-split-rate">${stcgGain > 0 && isEquity ? '@ 20%' : ''}</span></div>
+              <div class="fund-tax-split-value ${stcgGain >= 0 ? "positive" : "negative"}">${fmtR(stcgGain)}</div>
+              <div class="fund-tax-split-sub">Tax: ${stcgGain > 0 ? (stcgTax !== null ? fmtR(stcgTax) : "<em>at slab</em>") : '<span class="tax-nil">₹0</span>'} <span class="fund-tax-split-rate">${stcgGain > 0 && isEquity ? "@ 20%" : ""}</span></div>
             </div>
             <div class="fund-tax-split-card fund-tax-split-card--ltcg">
               <div class="fund-tax-split-label">LTCG <span class="fund-tax-split-threshold">&gt; ${threshLabel}</span></div>
-              <div class="fund-tax-split-value ${ltcgGain >= 0 ? 'positive' : 'negative'}">${fmtR(ltcgGain)}</div>
-              <div class="fund-tax-split-sub">Tax: ${ltcgGain > 0 ? (ltcgTax === 0 ? `<s style="color:var(--text-tertiary)">${fmtR(ltcgTaxFull)}</s> <span class="tax-nil">₹0</span>` : fmtR(ltcgTax)) : '<span class="tax-nil">₹0</span>'} <span class="fund-tax-split-rate">${ltcgGain > 0 ? '@ 12.5%' : ''}</span></div>
+              <div class="fund-tax-split-value ${ltcgGain >= 0 ? "positive" : "negative"}">${fmtR(ltcgGain)}</div>
+              <div class="fund-tax-split-sub">Tax: ${ltcgGain > 0 ? (ltcgTax === 0 ? `<s style="color:var(--text-tertiary)">${fmtR(ltcgTaxFull)}</s> <span class="tax-nil">₹0</span>` : fmtR(ltcgTax)) : '<span class="tax-nil">₹0</span>'} <span class="fund-tax-split-rate">${ltcgGain > 0 ? "@ 12.5%" : ""}</span></div>
             </div>
           </div>
-          ${exitLoadDisplay ? `<div class="fund-tax-exit-load"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span class="fund-tax-exit-load-label">Exit load</span><span class="fund-tax-exit-load-val">${exitLoadDisplay}</span></div>` : ''}
+          ${exitLoadDisplay ? `<div class="fund-tax-exit-load"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span class="fund-tax-exit-load-label">Exit load</span><span class="fund-tax-exit-load-val">${exitLoadDisplay}</span></div>` : ""}
           <div class="fund-tax-outcome-row">
             <div class="fund-tax-outcome-card">
               <div class="fund-tax-outcome-label">Total est. tax</div>
-              <div class="fund-tax-outcome-val fund-tax-outcome-val--warn">${stcgTax === null && stcgGain > 0 ? `<em style="font-size:12px">at slab${ltcgTax > 0 ? ' + ' + fmtR(ltcgTax) : ''}</em>` : totalTax > 0 ? fmtR(totalTax) : '<span class="tax-nil">₹0</span>'}</div>
+              <div class="fund-tax-outcome-val fund-tax-outcome-val--warn">${stcgTax === null && stcgGain > 0 ? `<em style="font-size:12px">at slab${ltcgTax > 0 ? " + " + fmtR(ltcgTax) : ""}</em>` : totalTax > 0 ? fmtR(totalTax) : '<span class="tax-nil">₹0</span>'}</div>
             </div>
             <div class="fund-tax-outcome-card">
               <div class="fund-tax-outcome-label">Total exit load</div>
-              <div class="fund-tax-outcome-val ${exitLoadAmount > 0 ? 'fund-tax-outcome-val--warn' : ''}">${exitLoadAmount > 0 ? fmtR(exitLoadAmount) : (exitLoadDisplay && !parsedLoad ? '<span style="font-size:11px;color:var(--text-tertiary)">See above</span>' : '<span class="tax-nil">₹0</span>')}</div>
+              <div class="fund-tax-outcome-val ${exitLoadAmount > 0 ? "fund-tax-outcome-val--warn" : ""}">${exitLoadAmount > 0 ? fmtR(exitLoadAmount) : exitLoadDisplay && !parsedLoad ? '<span style="font-size:11px;color:var(--text-tertiary)">See above</span>' : '<span class="tax-nil">₹0</span>'}</div>
             </div>
             <div class="fund-tax-outcome-card">
               <div class="fund-tax-outcome-label">Net proceeds</div>
               <div class="fund-tax-outcome-val fund-tax-outcome-val--net">${fmtR(netProceeds)}</div>
             </div>
           </div>
-          ${earliestStcg && earliestStcg.daysLeft > 0 && earliestStcg.stcgTaxOnLot > 0 ? `
+          ${
+            earliestStcg &&
+            earliestStcg.daysLeft > 0 &&
+            earliestStcg.stcgTaxOnLot > 0
+              ? `
           <div class="fund-tax-wait-banner">
             <i class="fa-solid fa-clock" aria-hidden="true"></i>
             <span>Wait <strong>${earliestStcg.daysLeft}d</strong> (until ${turnDateStr}) for earliest STCG lot to turn LTCG — saves ~<strong>${fmtR(earliestStcg.stcgTaxOnLot)}</strong> in tax.</span>
-          </div>` : ''}
+          </div>`
+              : ""
+          }
         </div>`;
     }
   }
@@ -10220,7 +10473,10 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
         normalized.map((s) => s.value),
         currentValue,
       );
-      setAnalyticsCardSub("modalAssetAllocationSub", `${normalized.length} classes`);
+      setAnalyticsCardSub(
+        "modalAssetAllocationSub",
+        `${normalized.length} classes`,
+      );
     } else {
       const col = assetBarEl.closest(".fund-composition-col");
       if (col) {
@@ -10377,7 +10633,10 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
         equitySectorEntries.map(([, val]) => (val / equitySectorTotal) * 100),
         equityRupees,
       );
-      setAnalyticsCardSub("modalEquitySectorSub", `${equitySectorEntries.length} sectors`);
+      setAnalyticsCardSub(
+        "modalEquitySectorSub",
+        `${equitySectorEntries.length} sectors`,
+      );
     } else {
       equitySectorCol.style.display = "none";
     }
@@ -10415,7 +10674,10 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
         debtSectorEntries.map(([, val]) => (val / debtSectorTotal) * 100),
         debtRupees,
       );
-      setAnalyticsCardSub("modalDebtSectorSub", `${debtSectorEntries.length} instruments`);
+      setAnalyticsCardSub(
+        "modalDebtSectorSub",
+        `${debtSectorEntries.length} instruments`,
+      );
     } else {
       debtSectorCol.style.display = "none";
     }
@@ -10578,7 +10840,7 @@ function downloadFamilyHoldings() {
   const data = mainHoldings.map(([company, info]) => ({
     "Company Name": company,
     "% of Family Portfolio": parseFloat(info.percentage.toFixed(3)),
-    "Type": formatHoldingTypeLabel(info.nature, info.instrument, info.sector),
+    Type: formatHoldingTypeLabel(info.nature, info.instrument, info.sector),
   }));
 
   // Add "Others" row if there are small holdings
@@ -10590,7 +10852,7 @@ function downloadFamilyHoldings() {
     data.push({
       "Company Name": "Others (< 0.01% each)",
       "% of Family Portfolio": parseFloat(othersTotal.toFixed(3)),
-      "Type": "Mixed",
+      Type: "Mixed",
     });
   }
 
@@ -10608,15 +10870,35 @@ function downloadFamilyHoldings() {
   showToast("Family holdings downloaded successfully!", "success");
 }
 const ALLOC_BUCKET_STYLE = {
-  "domestic equity": { label: "Domestic Eq",  bg: "#EAF3DE", color: "#3B6D11", dot: "#3B6D11" },
-  "global equity":   { label: "Global Eq",    bg: "#E6F1FB", color: "#185FA5", dot: "#185FA5" },
-  "hedged equity":   { label: "Hedged Eq",    bg: "#EEEDFE", color: "#534AB7", dot: "#534AB7" },
-  "debt":            { label: "Debt",          bg: "#FAEEDA", color: "#854F0B", dot: "#854F0B" },
-  "gold":            { label: "Gold",          bg: "#FAF3DC", color: "#7a5c0a", dot: "#7a5c0a" },
-  "silver":          { label: "Silver",        bg: "#F1EFE8", color: "#5F5E5A", dot: "#888780" },
-  "real estate":     { label: "Real Estate",   bg: "#FAECE7", color: "#993C1D", dot: "#993C1D" },
-  "cash":            { label: "Cash",          bg: "#F1EFE8", color: "#5F5E5A", dot: "#888780" },
-  "other":           { label: "Other",         bg: "#F1EFE8", color: "#5F5E5A", dot: "#888780" },
+  "domestic equity": {
+    label: "Domestic Eq",
+    bg: "#EAF3DE",
+    color: "#3B6D11",
+    dot: "#3B6D11",
+  },
+  "global equity": {
+    label: "Global Eq",
+    bg: "#E6F1FB",
+    color: "#185FA5",
+    dot: "#185FA5",
+  },
+  "hedged equity": {
+    label: "Hedged Eq",
+    bg: "#EEEDFE",
+    color: "#534AB7",
+    dot: "#534AB7",
+  },
+  debt: { label: "Debt", bg: "#FAEEDA", color: "#854F0B", dot: "#854F0B" },
+  gold: { label: "Gold", bg: "#FAF3DC", color: "#7a5c0a", dot: "#7a5c0a" },
+  silver: { label: "Silver", bg: "#F1EFE8", color: "#5F5E5A", dot: "#888780" },
+  "real estate": {
+    label: "Real Estate",
+    bg: "#FAECE7",
+    color: "#993C1D",
+    dot: "#993C1D",
+  },
+  cash: { label: "Cash", bg: "#F1EFE8", color: "#5F5E5A", dot: "#888780" },
+  other: { label: "Other", bg: "#F1EFE8", color: "#5F5E5A", dot: "#888780" },
 };
 
 function classifyHoldingBucket(holding) {
@@ -10624,12 +10906,19 @@ function classifyHoldingBucket(holding) {
   const inst = (holding.instrument_name || "").toLowerCase();
   const comp = (holding.company_name || "").toLowerCase();
 
-  if (nat === "CASH" || inst === "reverse repo" || inst === "tri-party repo" || inst === "cblo") return "cash";
+  if (
+    nat === "CASH" ||
+    inst === "reverse repo" ||
+    inst === "tri-party repo" ||
+    inst === "cblo"
+  )
+    return "cash";
   if (nat === "DEBT") return "debt";
   if (nat === "REALEST") return "real estate";
   if (nat === "EQUITY") {
     if (inst.includes("future")) return "hedged equity";
-    const isGlobal = inst.includes("foreign") || inst === "ads/adr" || inst === "foreign mf";
+    const isGlobal =
+      inst.includes("foreign") || inst === "ads/adr" || inst === "foreign mf";
     return isGlobal ? "global equity" : "domestic equity";
   }
   if (nat === "GLOBAL_MF") {
@@ -10649,7 +10938,14 @@ function classifyHoldingBucket(holding) {
   }
   if (inst.includes("gold")) return "gold";
   if (inst.includes("silver")) return "silver";
-  if (inst.includes("debt") || inst.includes("bond") || inst.includes("debenture") || inst.includes("g-sec") || inst.includes("tbill")) return "debt";
+  if (
+    inst.includes("debt") ||
+    inst.includes("bond") ||
+    inst.includes("debenture") ||
+    inst.includes("g-sec") ||
+    inst.includes("tbill")
+  )
+    return "debt";
   return "other";
 }
 
@@ -10659,15 +10955,19 @@ function buildAllocPills(buckets) {
   const sorted = Object.entries(buckets)
     .filter(([, v]) => v > 0.5)
     .sort((a, b) => b[1] - a[1]);
-  const bar = sorted.map(([k, v]) => {
-    const cls = k.replace(/\s+/g, "-");
-    return `<div class="ap-bar ap-${cls}" style="height:100%;width:${((v/total)*100).toFixed(1)}%;border-radius:0"></div>`;
-  }).join('<div style="width:1px;background:transparent"></div>');
-  const pills = sorted.map(([k, v]) => {
-    const s = ALLOC_BUCKET_STYLE[k] || ALLOC_BUCKET_STYLE["other"];
-    const cls = k.replace(/\s+/g, "-");
-    return `<span class="alloc-pill ap-${cls}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 7px;border-radius:99px;white-space:nowrap"><span class="ap-dot" style="width:6px;height:6px;border-radius:50%;flex-shrink:0"></span>${s.label} ${((v/total)*100).toFixed(1)}%</span>`;
-  }).join("");
+  const bar = sorted
+    .map(([k, v]) => {
+      const cls = k.replace(/\s+/g, "-");
+      return `<div class="ap-bar ap-${cls}" style="height:100%;width:${((v / total) * 100).toFixed(1)}%;border-radius:0"></div>`;
+    })
+    .join('<div style="width:1px;background:transparent"></div>');
+  const pills = sorted
+    .map(([k, v]) => {
+      const s = ALLOC_BUCKET_STYLE[k] || ALLOC_BUCKET_STYLE["other"];
+      const cls = k.replace(/\s+/g, "-");
+      return `<span class="alloc-pill ap-${cls}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 7px;border-radius:99px;white-space:nowrap"><span class="ap-dot" style="width:6px;height:6px;border-radius:50%;flex-shrink:0"></span>${s.label} ${((v / total) * 100).toFixed(1)}%</span>`;
+    })
+    .join("");
   return `<div style="height:6px;border-radius:3px;overflow:hidden;display:flex;gap:1px;margin-bottom:8px">${bar}</div><div style="display:flex;flex-wrap:wrap;gap:5px">${pills}</div>`;
 }
 
@@ -10754,27 +11054,43 @@ function showFundHoldings(fundKey) {
 function formatHoldingTypeLabel(nature, instrument, sector) {
   const nat = (nature || "").toUpperCase();
   const inst = (instrument || "").toLowerCase().trim();
-  const secRaw = (sector || "").replace(/\s*-\s*(Foreign\s*-\s*Equity|Futures)$/i, "").trim();
-  const sec = (secRaw.toLowerCase() === "unspecified" || secRaw.toLowerCase() === "unknown") ? "" : secRaw;
+  const secRaw = (sector || "")
+    .replace(/\s*-\s*(Foreign\s*-\s*Equity|Futures)$/i, "")
+    .trim();
+  const sec =
+    secRaw.toLowerCase() === "unspecified" || secRaw.toLowerCase() === "unknown"
+      ? ""
+      : secRaw;
 
-  if (nat === "CASH" || inst === "reverse repo" || inst === "tri-party repo" || inst === "cblo") return "Cash";
+  if (
+    nat === "CASH" ||
+    inst === "reverse repo" ||
+    inst === "tri-party repo" ||
+    inst === "cblo"
+  )
+    return "Cash";
   if (inst === "net receivables" || inst === "cash margin") return "Cash";
 
   const instAbbr = (() => {
     if (inst.includes("certificate of deposit")) return "CD";
     if (inst.includes("commercial paper")) return "CP";
-    if (inst.includes("treasury bill") || inst.includes("tbill")) return "T-Bill";
-    if (inst.includes("government security") || inst.includes("g-sec")) return "G-Sec";
+    if (inst.includes("treasury bill") || inst.includes("tbill"))
+      return "T-Bill";
+    if (inst.includes("government security") || inst.includes("g-sec"))
+      return "G-Sec";
     if (inst.includes("debenture") || inst.includes("ncd")) return "NCD";
     if (inst.includes("bond")) return "Bond";
-    if (inst.includes("real estate investment trust") || inst.includes("reit")) return "REIT";
-    if (inst.includes("mutual fund") || inst.includes("foreign mutual fund")) return "MF";
+    if (inst.includes("real estate investment trust") || inst.includes("reit"))
+      return "REIT";
+    if (inst.includes("mutual fund") || inst.includes("foreign mutual fund"))
+      return "MF";
     if (inst.includes("future")) return "Future";
-    if (inst.includes("ads/adr") || inst.includes("foreign mf")) return "Foreign";
+    if (inst.includes("ads/adr") || inst.includes("foreign mf"))
+      return "Foreign";
     return null;
   })();
 
-  if (nat === "REALEST" || (instAbbr === "REIT")) return "REIT";
+  if (nat === "REALEST" || instAbbr === "REIT") return "REIT";
 
   if (nat === "DEBT") {
     return instAbbr ? `Debt · ${instAbbr}` : "Debt";
@@ -10785,9 +11101,16 @@ function formatHoldingTypeLabel(nature, instrument, sector) {
   }
 
   if (nat === "EQUITY") {
-    const isForeign = inst.includes("foreign") || inst.includes("ads/adr") || inst.includes("foreign mf");
+    const isForeign =
+      inst.includes("foreign") ||
+      inst.includes("ads/adr") ||
+      inst.includes("foreign mf");
     const isFuture = inst.includes("future");
-    const prefix = isForeign ? "Foreign Equity" : isFuture ? "Equity Future" : "Equity";
+    const prefix = isForeign
+      ? "Foreign Equity"
+      : isFuture
+        ? "Equity Future"
+        : "Equity";
     return sec ? `${prefix} · ${sec}` : prefix;
   }
 
@@ -10905,7 +11228,7 @@ function downloadPortfolioHoldings() {
   const data = mainHoldings.map(([company, info]) => ({
     "Company Name": company,
     "% of Portfolio": parseFloat(info.percentage.toFixed(3)),
-    "Type": formatHoldingTypeLabel(info.nature, info.instrument, info.sector),
+    Type: formatHoldingTypeLabel(info.nature, info.instrument, info.sector),
   }));
 
   // Add "Others" row if there are small holdings
@@ -10917,7 +11240,7 @@ function downloadPortfolioHoldings() {
     data.push({
       "Company Name": "Others (< 0.01% each)",
       "% of Portfolio": parseFloat(othersTotal.toFixed(3)),
-      "Type": "Mixed",
+      Type: "Mixed",
     });
   }
 
@@ -10966,8 +11289,15 @@ function downloadFundHoldings(fundKey) {
     .map((holding) => ({
       "Company Name": holding.company_name || "Unknown",
       "% of Fund": parseFloat((holding.corpus_per || 0).toFixed(3)),
-      "Type": formatHoldingTypeLabel(holding.nature_name, holding.instrument_name, holding.sector_name),
-      "Asset Allocation": (ALLOC_BUCKET_STYLE[classifyHoldingBucket(holding)] || ALLOC_BUCKET_STYLE["other"]).label,
+      Type: formatHoldingTypeLabel(
+        holding.nature_name,
+        holding.instrument_name,
+        holding.sector_name,
+      ),
+      "Asset Allocation": (
+        ALLOC_BUCKET_STYLE[classifyHoldingBucket(holding)] ||
+        ALLOC_BUCKET_STYLE["other"]
+      ).label,
     }));
 
   const ws = XLSX.utils.json_to_sheet(data);
@@ -11417,14 +11747,15 @@ function initializeTransactionSections() {
   allWrap.appendChild(createTransactionTable(allTimeFlows, "allTxTable"));
 
   requestAnimationFrame(() => {
-    [activeWrap, allWrap].forEach(wrap => {
-      const firstRow = wrap.querySelector('tbody tr');
+    [activeWrap, allWrap].forEach((wrap) => {
+      const firstRow = wrap.querySelector("tbody tr");
       if (!firstRow) return;
       const rowH = firstRow.getBoundingClientRect().height;
-      const theadH = wrap.querySelector('thead')?.getBoundingClientRect().height ?? 0;
-      wrap.style.scrollPaddingTop = theadH + 'px';
+      const theadH =
+        wrap.querySelector("thead")?.getBoundingClientRect().height ?? 0;
+      wrap.style.scrollPaddingTop = theadH + "px";
       const maxRows = Math.floor((480 - theadH) / rowH);
-      if (maxRows > 0) wrap.style.maxHeight = (theadH + maxRows * rowH) + 'px';
+      if (maxRows > 0) wrap.style.maxHeight = theadH + maxRows * rowH + "px";
     });
   });
 }
@@ -11936,7 +12267,7 @@ function updateChart() {
   const tabColors = {
     investment: { fill: "rgba(47, 143, 91, 0.75)", hover: "#2F8F5B" },
     withdrawal: { fill: "rgba(198, 90, 82, 0.75)", hover: "#C65A52" },
-    netinvest:  { fill: "rgba(154, 107, 70, 0.75)", hover: "#9A6B46" },
+    netinvest: { fill: "rgba(154, 107, 70, 0.75)", hover: "#9A6B46" },
   };
   const tc = tabColors[currentTab] || tabColors.netinvest;
 
@@ -12765,7 +13096,10 @@ function updateMainMobileSummary() {
   };
 
   setEl("mainHoldingsCount", activeFunds.length);
-  setEl("mainHoldingsLabel", activeFunds.length === 1 ? "Active Holding" : "Active Holdings");
+  setEl(
+    "mainHoldingsLabel",
+    activeFunds.length === 1 ? "Active Holding" : "Active Holdings",
+  );
   setEl("mainTotalValue", formatNumber(summary.currentValue));
   updateTopbarMeta();
   setEl("mainInvested", "₹" + formatNumber(summary.costPrice));
@@ -14394,7 +14728,10 @@ function displayFamilyAnalytics(metrics) {
       normalisedSec,
       sectorRupees,
     );
-    setAnalyticsCardSub("familySectorSub", `${sortedLabels.filter(l => l !== "Others").length} sectors`);
+    setAnalyticsCardSub(
+      "familySectorSub",
+      `${sortedLabels.filter((l) => l !== "Others").length} sectors`,
+    );
     sectorCard.classList.remove("loading");
   }
 
@@ -14426,7 +14763,10 @@ function displayFamilyAnalytics(metrics) {
       sortedData,
       metrics.totalCurrentValue,
     );
-    setAnalyticsCardSub("familyAmcSub", `${sortedLabels.filter(l => l !== "Others").length} AMCs`);
+    setAnalyticsCardSub(
+      "familyAmcSub",
+      `${sortedLabels.filter((l) => l !== "Others").length} AMCs`,
+    );
     document.getElementById("familyAmcCard")?.classList.remove("loading");
   } else {
     const amcCard = document.getElementById("familyAmcCard");
@@ -14504,7 +14844,10 @@ function displayFamilyAssetAllocation(metrics) {
     data,
     metrics.totalCurrentValue,
   );
-  setAnalyticsCardSub("familyAssetAllocationSub", `₹${formatNumber(Math.round(metrics.totalCurrentValue))}`);
+  setAnalyticsCardSub(
+    "familyAssetAllocationSub",
+    `₹${formatNumber(Math.round(metrics.totalCurrentValue))}`,
+  );
 }
 
 function displayFamilyMarketCapSplit(metrics) {
@@ -14903,7 +15246,7 @@ function populateUserList(users) {
     const positionPanel = () => {
       const rect = trigger.getBoundingClientRect();
       panel.style.position = "fixed";
-      panel.style.top = (rect.bottom + 6) + "px";
+      panel.style.top = rect.bottom + 6 + "px";
       panel.style.left = rect.left + "px";
       panel.style.width = rect.width + "px";
     };
@@ -14928,11 +15271,15 @@ function populateUserList(users) {
       }
     };
 
-    document.addEventListener("click", (e) => {
-      if (!dropdown.contains(e.target) && !panel.contains(e.target)) {
-        closePanel();
-      }
-    }, { capture: true });
+    document.addEventListener(
+      "click",
+      (e) => {
+        if (!dropdown.contains(e.target) && !panel.contains(e.target)) {
+          closePanel();
+        }
+      },
+      { capture: true },
+    );
 
     dropdown.appendChild(trigger);
     container.appendChild(dropdown);
@@ -15317,7 +15664,12 @@ function renderMobileUserList() {
   list.innerHTML = "";
   allUsers.forEach((user) => {
     const name = getStoredInvestorName(user);
-    const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+    const initials = name
+      .split(" ")
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
     const isActive = user === currentUser;
     const item = document.createElement("button");
     item.className = `topbar-user-dropdown-item${isActive ? " active" : ""}`;
@@ -15344,7 +15696,13 @@ function toggleUserSwitcher() {
   const isOpen = wrap.classList.toggle("open");
   if (isOpen) {
     renderUserSwitcherDropdown();
-    setTimeout(() => document.addEventListener("click", closeUserSwitcherOutside, { once: true }), 0);
+    setTimeout(
+      () =>
+        document.addEventListener("click", closeUserSwitcherOutside, {
+          once: true,
+        }),
+      0,
+    );
   }
 }
 
@@ -15353,7 +15711,9 @@ function closeUserSwitcherOutside(e) {
   if (wrap && !wrap.contains(e.target)) {
     wrap.classList.remove("open");
   } else if (wrap && wrap.classList.contains("open")) {
-    document.addEventListener("click", closeUserSwitcherOutside, { once: true });
+    document.addEventListener("click", closeUserSwitcherOutside, {
+      once: true,
+    });
   }
 }
 
@@ -15363,7 +15723,12 @@ function renderUserSwitcherDropdown() {
   dropdown.innerHTML = `<div class="topbar-user-dropdown-header">Switch User</div>`;
   allUsers.forEach((user) => {
     const name = getStoredInvestorName(user);
-    const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+    const initials = name
+      .split(" ")
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
     const isActive = user === currentUser;
     const item = document.createElement("button");
     item.className = `topbar-user-dropdown-item${isActive ? " active" : ""}`;
@@ -16598,7 +16963,7 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
 
     // Always fetch portfolio benchmark funds
     targetIsins.add("INF247L01957"); // MO Nifty 500 Index
-    targetIsins.add("INF247L01AE7"); // MO Nifty 50 Index
+    targetIsins.add("INF789F01XA0"); // UTI Nifty 50 Index
 
     if (updateType === "initial") {
       // For initial load, fetch ALL funds
@@ -16809,7 +17174,7 @@ async function updateAllUsersStats(updateType = "auto") {
 
   // Always fetch portfolio benchmark funds
   allIsins.add("INF247L01957"); // MO Nifty 500 Index
-  allIsins.add("INF247L01AE7"); // MO Nifty 50 Index
+  allIsins.add("INF789F01XA0"); // UTI Nifty 50 Index
 
   const userDataMap = new Map();
 
@@ -17630,15 +17995,21 @@ function updateTopbarMeta() {
   if (!portfolioData || !fundWiseData) return;
 
   // User name
-  const fullName = portfolioData.investor_info?.name?.trim() || currentUser || "";
+  const fullName =
+    portfolioData.investor_info?.name?.trim() || currentUser || "";
   const firstName = fullName.split(" ")[0] || "";
-  const initials = fullName.split(" ").slice(0, 2).map(w => w[0]?.toUpperCase() || "").join("") || "?";
+  const initials =
+    fullName
+      .split(" ")
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() || "")
+      .join("") || "?";
 
-  ["topbarAvatar", "topbarAvatarMobile"].forEach(id => {
+  ["topbarAvatar", "topbarAvatarMobile"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.textContent = initials;
   });
-  ["topbarUserName", "topbarUserNameMobile"].forEach(id => {
+  ["topbarUserName", "topbarUserNameMobile"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.textContent = firstName;
   });
@@ -17647,15 +18018,20 @@ function updateTopbarMeta() {
   const chipWrap = document.getElementById("topbarUserChipWrap");
   if (chipWrap) chipWrap.classList.toggle("multi-user", allUsers.length > 1);
   const caretMobile = document.getElementById("topbarUserChipCaretMobile");
-  if (caretMobile) caretMobile.style.display = allUsers.length > 1 ? "" : "none";
+  if (caretMobile)
+    caretMobile.style.display = allUsers.length > 1 ? "" : "none";
 
   // NAV date — use manifest.lastNavUpdate (same reliable source as Manage Data tab)
   const navManifest = storageManager.getManifest();
   const navLabel = navManifest?.lastNavUpdate
-    ? new Date(navManifest.lastNavUpdate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+    ? new Date(navManifest.lastNavUpdate).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
     : "--";
 
-  ["topbarNavDate", "topbarNavDateMobile"].forEach(id => {
+  ["topbarNavDate", "topbarNavDateMobile"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.textContent = navLabel;
   });
@@ -17672,7 +18048,10 @@ function toggleTopbarOverflow() {
   if (!menu) return;
   menu.classList.toggle("open");
   if (menu.classList.contains("open")) {
-    setTimeout(() => document.addEventListener("click", closeTopbarOverflowOnOutside), 0);
+    setTimeout(
+      () => document.addEventListener("click", closeTopbarOverflowOnOutside),
+      0,
+    );
   }
 }
 
@@ -17707,8 +18086,21 @@ function updateFooterInfo() {
     const fmtDateTime = (ts) => {
       if (!ts) return "--";
       const d = new Date(ts);
-      const date = d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
-      const time = d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }).toUpperCase();
+      const date = d.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "Asia/Kolkata",
+      });
+      const time = d
+        .toLocaleTimeString("en-IN", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+          timeZone: "Asia/Kolkata",
+        })
+        .toUpperCase();
       return `${date} ${time} IST`;
     };
 
@@ -17720,12 +18112,19 @@ function updateFooterInfo() {
 
     // Next NAV update — start of tomorrow IST
     const fmtDateOnly = (d) =>
-      d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
+      d.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "Asia/Kolkata",
+      });
 
     const nextNavDate = (() => {
       if (!manifest.lastNavUpdate) return "--";
       const last = new Date(manifest.lastNavUpdate);
-      const todayIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      const todayIST = new Date(
+        new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
+      );
       if (last.toDateString() !== todayIST.toDateString()) return "Today";
       const tomorrow = new Date(last);
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -18820,17 +19219,19 @@ function renderDashboardHoldingsTable() {
 // ── Milestones & Monthly Flow ────────────────────────────────────────────
 
 const MILESTONE_SCALE = [
-  5000, 10000, 25000, 50000, 75000,
-  100000, 150000, 200000, 300000, 500000, 750000,
-  1000000, 1500000, 2000000, 2500000, 3000000, 5000000, 7500000,
-  10000000, 15000000, 20000000, 25000000, 50000000, 75000000,
-  100000000, 150000000, 200000000, 500000000, 1000000000,
+  5000, 10000, 25000, 50000, 75000, 100000, 150000, 200000, 300000, 500000,
+  750000, 1000000, 1500000, 2000000, 2500000, 3000000, 5000000, 7500000,
+  10000000, 15000000, 20000000, 25000000, 50000000, 75000000, 100000000,
+  150000000, 200000000, 500000000, 1000000000,
 ];
 
 function formatMilestoneAmount(v) {
-  if (v >= 10000000) return `₹${(v / 10000000).toLocaleString("en-IN", { maximumFractionDigits: 1 })} Cr`;
-  if (v >= 100000)   return `₹${(v / 100000).toLocaleString("en-IN", { maximumFractionDigits: 1 })}L`;
-  if (v >= 1000)     return `₹${(v / 1000).toLocaleString("en-IN", { maximumFractionDigits: 0 })}K`;
+  if (v >= 10000000)
+    return `₹${(v / 10000000).toLocaleString("en-IN", { maximumFractionDigits: 1 })} Cr`;
+  if (v >= 100000)
+    return `₹${(v / 100000).toLocaleString("en-IN", { maximumFractionDigits: 1 })}L`;
+  if (v >= 1000)
+    return `₹${(v / 1000).toLocaleString("en-IN", { maximumFractionDigits: 0 })}K`;
   return `₹${v}`;
 }
 
@@ -18865,7 +19266,8 @@ function monthsToReach(currentValue, targetValue, monthlyInflow, cagr = 12) {
 function formatEta(months) {
   if (months === null) return { label: "—", sub: "" };
   if (months < 1) return { label: "< 1 month", sub: "" };
-  if (months < 24) return { label: `~${months} month${months === 1 ? "" : "s"}`, sub: "" };
+  if (months < 24)
+    return { label: `~${months} month${months === 1 ? "" : "s"}`, sub: "" };
   const yrs = (months / 12).toFixed(1);
   return { label: `~${yrs} yrs`, sub: "" };
 }
@@ -18901,13 +19303,19 @@ function renderDashboardMilestonesCard() {
   const subEl = document.getElementById("dashMilestonesSub");
   if (!el) return;
 
-  if (!portfolioData || !fundWiseData || Object.keys(fundWiseData).length === 0) {
-    el.innerHTML = '<p class="dash-snippet-empty">Load a portfolio to see milestones.</p>';
+  if (
+    !portfolioData ||
+    !fundWiseData ||
+    Object.keys(fundWiseData).length === 0
+  ) {
+    el.innerHTML =
+      '<p class="dash-snippet-empty">Load a portfolio to see milestones.</p>';
     return;
   }
 
   const currentValue = Object.values(fundWiseData).reduce(
-    (s, f) => s + (f.advancedMetrics?.currentValue || 0), 0,
+    (s, f) => s + (f.advancedMetrics?.currentValue || 0),
+    0,
   );
   window._dashCurrentValue = currentValue;
 
@@ -18915,7 +19323,9 @@ function renderDashboardMilestonesCard() {
   const dailyVal = window.portfolioValuationHistory || null;
   const summary = calculateMonthlySummary();
   const use6M = summary?.sixMonths?.inflow > 0;
-  const inflow = use6M ? summary.sixMonths.inflow : (summary?.twelveMonths?.inflow || 0);
+  const inflow = use6M
+    ? summary.sixMonths.inflow
+    : summary?.twelveMonths?.inflow || 0;
   const inflowPeriodLabel = use6M ? "6-month" : "12-month";
   const cagr = 12;
 
@@ -18923,7 +19333,10 @@ function renderDashboardMilestonesCard() {
 
   const aboveIdx = milestones.findIndex((m) => m > currentValue);
 
-  const today = new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+  const today = new Date().toLocaleDateString("en-IN", {
+    month: "short",
+    year: "numeric",
+  });
   const currentLabel = formatMilestoneAmount(currentValue);
 
   // Build rows, injecting "You are here" between last past and first future
@@ -18932,8 +19345,14 @@ function renderDashboardMilestonesCard() {
   milestones.forEach((ms, i) => {
     const isActuallyPast = ms < currentValue;
     const isNext = !isActuallyPast && i === aboveIdx;
-    const isFar  = !isActuallyPast && i >= aboveIdx + 3;
-    const rowClass = isActuallyPast ? "ms-past" : isNext ? "ms-next" : isFar ? "ms-far" : "ms-future";
+    const isFar = !isActuallyPast && i >= aboveIdx + 3;
+    const rowClass = isActuallyPast
+      ? "ms-past"
+      : isNext
+        ? "ms-next"
+        : isFar
+          ? "ms-far"
+          : "ms-future";
     const label = formatMilestoneAmount(ms);
 
     // Inject "You are here" row before the first future milestone
@@ -18943,13 +19362,24 @@ function renderDashboardMilestonesCard() {
 
     if (isActuallyPast) {
       const crossDate = findMilestoneCrossDate(dailyVal, ms);
-      rows.push({ type: rowClass, label, meta: crossDate ? formatCrossDate(crossDate) : "—" });
+      rows.push({
+        type: rowClass,
+        label,
+        meta: crossDate ? formatCrossDate(crossDate) : "—",
+      });
     } else {
       const months = monthsToReach(currentValue, ms, inflow, cagr);
       const { label: etaLabel } = formatEta(months);
       const awayAmt = formatMilestoneAmount(Math.round(ms - currentValue));
       const targetDate = months ? etaTargetDate(months) : "";
-      rows.push({ type: rowClass, label, meta: awayAmt + " away", eta: etaLabel, etaSub: targetDate, isNext });
+      rows.push({
+        type: rowClass,
+        label,
+        meta: awayAmt + " away",
+        eta: etaLabel,
+        etaSub: targetDate,
+        isNext,
+      });
     }
 
     // If no past milestones at all, inject current at the very start
@@ -18986,8 +19416,12 @@ function renderDashboardMilestonesCard() {
           </div>
         </div>`;
     } else {
-      const rightHtml = row.eta ? `<div class="ms-r"><div class="ms-eta">${row.eta}</div><div class="ms-eta-sub">${row.etaSub}</div></div>` : "";
-      const badge = row.isNext ? ` <span class="ms-badge ms-badge-next">Next</span>` : "";
+      const rightHtml = row.eta
+        ? `<div class="ms-r"><div class="ms-eta">${row.eta}</div><div class="ms-eta-sub">${row.etaSub}</div></div>`
+        : "";
+      const badge = row.isNext
+        ? ` <span class="ms-badge ms-badge-next">Next</span>`
+        : "";
       html += `
         <div class="ms-row ${row.type}">
           ${spine}
@@ -19002,7 +19436,7 @@ function renderDashboardMilestonesCard() {
     }
   });
 
-  html += '</div>';
+  html += "</div>";
   html += `<div class="ms-footer">12% CAGR · ${inflowPeriodLabel} typical (median) inflow</div>`;
   el.innerHTML = html;
 }
@@ -19011,28 +19445,34 @@ function renderDashboardMonthlyFlowCard() {
   const el = document.getElementById("dashFlowContent");
   if (!el) return;
 
-  if (!portfolioData || !fundWiseData || Object.keys(fundWiseData).length === 0) {
-    el.innerHTML = '<p class="dash-snippet-empty">Load a portfolio to see monthly flow.</p>';
+  if (
+    !portfolioData ||
+    !fundWiseData ||
+    Object.keys(fundWiseData).length === 0
+  ) {
+    el.innerHTML =
+      '<p class="dash-snippet-empty">Load a portfolio to see monthly flow.</p>';
     return;
   }
 
   const summary = calculateMonthlySummary();
   if (!summary) {
-    el.innerHTML = '<p class="dash-snippet-empty">Not enough transaction data.</p>';
+    el.innerHTML =
+      '<p class="dash-snippet-empty">Not enough transaction data.</p>';
     return;
   }
 
-  const use6M       = summary.sixMonths.inflow > 0;
+  const use6M = summary.sixMonths.inflow > 0;
   const activePeriod = use6M ? summary.sixMonths : summary.twelveMonths;
-  const periodLabel  = use6M ? "6M" : "12M";
-  const inflow       = activePeriod.inflow;
+  const periodLabel = use6M ? "6M" : "12M";
+  const inflow = activePeriod.inflow;
 
-  const avg6Buy      = summary.sixMonths.avgBuy;
-  const avg6Net      = summary.sixMonths.avgNetInflow;
-  const avg6Sell     = summary.sixMonths.avgSell;
-  const avg12Net     = summary.twelveMonths.avgNetInflow;
-  const medianBuy    = activePeriod.medianBuy;
-  const medianNet    = activePeriod.medianNetInflow;
+  const avg6Buy = summary.sixMonths.avgBuy;
+  const avg6Net = summary.sixMonths.avgNetInflow;
+  const avg6Sell = summary.sixMonths.avgSell;
+  const avg12Net = summary.twelveMonths.avgNetInflow;
+  const medianBuy = activePeriod.medianBuy;
+  const medianNet = activePeriod.medianNetInflow;
 
   const subEl = document.getElementById("dashFlowSub");
   if (subEl) subEl.textContent = use6M ? "Last 6 months" : "Last 12 months";
@@ -19043,8 +19483,16 @@ function renderDashboardMonthlyFlowCard() {
   Object.values(fundWiseData).forEach((fund) => {
     fund.transactions.forEach((tx) => {
       const folio = tx.folio || "unknown";
-      if (hiddenFolios.includes(folio) || hiddenFolios.includes(`${folio}|${fund.scheme}`)) return;
-      allTx.push({ date: new Date(tx.date), type: tx.type, amount: Math.abs(parseFloat(tx.nav * tx.units) || 0) });
+      if (
+        hiddenFolios.includes(folio) ||
+        hiddenFolios.includes(`${folio}|${fund.scheme}`)
+      )
+        return;
+      allTx.push({
+        date: new Date(tx.date),
+        type: tx.type,
+        amount: Math.abs(parseFloat(tx.nav * tx.units) || 0),
+      });
     });
   });
 
@@ -19052,23 +19500,38 @@ function renderDashboardMonthlyFlowCard() {
   const monthBuckets = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = d.toLocaleDateString("en-IN", { year: "2-digit", month: "short" });
-    monthBuckets.push({ key, label: d.toLocaleDateString("en-IN", { month: "short" }), buy: 0, sell: 0 });
+    const key = d.toLocaleDateString("en-IN", {
+      year: "2-digit",
+      month: "short",
+    });
+    monthBuckets.push({
+      key,
+      label: d.toLocaleDateString("en-IN", { month: "short" }),
+      buy: 0,
+      sell: 0,
+    });
   }
   allTx.forEach((tx) => {
-    const key = tx.date.toLocaleDateString("en-IN", { year: "2-digit", month: "short" });
+    const key = tx.date.toLocaleDateString("en-IN", {
+      year: "2-digit",
+      month: "short",
+    });
     const bucket = monthBuckets.find((b) => b.key === key);
     if (!bucket) return;
     if (tx.type === "PURCHASE") bucket.buy += tx.amount;
     else if (tx.type === "REDEMPTION") bucket.sell += tx.amount;
   });
 
-  const maxVal = Math.max(...monthBuckets.map((b) => Math.max(b.buy, b.sell)), 1);
+  const maxVal = Math.max(
+    ...monthBuckets.map((b) => Math.max(b.buy, b.sell)),
+    1,
+  );
 
-  const barCols = monthBuckets.map((b) => {
-    const buyH  = Math.round((b.buy  / maxVal) * 100);
-    const sellH = Math.round((b.sell / maxVal) * 100);
-    return `
+  const barCols = monthBuckets
+    .map((b) => {
+      const buyH = Math.round((b.buy / maxVal) * 100);
+      const sellH = Math.round((b.sell / maxVal) * 100);
+      return `
       <div class="mf-bar-col">
         <div class="mf-bar-wrap">
           <div class="mf-bar buy"  style="height:${buyH}%"></div>
@@ -19076,23 +19539,35 @@ function renderDashboardMonthlyFlowCard() {
         </div>
         <div class="mf-bar-label">${b.label}</div>
       </div>`;
-  }).join("");
+    })
+    .join("");
 
   // Next milestone pace callout
-  const currentValue = window._dashCurrentValue ||
-    Object.values(fundWiseData).reduce((s, f) => s + (f.advancedMetrics?.currentValue || 0), 0);
+  const currentValue =
+    window._dashCurrentValue ||
+    Object.values(fundWiseData).reduce(
+      (s, f) => s + (f.advancedMetrics?.currentValue || 0),
+      0,
+    );
   const milestones = generateMilestones(currentValue);
   const nextMs = milestones.find((m) => m > currentValue);
   const nextLabel = nextMs ? formatMilestoneAmount(nextMs) : null;
-  const months = nextMs ? monthsToReach(currentValue, nextMs, inflow, 12) : null;
-  const pace = nextLabel ? paceCallout(nextMs, nextLabel, months, summary.sixMonths.hasOutlier) : "Keep investing consistently.";
+  const months = nextMs
+    ? monthsToReach(currentValue, nextMs, inflow, 12)
+    : null;
+  const pace = nextLabel
+    ? paceCallout(nextMs, nextLabel, months, summary.sixMonths.hasOutlier)
+    : "Keep investing consistently.";
 
-  const net6Median  = summary.sixMonths.medianNetInflow;
+  const net6Median = summary.sixMonths.medianNetInflow;
   const net12Median = summary.twelveMonths.medianNetInflow;
-  const buyClass    = "color:var(--success)";
-  const netClass    = medianNet >= 0 ? "color:var(--success)" : "color:var(--danger)";
-  const inv6Class   = net6Median  >= 0 ? "color:var(--success)" : "color:var(--danger)";
-  const inv12Class  = net12Median >= 0 ? "color:var(--success)" : "color:var(--danger)";
+  const buyClass = "color:var(--success)";
+  const netClass =
+    medianNet >= 0 ? "color:var(--success)" : "color:var(--danger)";
+  const inv6Class =
+    net6Median >= 0 ? "color:var(--success)" : "color:var(--danger)";
+  const inv12Class =
+    net12Median >= 0 ? "color:var(--success)" : "color:var(--danger)";
 
   el.innerHTML = `
     <div class="mf-body">
