@@ -15,6 +15,7 @@ let chart = null;
 let currentTab = "growth";
 let currentPeriod = "6M";
 let fundWiseData = {};
+let expenseImpactData = null;
 const allTimeFlows = [];
 const activeFlows = [];
 let isSummaryCAS = false;
@@ -106,7 +107,7 @@ const DEBUG_MODE = false;
 // copies). Bumping this forces an immediate full update — bypassing the
 // 6 AM gate and the 7-day cadence — the next time the app loads, and also
 // resets the 7-day weekly-update counter.
-const STATS_SCHEMA_VERSION = 4;
+const STATS_SCHEMA_VERSION = 5;
 const STATS_SCHEMA_VERSION_KEY = "statsSchemaVersion";
 
 // Warm Financial Intelligence palette — mirrors the CSS tbc-fill nth-child rules
@@ -200,6 +201,41 @@ function getDoughnutColors(count, labels = []) {
     }
     return palette[i % palette.length];
   });
+}
+
+function buildSegmentBar(wrapperId, labels, values, totalValue) {
+  const wrapper = document.getElementById(wrapperId);
+  if (!wrapper) return;
+  const total = values.reduce((s, v) => s + v, 0) || 1;
+
+  // Cap at 6: top 5 + Others
+  let dispLabels = labels,
+    dispValues = values;
+  if (labels.length > 6) {
+    const othersVal = values.slice(5).reduce((s, v) => s + v, 0);
+    dispLabels = [...labels.slice(0, 5), "Others"];
+    dispValues = [...values.slice(0, 5), othersVal];
+  }
+
+  const colors = getDoughnutColors(dispLabels.length, dispLabels);
+  const barSegs = dispLabels
+    .map((lbl, i) => {
+      const pct = (dispValues[i] / total) * 100;
+      if (pct < 0.3) return "";
+      return `<div class="comp-bar-seg" style="flex:${pct};background:${colors[i]}" title="${lbl}: ${pct.toFixed(1)}%"></div>`;
+    })
+    .join("");
+  const legItems = dispLabels
+    .map((lbl, i) => {
+      const pct = (dispValues[i] / total) * 100;
+      return `<div class="comp-leg-item">
+      <span class="comp-leg-dot" style="background:${colors[i]}"></span>
+      <span class="comp-leg-name">${lbl}</span>
+      <span class="comp-leg-pct">${pct.toFixed(1)}%</span>
+    </div>`;
+    })
+    .join("");
+  wrapper.innerHTML = `<div class="comp-bar">${barSegs}</div><div class="comp-legend">${legItems}</div>`;
 }
 
 function getTbcColor(index) {
@@ -793,6 +829,7 @@ function aggregateFundWiseData() {
     return fundWiseData;
   }
 
+  expenseImpactData = null;
   fundWiseData = {};
 
   // Get hidden folios for current user
@@ -2233,13 +2270,24 @@ function getOverlapLevelInfo(overlapPercent) {
     cls: "gain",
   };
 }
+function getRepresentativeTER(history, n = 30) {
+  const vals = (history || [])
+    .filter((e) => e.frequency === "Daily" && e.expense_ratio != null)
+    .slice(0, n)
+    .map((e) => e.expense_ratio)
+    .sort((a, b) => a - b);
+  if (!vals.length) return null;
+  const mid = Math.floor(vals.length / 2);
+  return vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+}
+
 function calculateExpenseImpact() {
   const result = {
     totalExpenseRatio: 0,
     weightedExpenseRatio: 0,
     annualCost: 0,
-    lifetimeCost: 0,
     funds: [],
+    mostExpensiveFund: null,
   };
 
   let totalValue = 0;
@@ -2250,26 +2298,24 @@ function calculateExpenseImpact() {
     if (value <= 0) return;
 
     const extendedData = mfStats[fund.isin];
-    const expenseRatio = parseFloat(extendedData?.expense_ratio || 0);
-    const holdingDays = fund.advancedMetrics?.averageHoldingDays || 0;
-    const holdingYears = holdingDays / 365;
+    const medianTER = getRepresentativeTER(extendedData?.expense_ratio_history);
+    const expenseRatio =
+      medianTER != null
+        ? medianTER
+        : parseFloat(extendedData?.expense_ratio || 0);
 
     const annualCost = (value * expenseRatio) / 100;
-    const lifetimeCost = annualCost * Math.max(holdingYears, 1);
 
     result.funds.push({
       name: fund.schemeDisplay || fund.scheme,
       value: value,
       expenseRatio: expenseRatio,
       annualCost: annualCost,
-      lifetimeCost: lifetimeCost,
-      holdingYears: holdingYears,
     });
 
     totalValue += value;
-    weightedER += expenseRatio * (value / 1); // Will normalize later
+    weightedER += expenseRatio * value;
     result.annualCost += annualCost;
-    result.lifetimeCost += lifetimeCost;
   });
 
   if (totalValue > 0) {
@@ -2277,6 +2323,16 @@ function calculateExpenseImpact() {
   }
 
   result.funds.sort((a, b) => b.annualCost - a.annualCost);
+
+  if (result.funds.length > 0) {
+    const top = result.funds.reduce((a, b) =>
+      b.expenseRatio > a.expenseRatio ? b : a,
+    );
+    result.mostExpensiveFund = {
+      name: top.name,
+      expenseRatio: top.expenseRatio,
+    };
+  }
 
   return result;
 }
@@ -2317,7 +2373,10 @@ function calculateHealthScore() {
 
   activeFunds.forEach((fund) => {
     const value = fund.advancedMetrics.currentValue;
-    const er = parseFloat(mfStats[fund.isin]?.expense_ratio || 0);
+    const ext = mfStats[fund.isin];
+    const medianTER = getRepresentativeTER(ext?.expense_ratio_history);
+    const er =
+      medianTER != null ? medianTER : parseFloat(ext?.expense_ratio || 0);
     totalValue += value;
     weightedER += er * value;
   });
@@ -5962,7 +6021,8 @@ function displayOverlapAnalysis() {
 }
 function displayExpenseImpact() {
   const container = document.getElementById("expenseContent");
-  const data = calculateExpenseImpact();
+  if (!expenseImpactData) expenseImpactData = calculateExpenseImpact();
+  const data = expenseImpactData;
 
   const erClass =
     data.weightedExpenseRatio > 1.5
@@ -5970,6 +6030,18 @@ function displayExpenseImpact() {
       : data.weightedExpenseRatio > 1
         ? "warning"
         : "gain";
+
+  const topFund = data.mostExpensiveFund;
+  const topErClass = topFund
+    ? topFund.expenseRatio > 1.0
+      ? "loss"
+      : topFund.expenseRatio > 0.5
+        ? "warning"
+        : "gain"
+    : "gain";
+  const topFundShort = topFund
+    ? topFund.name.replace(/\b(Fund|Scheme|Plan)\b.*$/i, "").trim()
+    : "";
 
   let html = `
     <div class="capital-gains-section">
@@ -5982,24 +6054,32 @@ function displayExpenseImpact() {
         <div class="gains-summary-card">
           <h4>Weighted Expense Ratio</h4>
           <div class="summary-row">
-            <span>Your Portfolio</span>
+            <span>Weighted Expense Ratio</span>
             <span class="${erClass}">${data.weightedExpenseRatio.toFixed(3)}%</span>
           </div>
+          <div class="ei-card-sub"><i class="fa-solid fa-chart-line"></i> 30-day median basis</div>
         </div>
         <div class="gains-summary-card">
           <h4>Annual Cost</h4>
           <div class="summary-row">
-            <span>Total Fees/Year</span>
+            <span>Annual Cost</span>
             <span class="loss">₹${formatNumber(data.annualCost)}</span>
           </div>
+          <div class="ei-card-sub"><i class="fa-solid fa-calendar"></i> Estimated per year</div>
         </div>
+        ${
+          topFund
+            ? `
         <div class="gains-summary-card">
-          <h4>Lifetime Cost</h4>
+          <h4>Most Expensive TER</h4>
           <div class="summary-row">
-            <span>Total Paid</span>
-            <span class="loss">₹${formatNumber(data.lifetimeCost)}</span>
+            <span>Most Expensive TER</span>
+            <span class="${topErClass}">${topFund.expenseRatio.toFixed(2)}%</span>
           </div>
-        </div>
+          <div class="ei-card-sub"><i class="fa-solid fa-temperature-high"></i> ${topFundShort}</div>
+        </div>`
+            : ""
+        }
       </div>
 
       <div class="gains-table-wrapper" style="margin-top: 0;">
@@ -6008,17 +6088,16 @@ function displayExpenseImpact() {
           <thead>
             <tr>
               <th>Fund Name</th>
-              <th>Current Value</th>
-              <th>Expense Ratio</th>
-              <th>Annual Cost</th>
-              <th>Lifetime Cost</th>
+              <th class="ei-col-num ei-col-value">Current Value</th>
+              <th class="ei-col-num">Expense Ratio</th>
+              <th class="ei-col-num">Annual Cost</th>
             </tr>
           </thead>
           <tbody>
   `;
 
   data.funds.forEach((fund) => {
-    const erClass =
+    const fundErClass =
       fund.expenseRatio > 1.5
         ? "loss"
         : fund.expenseRatio > 1
@@ -6028,10 +6107,9 @@ function displayExpenseImpact() {
     html += `
       <tr>
         <td>${fund.name}</td>
-        <td>₹${formatNumber(fund.value)}</td>
-        <td class="${erClass}">${fund.expenseRatio.toFixed(2)}%</td>
-        <td>₹${formatNumber(fund.annualCost)}</td>
-        <td>₹${formatNumber(fund.lifetimeCost)}</td>
+        <td class="ei-col-num ei-col-value">₹${formatNumber(fund.value)}</td>
+        <td class="ei-col-num ${fundErClass}">${fund.expenseRatio.toFixed(2)}%</td>
+        <td class="ei-col-num">₹${formatNumber(fund.annualCost)}</td>
       </tr>
     `;
   });
@@ -6044,6 +6122,8 @@ function displayExpenseImpact() {
   `;
 
   container.innerHTML = html;
+  const disc = document.getElementById("eiDisclaimer");
+  if (disc) disc.style.display = "flex";
 }
 function displayHealthScore() {
   const container = document.getElementById("healthScoreContent");
@@ -9095,8 +9175,189 @@ function showFundDetailsModal(
     }
   }
 
+  // Build peers section HTML
+  const _riskLevels = [
+    "Low",
+    "Low to Moderate",
+    "Moderate",
+    "Moderately High",
+    "High",
+    "Very High",
+  ];
+  const _riskColors = [
+    "#2F8F5B",
+    "#5A9E6E",
+    "#C9872D",
+    "#D9854A",
+    "#C65A52",
+    "#B84E47",
+  ];
+  function buildPeerRiskText(riskStr) {
+    if (!riskStr) return "—";
+    const activeIdx = _riskLevels.findIndex(
+      (r) => r.toLowerCase() === riskStr.toLowerCase(),
+    );
+    const color =
+      activeIdx >= 0 ? _riskColors[activeIdx] : "var(--text-secondary)";
+    return `<span class="fdm-peer-risk-text" style="color:${color}">${riskStr}</span>`;
+  }
+
+  const _allPeers = extendedData?.similar_schemes || [];
+  window._fdmPeers = _allPeers;
+  window._fdmPeerSort = { col: "return3y", dir: -1 };
+  window._fdmCurrentIsin = fund.isin || null;
+  // Strip plan suffix for fallback name match (e.g. "Nippon India Small Cap Fund Direct Growth" → "Nippon India Small Cap Fund")
+  window._fdmCurrentBaseName = (fund.scheme || fund.schemeDisplay || "")
+    .replace(/\s+(Direct|Regular)\s+(Growth|Plan|Option).*/i, "")
+    .trim()
+    .toLowerCase();
+
+  // Pre-compute top-3 by 3Y return — fixed regardless of user sort
+  const _3ySorted = [..._allPeers].sort(
+    (a, b) => (b.return3y ?? -Infinity) - (a.return3y ?? -Infinity),
+  );
+  const _top3Keys = new Set(
+    _3ySorted.slice(0, 3).map((p) => p.isin || p.scheme_name),
+  );
+  const _top3Rank = new Map(
+    _3ySorted.slice(0, 3).map((p, i) => [p.isin || p.scheme_name, i]),
+  );
+  const _trophyLabels = [
+    `<i class="fa-solid fa-trophy"></i><i class="fa-solid fa-trophy"></i><i class="fa-solid fa-trophy"></i>`,
+    `<i class="fa-solid fa-trophy"></i><i class="fa-solid fa-trophy"></i>`,
+    `<i class="fa-solid fa-trophy"></i>`,
+  ];
+  window._fdmTop3Keys = _top3Keys;
+  window._fdmTop3Rank = _top3Rank;
+
+  function buildFdmPeerRows(peerList, sortCol, sortDir, limit = 10) {
+    const sorted = [...peerList].sort((a, b) => {
+      const av = a[sortCol] ?? (sortDir === -1 ? -Infinity : Infinity);
+      const bv = b[sortCol] ?? (sortDir === -1 ? -Infinity : Infinity);
+      return (
+        sortDir * (typeof av === "string" ? av.localeCompare(bv) : bv - av) * -1
+      );
+    });
+
+    let display = sorted;
+    if (limit && sorted.length > limit) {
+      const isCurrentPeer = (p) => {
+        const base = (p.scheme_name || p.fund_name || "")
+          .replace(/\s+(Direct|Regular)\s+(Growth|Plan|Option).*/i, "")
+          .trim()
+          .toLowerCase();
+        return (
+          (window._fdmCurrentIsin && p.isin === window._fdmCurrentIsin) ||
+          (window._fdmCurrentBaseName && base === window._fdmCurrentBaseName)
+        );
+      };
+      const topN = sorted.slice(0, limit);
+      if (topN.some(isCurrentPeer)) {
+        display = topN;
+      } else {
+        const currentIdx = sorted.findIndex(isCurrentPeer);
+        display =
+          currentIdx >= 0
+            ? [...sorted.slice(0, limit - 1), sorted[currentIdx]]
+            : topN;
+      }
+    }
+
+    return display
+      .map((peer) => {
+        const peerKey = peer.isin || peer.scheme_name;
+        const isTop3 = window._fdmTop3Keys.has(peerKey);
+        const rankIdx = window._fdmTop3Rank.get(peerKey);
+        const peerBaseName = (peer.scheme_name || peer.fund_name || "")
+          .replace(/\s+(Direct|Regular)\s+(Growth|Plan|Option).*/i, "")
+          .trim()
+          .toLowerCase();
+        const isCurrent =
+          (window._fdmCurrentIsin && peer.isin === window._fdmCurrentIsin) ||
+          (window._fdmCurrentBaseName &&
+            peerBaseName === window._fdmCurrentBaseName);
+        const medianTER = getRepresentativeTER(peer.expense_ratio_history);
+        const er =
+          medianTER != null ? medianTER : parseFloat(peer.expense_ratio || 0);
+        const erClass = er > 1.0 ? "loss" : er > 0.5 ? "warning" : "gain";
+        const ret1y = peer.return1y ?? null;
+        const ret3y = peer.return3y ?? null;
+        const aum = peer.aum ? `₹${formatNumber(Math.round(peer.aum))}Cr` : "—";
+        const rating = peer.groww_rating
+          ? `<span class="fund-stats-rating-badge">★ ${peer.groww_rating}</span>`
+          : "—";
+        const logoHTML = peer.logo_url
+          ? `<img class="fdm-peer-logo" src="${peer.logo_url}" alt="" onerror="this.style.display='none'">`
+          : `<div class="fdm-peer-logo fdm-peer-logo-placeholder"></div>`;
+        const shortName =
+          peer.scheme_name
+            ?.replace(/\s+(Direct|Regular)\s+(Growth|Plan|Option).*/i, "")
+            .trim() || peer.fund_name;
+        const ret3yHTML =
+          ret3y != null
+            ? `<span class="${ret3y >= 0 ? "gain" : "loss"}">${ret3y.toFixed(1)}%</span>${isTop3 ? `<div class="fdm-peer-rank-label">${_trophyLabels[rankIdx]}</div>` : ""}`
+            : "—";
+        return `
+        <tr class="${isCurrent ? "fdm-peer-current" : ""}">
+          <td>
+            <div class="fdm-peer-name-cell">
+              ${logoHTML}
+              <div>
+                <div class="fdm-peer-name">${shortName}</div>
+                <div class="fdm-peer-house">${peer.fund_house || ""}</div>
+              </div>
+            </div>
+          </td>
+          <td class="fdm-peer-num fdm-mob-hide"><span class="fdm-peer-aum">${aum}</span></td>
+          <td class="fdm-peer-num fdm-mob-hide"><span class="${ret1y != null ? (ret1y >= 0 ? "gain" : "loss") : ""}">${ret1y != null ? ret1y.toFixed(1) + "%" : "—"}</span></td>
+          <td class="fdm-peer-num">${ret3yHTML}</td>
+          <td class="fdm-peer-num fdm-mob-hide"><span class="${erClass}">${er > 0 ? er.toFixed(2) + "%" : "—"}</span></td>
+          <td class="fdm-peer-num fdm-mob-hide fdm-peer-col-risk">${buildPeerRiskText(peer.risk)}</td>
+          <td class="fdm-peer-num">${rating}</td>
+        </tr>`;
+      })
+      .join("");
+  }
+  window._buildFdmPeerRows = buildFdmPeerRows;
+  window._fdmPeerLimit = 10;
+
+  let peersSectionHTML = "";
+  if (_allPeers.length > 0) {
+    const subCat = _allPeers[0]?.sub_category || "Category";
+    const initialRows = buildFdmPeerRows(_allPeers, "return3y", -1, 10);
+    const thSort = (col, label, active, extraClass = "") =>
+      `<th class="fdm-peer-num fdm-peer-th-sort${extraClass ? " " + extraClass : ""}" data-col="${col}" onclick="fdmSortPeers('${col}')">${label} <span class="fdm-sort-icon" id="fdm-sort-${col}">${active ? "↓" : "↕"}</span></th>`;
+    peersSectionHTML = `
+      <div class="fdm-peers-section">
+        <div class="fund-chart-card-header" style="padding:10px 16px">
+          <span class="fund-chart-card-icon"><i class="fa-solid fa-users"></i></span>
+          <span class="fund-chart-card-title">Peers in ${subCat}</span>
+        </div>
+        <div class="fdm-peers-table-wrap">
+          <table class="fdm-peers-table">
+            <thead>
+              <tr>
+                <th class="fdm-peer-th-fund fdm-peer-th-sort" onclick="fdmSortPeers('scheme_name')">Fund <span class="fdm-sort-icon" id="fdm-sort-scheme_name">↕</span></th>
+                ${thSort("aum", "AUM", false, "fdm-mob-hide")}
+                ${thSort("return1y", "1Y Return", false, "fdm-mob-hide")}
+                ${thSort("return3y", "3Y Return", true)}
+                ${thSort("expense_ratio", "TER", false, "fdm-mob-hide")}
+                ${thSort("risk_rating", "Risk", false, "fdm-mob-hide")}
+                ${thSort("groww_rating", "Rating")}
+              </tr>
+            </thead>
+            <tbody id="fdm-peers-tbody">${initialRows}</tbody>
+          </table>
+        </div>
+        ${_allPeers.length > 10 ? `<div class="fdm-peers-view-more-wrap"><button class="fdm-peers-view-more-btn" id="fdm-peers-view-more" onclick="fdmShowAllPeers()"><i class="fa-solid fa-angles-down"></i> ${_allPeers.length} funds</button></div>` : ""}
+      </div>`;
+  }
+
   modal.innerHTML = `
     <div class="transaction-modal fund-details-modal">
+      <div class="fdm-spinner-overlay" id="fdmSpinnerOverlay">
+        <div class="fdm-spinner"></div>
+      </div>
       <div class="modal-header">
         <div class="modal-header-fund-title">
           ${extendedData?.logo_url ? `<img class="modal-fund-logo" src="${extendedData.logo_url}" alt="" onerror="this.style.display='none'">` : ""}
@@ -9250,6 +9511,20 @@ function showFundDetailsModal(
             }
           </div>
 
+          <div class="fund-summary-actions-row">
+            <button class="fund-summary-action-btn" onclick="showFundHoldings('${fundKey}')">
+              <i class="fa-solid fa-eye"></i>
+              <span>View Holdings</span>
+              <span class="fund-summary-action-badge">${fund.holdings?.length || 0}</span>
+            </button>
+            <button class="fund-summary-action-btn${isSummaryCAS ? " fund-summary-action-btn--disabled" : ""}"
+              ${isSummaryCAS ? 'disabled title="Not available for Summary CAS"' : `onclick="showFundTransactions('${fundKey}', '${fund.folios.join(",")}')"`}>
+              <i class="fa-solid fa-exchange-alt"></i>
+              <span>View Transactions</span>
+              ${isSummaryCAS ? '<span class="fund-summary-action-badge" style="opacity:0.5">N/A</span>' : ""}
+            </button>
+          </div>
+
         </div>
 
         ${taxExitHTML}
@@ -9257,9 +9532,9 @@ function showFundDetailsModal(
         <!-- Folios Section -->
         ${foliosSectionHTML}
 
-        <!-- Charts Row - Side by side on desktop, stacked on mobile -->
+        <!-- Charts Row -->
         <div class="fund-details-charts-row">
-
+          <div class="fund-charts-top-row">
           <!-- Valuation History (hidden for Summary CAS — no nav history without transaction dates) -->
           <div class="fund-chart-card" ${isSummaryCAS ? 'style="display:none"' : ""}>
             <div class="fund-chart-card-header">
@@ -9282,7 +9557,6 @@ function showFundDetailsModal(
               <canvas id="modalFundValuationChart"></canvas>
             </div>
           </div>
-
           ${
             extendedData
               ? (() => {
@@ -9432,6 +9706,103 @@ function showFundDetailsModal(
                 })()
               : ""
           }
+          </div><!-- /.fund-charts-top-row -->
+
+          ${(() => {
+            const navH = extendedData?.nav_history || [];
+            if (navH.length < 2) return "";
+
+            // Parse DD-MM-YYYY (mfapi.in format) correctly — new Date("DD-MM-YYYY") misparses in V8
+            const parseNd = (s) => {
+              const [d, m, y] = s.split("-");
+              return new Date(+y, +m - 1, +d);
+            };
+            // Build sorted ascending array of {date, nav}
+            const entries = navH
+              .map((e) => ({ date: parseNd(e.date), nav: parseFloat(e.nav) }))
+              .filter((e) => !isNaN(e.nav) && !isNaN(e.date))
+              .sort((a, b) => a.date - b.date);
+
+            function rollingStats(years) {
+              const msLookback = years * 365.25 * 24 * 3600 * 1000;
+              const returns = [];
+              for (let i = entries.length - 1; i >= 0; i--) {
+                const target = new Date(entries[i].date - msLookback);
+                // Binary search for closest entry at or before target
+                let lo = 0,
+                  hi = i - 1,
+                  found = -1;
+                while (lo <= hi) {
+                  const mid = (lo + hi) >> 1;
+                  if (entries[mid].date <= target) {
+                    found = mid;
+                    lo = mid + 1;
+                  } else hi = mid - 1;
+                }
+                if (found < 0) continue;
+                const r =
+                  (Math.pow(entries[i].nav / entries[found].nav, 1 / years) -
+                    1) *
+                  100;
+                if (isFinite(r)) returns.push(r);
+              }
+              if (!returns.length) return null;
+              const avg = returns.reduce((s, v) => s + v, 0) / returns.length;
+              const sorted = [...returns].sort((a, b) => a - b);
+              const mid = Math.floor(sorted.length / 2);
+              const median =
+                sorted.length % 2
+                  ? sorted[mid]
+                  : (sorted[mid - 1] + sorted[mid]) / 2;
+              const min = sorted[0];
+              const max = sorted[sorted.length - 1];
+              return { avg, median, min, max };
+            }
+
+            const periods = [
+              { label: "1Y", years: 1 },
+              { label: "2Y", years: 2 },
+              { label: "3Y", years: 3 },
+              { label: "5Y", years: 5 },
+            ];
+
+            const fmtR = (v) =>
+              v != null ? (v >= 0 ? "+" : "") + v.toFixed(1) + "%" : "—";
+            const cls = (v) =>
+              v == null ? "" : v >= 0 ? "perf-val--gain" : "perf-val--loss";
+
+            const tiles = periods
+              .map((p) => {
+                const s = rollingStats(p.years);
+                const stat = (lbl, val) =>
+                  `<div class="rolling-tile-stat">
+                  <span class="rolling-tile-lbl">${lbl}</span>
+                  <span class="rolling-tile-val ${cls(val)}">${fmtR(val)}</span>
+                </div>`;
+                return `<div class="rolling-tile">
+                <div class="rolling-tile-period">${p.label}</div>
+                <div class="rolling-tile-stats">
+                  ${stat("Avg", s?.avg)}
+                  ${stat("Median", s?.median)}
+                  ${stat("Min", s?.min)}
+                  ${stat("Max", s?.max)}
+                </div>
+              </div>`;
+              })
+              .join("");
+
+            return `
+          <!-- Rolling Returns Card -->
+          <div class="fund-chart-card fund-rolling-card">
+            <div class="fund-chart-card-header">
+              <span class="fund-chart-card-icon"><i class="fa-solid fa-rotate"></i></span>
+              <span class="fund-chart-card-title">Rolling Returns</span>
+              <span class="perf-since-label" style="margin-left:auto;font-size:10px">Based on NAV history · annualised CAGR</span>
+            </div>
+            <div class="rolling-tiles">${tiles}</div>
+            <div class="rolling-tiles-footer">Based on NAV history · annualised CAGR</div>
+          </div>`;
+          })()}
         </div>
 
         <!-- Composition Charts Section -->
@@ -9450,7 +9821,7 @@ function showFundDetailsModal(
                 <span class="fund-composition-col-sub" id="modalAssetAllocationSub"></span>
               </div>
               <div class="fund-composition-col-body">
-                <div id="modalAssetAllocationBar" class="donut-chart-wrap"><canvas id="modalAssetAllocationChart"></canvas></div>
+                <div id="modalAssetAllocationBar" class="comp-bar-wrap"></div>
               </div>
             </div>
             <div class="fund-composition-col">
@@ -9459,7 +9830,7 @@ function showFundDetailsModal(
                 <span class="fund-composition-col-sub" id="modalMarketCapSub"></span>
               </div>
               <div class="fund-composition-col-body">
-                <div id="modalMarketCapBar" class="donut-chart-wrap"><canvas id="modalMarketCapChart"></canvas></div>
+                <div id="modalMarketCapBar" class="comp-bar-wrap"></div>
               </div>
             </div>
             <div class="fund-composition-col" id="modalDebtCol" style="display:none">
@@ -9468,7 +9839,7 @@ function showFundDetailsModal(
                 <span class="fund-composition-col-sub" id="modalDebtSub"></span>
               </div>
               <div class="fund-composition-col-body">
-                <div id="modalDebtBar" class="donut-chart-wrap"><canvas id="modalDebtChart"></canvas></div>
+                <div id="modalDebtBar" class="comp-bar-wrap"></div>
               </div>
             </div>
             <div class="fund-composition-col" id="modalEquitySectorCol" style="display:none">
@@ -9477,7 +9848,7 @@ function showFundDetailsModal(
                 <span class="fund-composition-col-sub" id="modalEquitySectorSub"></span>
               </div>
               <div class="fund-composition-col-body">
-                <div id="modalEquitySectorBar" class="donut-chart-wrap"><canvas id="modalEquitySectorChart"></canvas></div>
+                <div id="modalEquitySectorBar" class="comp-bar-wrap"></div>
               </div>
             </div>
             <div class="fund-composition-col" id="modalDebtSectorCol" style="display:none">
@@ -9486,7 +9857,7 @@ function showFundDetailsModal(
                 <span class="fund-composition-col-sub" id="modalDebtSectorSub"></span>
               </div>
               <div class="fund-composition-col-body">
-                <div id="modalDebtSectorBar" class="donut-chart-wrap"><canvas id="modalDebtSectorChart"></canvas></div>
+                <div id="modalDebtSectorBar" class="comp-bar-wrap"></div>
               </div>
             </div>
           </div>
@@ -9583,6 +9954,107 @@ function showFundDetailsModal(
             : ""
         }
 
+        ${peersSectionHTML}
+
+        <!-- Fund Info Section -->
+        ${
+          extendedData
+            ? `
+        <div class="fund-meta-section">
+          <div class="fund-stats-header">
+            <span class="fund-stats-header-icon"><i class="fa-solid fa-tag"></i></span>
+            <span class="fund-stats-header-title">Fund Info</span>
+          </div>
+          <div class="fund-meta-grid">
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">AMC</span>
+              <span class="fund-meta-value">${standardizeTitle(fund.amc) || "--"}</span>
+            </div>
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Launch Date</span>
+              <span class="fund-meta-value">${extendedData.launch_date || "--"}</span>
+            </div>
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">ISIN</span>
+              <span class="fund-meta-value fund-meta-value--mono">${extendedData.isin || "--"}</span>
+            </div>
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Scheme Code</span>
+              <span class="fund-meta-value fund-meta-value--mono">${extendedData.scheme_code || "--"}</span>
+            </div>
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Category</span>
+              <span class="fund-meta-value">${
+                extendedData.meta?.scheme_category
+                  ? extendedData.meta.scheme_category
+                      .replace(/\bFund\b/gi, "")
+                      .replace(/\bScheme\b(?=\s*[-–])/gi, "")
+                      .replace(/\s{2,}/g, " ")
+                      .trim()
+                  : "--"
+              }</span>
+            </div>
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">RTA</span>
+              <span class="fund-meta-value">${extendedData.rta || "--"}</span>
+            </div>
+            <div class="fund-meta-item">
+              <span class="fund-meta-label">Benchmark</span>
+              <span class="fund-meta-value">
+                ${
+                  extendedData.benchmark?.toUpperCase() === "GROWWDB"
+                    ? "--"
+                    : extendedData.benchmark || "--"
+                }
+              </span>
+            </div>
+
+            <!-- Managers -->
+            <div class="fund-meta-item fund-meta-item--managers">
+              <span class="fund-meta-label">Fund Manager(s)</span>
+              <span class="fund-meta-value">${(() => {
+                const mgr = extendedData.manager || fund.manager;
+                if (!mgr) return "--";
+                if (Array.isArray(mgr)) return mgr.join(", ") || "--";
+                return mgr;
+              })()}</span>
+            </div>
+          </div>
+
+          <!-- Taxation row -->
+          <div class="fund-meta-row-full">
+            <div class="fund-meta-item fund-meta-item--full">
+              <span class="fund-meta-label">Taxation</span>
+              <span class="fund-meta-value fund-meta-value--tax">${extendedData.tax_impact || "--"}</span>
+            </div>
+          </div>
+
+          <!-- Exit Load row -->
+          <div class="fund-meta-row-full">
+            <div class="fund-meta-item fund-meta-item--full">
+              <span class="fund-meta-label">Exit Load</span>
+              <span class="fund-meta-value fund-meta-value--tax">${extendedData.exit_load || "--"}</span>
+            </div>
+          </div>
+
+          <!-- About the Fund -->
+          ${
+            extendedData.meta_desc
+              ? `
+          <!-- Fund Description row -->
+          <div class="fund-meta-row-full">
+            <div class="fund-meta-item fund-meta-item--full fund-meta-item--desc">
+              <span class="fund-meta-label">About this Fund</span>
+              <p class="fund-meta-desc">${extendedData.meta_desc}</p>
+            </div>
+          </div>`
+              : ""
+          }
+        </div>
+        `
+            : ""
+        }
+
         <!-- Investment Limits Section -->
         ${
           extendedData
@@ -9657,126 +10129,6 @@ function showFundDetailsModal(
             : ""
         }
 
-        <!-- Meta Section -->
-        ${
-          extendedData
-            ? `
-        <div class="fund-meta-section">
-          <div class="fund-stats-header">
-            <span class="fund-stats-header-icon"><i class="fa-solid fa-tag"></i></span>
-            <span class="fund-stats-header-title">Fund Info</span>
-          </div>
-          <div class="fund-meta-grid">
-            <div class="fund-meta-item">
-              <span class="fund-meta-label">AMC</span>
-              <span class="fund-meta-value">${standardizeTitle(fund.amc) || "--"}</span>
-            </div>
-            <div class="fund-meta-item">
-              <span class="fund-meta-label">Launch Date</span>
-              <span class="fund-meta-value">${extendedData.launch_date || "--"}</span>
-            </div>
-            <div class="fund-meta-item">
-              <span class="fund-meta-label">ISIN</span>
-              <span class="fund-meta-value fund-meta-value--mono">${extendedData.isin || "--"}</span>
-            </div>
-            <div class="fund-meta-item">
-              <span class="fund-meta-label">Scheme Code</span>
-              <span class="fund-meta-value fund-meta-value--mono">${extendedData.scheme_code || "--"}</span>
-            </div>
-            <div class="fund-meta-item">
-              <span class="fund-meta-label">Category</span>
-              <span class="fund-meta-value">${
-                extendedData.meta?.scheme_category
-                  ? extendedData.meta.scheme_category
-                      .replace(/\bFund\b/gi, "")
-                      .replace(/\bScheme\b(?=\s*[-–])/gi, "")
-                      .replace(/\s{2,}/g, " ")
-                      .trim()
-                  : "--"
-              }</span>
-            </div>
-            <div class="fund-meta-item">
-              <span class="fund-meta-label">RTA</span>
-              <span class="fund-meta-value">${extendedData.rta || "--"}</span>
-            </div>
-            <div class="fund-meta-item">
-              <span class="fund-meta-label">Benchmark</span>
-              <span class="fund-meta-value">
-                ${
-                  extendedData.benchmark?.toUpperCase() === "GROWWDB"
-                    ? "--"
-                    : extendedData.benchmark || "--"
-                }
-              </span>
-            </div>
-
-            <!-- Managers -->
-            <div class="fund-meta-item fund-meta-item--managers">
-              <span class="fund-meta-label">Fund Manager(s)</span>
-              <span class="fund-meta-value">${(() => {
-                const mgr = extendedData.manager || fund.manager;
-                if (!mgr) return "--";
-                if (Array.isArray(mgr)) return mgr.join(", ") || "--";
-                return mgr;
-              })()}</span>
-            </div>
-          </div>
-
-          <!-- Taxation row -->
-          <div class="fund-meta-row-full">
-            <div class="fund-meta-item fund-meta-item--full">
-              <span class="fund-meta-label">Taxation</span>
-              <span class="fund-meta-value fund-meta-value--tax">${extendedData.tax_impact || "--"}</span>
-            </div>
-          </div>
-          
-          <!-- Exit Load row -->
-          <div class="fund-meta-row-full">
-            <div class="fund-meta-item fund-meta-item--full">
-              <span class="fund-meta-label">Exit Load</span>
-              <span class="fund-meta-value fund-meta-value--tax">${extendedData.exit_load || "--"}</span>
-            </div>
-          </div>
-
-          <!-- About the Fund -->
-          ${
-            extendedData.meta_desc
-              ? `
-          <!-- Fund Description row -->
-          <div class="fund-meta-row-full">
-            <div class="fund-meta-item fund-meta-item--full fund-meta-item--desc">
-              <span class="fund-meta-label">About this Fund</span>
-              <p class="fund-meta-desc">${extendedData.meta_desc}</p>
-            </div>
-          </div>`
-              : ""
-          }
-        </div>
-        `
-            : ""
-        }
-
-        <!-- Quick Actions Section -->
-        <div class="fund-quick-actions-card">
-          <div class="fund-quick-actions-header">
-            <span class="fund-chart-card-icon"><i class="fa-solid fa-bolt"></i></span>
-            <span class="fund-chart-card-title">Quick Actions</span>
-          </div>
-          <div class="fund-quick-actions-body">
-            <button class="fund-quick-action-btn" onclick="showFundHoldings('${fundKey}')">
-              <i class="fa-solid fa-eye"></i>
-              <span>View Holdings</span>
-              <span class="fund-quick-action-badge">${fund.holdings?.length || 0}</span>
-            </button>
-            <button class="fund-quick-action-btn${isSummaryCAS ? " fund-quick-action-btn--disabled" : ""}"
-              ${isSummaryCAS ? 'disabled title="Not available for Summary CAS"' : `onclick="showFundTransactions('${fundKey}', '${fund.folios.join(",")}')"`}>
-              <i class="fa-solid fa-exchange-alt"></i>
-              <span>View Transactions</span>
-              ${isSummaryCAS ? '<span class="fund-quick-action-badge" style="opacity:0.5">N/A</span>' : ""}
-            </button>
-          </div>
-        </div>
-
       </div>
     </div>
   `;
@@ -9791,17 +10143,71 @@ function showFundDetailsModal(
     window.location.pathname,
   );
 
-  // Render charts after modal is in DOM
+  // Render charts after modal is in DOM, then hide spinner
   setTimeout(() => {
     renderModalFundValuationChart(fundKey, "3M");
     if (extendedData) {
       renderModalCompositionCharts(fundKey, extendedData, current);
     }
+    const spinner = document.getElementById("fdmSpinnerOverlay");
+    if (spinner) spinner.remove();
   }, 50);
 
   modal.addEventListener("click", (e) => {
     if (e.target === modal) closeFundDetailsModal();
   });
+}
+function fdmSortPeers(col) {
+  const s = window._fdmPeerSort;
+  s.dir = s.col === col ? s.dir * -1 : -1;
+  s.col = col;
+  const tbody = document.getElementById("fdm-peers-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = window._buildFdmPeerRows(
+    window._fdmPeers,
+    col,
+    s.dir,
+    window._fdmPeerLimit,
+  );
+  document
+    .querySelectorAll(".fdm-sort-icon")
+    .forEach((el) => (el.textContent = "↕"));
+  const icon = document.getElementById(`fdm-sort-${col}`);
+  if (icon) icon.textContent = s.dir === -1 ? "↓" : "↑";
+}
+function fdmShowAllPeers() {
+  window._fdmPeerLimit = null;
+  const tbody = document.getElementById("fdm-peers-tbody");
+  if (!tbody) return;
+  const s = window._fdmPeerSort;
+  tbody.innerHTML = window._buildFdmPeerRows(
+    window._fdmPeers,
+    s.col,
+    s.dir,
+    null,
+  );
+  const btn = document.getElementById("fdm-peers-view-more");
+  if (btn) {
+    btn.innerHTML = '<i class="fa-solid fa-angles-up"></i> View less';
+    btn.onclick = fdmCollapsePeers;
+  }
+}
+function fdmCollapsePeers() {
+  window._fdmPeerLimit = 10;
+  const tbody = document.getElementById("fdm-peers-tbody");
+  if (!tbody) return;
+  const s = window._fdmPeerSort;
+  tbody.innerHTML = window._buildFdmPeerRows(
+    window._fdmPeers,
+    s.col,
+    s.dir,
+    10,
+  );
+  const btn = document.getElementById("fdm-peers-view-more");
+  if (btn) {
+    btn.innerHTML = `<i class="fa-solid fa-angles-down"></i> ${window._fdmPeers.length} funds`;
+    btn.onclick = fdmShowAllPeers;
+  }
 }
 function closeFundDetailsModal() {
   const modal = document.getElementById("fundDetailsModal");
@@ -10483,8 +10889,8 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
         ...s,
         value: (s.value / displayTotal) * 100,
       }));
-      buildDoughnutChart(
-        "modalAssetAllocationChart",
+      buildSegmentBar(
+        "modalAssetAllocationBar",
         normalized.map((s) => s.label),
         normalized.map((s) => s.value),
         currentValue,
@@ -10559,26 +10965,8 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
       const mcapLabels = segments.map((s) => s.label);
       const mcapData = segments.map((s) => s.value);
 
-      buildDoughnutChart(
-        "modalMarketCapChart",
-        mcapLabels,
-        mcapData,
-        equityRupees,
-      );
+      buildSegmentBar("modalMarketCapBar", mcapLabels, mcapData, equityRupees);
       setAnalyticsCardSub("modalMarketCapSub", `${mcapLabels.length} segments`);
-
-      // Apply the same grouped legend (Domestic / Other) as the Dashboard
-      const mcapLabelsEl = mcapBarEl.querySelector(".donut-labels");
-      if (mcapLabelsEl) {
-        const mcapColors = mcapLabels.map((_, i) => getTbcColor(i));
-        renderMarketCapGroupedLegend(
-          mcapLabelsEl,
-          mcapLabels,
-          mcapData,
-          equityRupees,
-          mcapColors,
-        );
-      }
     } else {
       const col = mcapBarEl.closest(".fund-composition-col");
       if (col) {
@@ -10602,8 +10990,8 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
     if (debtEntries.length > 0) {
       debtCol.style.display = "";
       const debtTotal = debtEntries.reduce((sum, [, v]) => sum + v, 0);
-      buildDoughnutChart(
-        "modalDebtChart",
+      buildSegmentBar(
+        "modalDebtBar",
         debtEntries.map(([label]) => label),
         debtEntries.map(([, val]) => (val / debtTotal) * 100),
         debtRupees,
@@ -10643,8 +11031,8 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
         (sum, [, v]) => sum + v,
         0,
       );
-      buildDoughnutChart(
-        "modalEquitySectorChart",
+      buildSegmentBar(
+        "modalEquitySectorBar",
         equitySectorEntries.map(([label]) => label),
         equitySectorEntries.map(([, val]) => (val / equitySectorTotal) * 100),
         equityRupees,
@@ -10684,8 +11072,8 @@ function renderModalCompositionCharts(fundKey, extendedData, currentValue = 0) {
         (sum, [, v]) => sum + v,
         0,
       );
-      buildDoughnutChart(
-        "modalDebtSectorChart",
+      buildSegmentBar(
+        "modalDebtSectorBar",
         debtSectorEntries.map(([label]) => label),
         debtSectorEntries.map(([, val]) => (val / debtSectorTotal) * 100),
         debtRupees,
@@ -19054,7 +19442,7 @@ function renderDashboardInsightsStrip() {
   }
 
   // Expense
-  const expenseData = calculateExpenseImpact();
+  const expenseData = expenseImpactData || calculateExpenseImpact();
   const expenseTotalValue =
     expenseData?.funds?.reduce((s, f) => s + f.value, 0) ?? 0;
   const erVal =
