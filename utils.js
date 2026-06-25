@@ -911,7 +911,7 @@ function _getOrCreateSplashOverlay() {
       }
       .fsp-title {
         font-size: 15px; font-weight: 600; letter-spacing: 0.01em;
-        color: var(--text-primary, #e8e8f0);
+        color: #fff;
       }
       .fsp-steps { display: flex; flex-direction: column; gap: 10px; }
       .fsp-step {
@@ -959,15 +959,15 @@ function _getOrCreateSplashOverlay() {
       }
       .fsp-step-label {
         font-size: 13px; font-weight: 500;
-        color: var(--text-secondary, #a0a0b8);
+        color: #fff;
         transition: color 0.3s ease;
       }
       .fsp-step--active .fsp-step-label,
       .fsp-step--done   .fsp-step-label {
-        color: var(--text-primary, #e8e8f0);
+        color: #fff;
       }
       .fsp-step-check {
-        margin-left: auto; font-size: 13px; opacity: 0;
+        margin-left: auto; font-size: 13px; opacity: 0; color: #fff;
         transition: opacity 0.3s ease;
       }
       .fsp-step--done .fsp-step-check { opacity: 1; }

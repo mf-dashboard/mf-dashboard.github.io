@@ -106,7 +106,7 @@ const DEBUG_MODE = false;
 // copies). Bumping this forces an immediate full update — bypassing the
 // 6 AM gate and the 7-day cadence — the next time the app loads, and also
 // resets the 7-day weekly-update counter.
-const STATS_SCHEMA_VERSION = 6;
+const STATS_SCHEMA_VERSION = 7;
 const STATS_SCHEMA_VERSION_KEY = "statsSchemaVersion";
 
 // Warm Financial Intelligence palette — mirrors the CSS tbc-fill nth-child rules
@@ -207,13 +207,13 @@ function buildSegmentBar(wrapperId, labels, values, totalValue) {
   if (!wrapper) return;
   const total = values.reduce((s, v) => s + v, 0) || 1;
 
-  // Cap at 6: top 5 + Others
+  // Cap at 8: top 7 + Others
   let dispLabels = labels,
     dispValues = values;
-  if (labels.length > 6) {
-    const othersVal = values.slice(5).reduce((s, v) => s + v, 0);
-    dispLabels = [...labels.slice(0, 5), "Others"];
-    dispValues = [...values.slice(0, 5), othersVal];
+  if (labels.length > 8) {
+    const othersVal = values.slice(7).reduce((s, v) => s + v, 0);
+    dispLabels = [...labels.slice(0, 7), "Others"];
+    dispValues = [...values.slice(0, 7), othersVal];
   }
 
   const colors = getDoughnutColors(dispLabels.length, dispLabels);
@@ -6469,7 +6469,7 @@ function displayMonthlySummaryAndProjections() {
               <tr>
                 <th></th>
                 <th class="num">Avg</th>
-                <th class="num accent">Typical <i class="fa-solid fa-circle-info" style="color:var(--accent);font-size:11px;padding-left:3px;" title="Median value — less affected by one-off large purchases or redemptions. Used for all projections.${summary.sixMonths.hasOutlier ? " Outlier month detected." : ""}"></i></th>
+                <th class="num accent">Typical <i class="fa-solid fa-circle-info info-tip" style="color:var(--accent);font-size:11px;padding-left:3px;" data-tooltip="Median value — less affected by one-off large purchases or redemptions. Used for all projections.${summary.sixMonths.hasOutlier ? " Outlier month detected." : ""}"></i></th>
               </tr>
             </thead>
             <tbody>
@@ -6499,7 +6499,7 @@ function displayMonthlySummaryAndProjections() {
               <tr>
                 <th></th>
                 <th class="num">Avg</th>
-                <th class="num accent">Typical <i class="fa-solid fa-circle-info" style="color:var(--accent);font-size:11px;padding-left:3px;" title="Median value — less affected by one-off large purchases or redemptions. Used for all projections.${summary.twelveMonths.hasOutlier ? " Outlier month detected." : ""}"></i></th>
+                <th class="num accent">Typical <i class="fa-solid fa-circle-info info-tip" style="color:var(--accent);font-size:11px;padding-left:3px;" data-tooltip="Median value — less affected by one-off large purchases or redemptions. Used for all projections.${summary.twelveMonths.hasOutlier ? " Outlier month detected." : ""}"></i></th>
               </tr>
             </thead>
             <tbody>
@@ -7191,16 +7191,7 @@ const HC_COLORS = [
   "#5a8f82",
   "#8b7355",
 ];
-const HC_DASHES = [
-  [],
-  [6, 3],
-  [2, 2],
-  [8, 4, 2, 4],
-  [4, 4],
-  [2, 4],
-  [6, 2],
-  [3, 3],
-];
+const HC_DASHES = [[], [], [], [], [], [], [], []];
 
 function shortFundName(name) {
   return name
@@ -7348,16 +7339,98 @@ function buildPerfDatasets(startDate, activeFunds) {
     PORTFOLIO_BENCHMARKS.nifty50.isin,
     "Nifty 50",
     "#7A6C61",
-    [4, 4],
+    [],
   );
   addBenchmark(
     PORTFOLIO_BENCHMARKS.nifty500.isin,
     "Nifty 500",
     "#B0A89E",
-    [2, 3],
+    [],
   );
 
   return { labels, monthDates, datasets, sinceInfo };
+}
+
+function renderPerfTable(labels, datasets, sinceInfo) {
+  const wrap = document.getElementById("perfTableWrap");
+  if (!wrap) return;
+  const lastIdx = labels.length - 1;
+  if (lastIdx < 0) { wrap.style.display = "none"; return; }
+
+  const fmt = (r) => r == null ? `<span class="pft-neu">—</span>` : `<span class="${r >= 0 ? "pft-pos" : "pft-neg"}">${r >= 0 ? "+" : ""}${r.toFixed(1)}%</span>`;
+
+  const getRet = (ds, lookbackMonths) => {
+    const idx = lastIdx - lookbackMonths;
+    if (idx < 0) return null;
+    const end = ds.data[lastIdx];
+    const start = ds.data[idx];
+    if (end == null || start == null || start === 0) return null;
+    return (end / start - 1) * 100;
+  };
+
+  const n50ds = datasets.find((d) => d.label === "Nifty 50");
+  const n500ds = datasets.find((d) => d.label === "Nifty 500");
+  const n50ret = n50ds ? (n50ds.data[lastIdx] != null ? n50ds.data[lastIdx] - 100 : null) : null;
+  const n500ret = n500ds ? (n500ds.data[lastIdx] != null ? n500ds.data[lastIdx] - 100 : null) : null;
+
+  const rows = perfChipData.map((c) => {
+    const ds = datasets.find((d) => d.label === c.label);
+    if (!ds) return null;
+    const endVal = ds.data[lastIdx];
+    const ret = endVal != null ? endVal - 100 : null;
+    const r1y = getRet(ds, 12);
+    const r3y = getRet(ds, 36);
+    const r5y = getRet(ds, 60);
+    const vsN50 = !c.isBenchmark && ret != null && n50ret != null ? ret - n50ret : null;
+    const vsN500 = !c.isBenchmark && ret != null && n500ret != null ? ret - n500ret : null;
+    return { ...c, ret, r1y, r3y, r5y, vsN50, vsN500 };
+  }).filter(Boolean);
+
+  const fundRows = rows.filter((r) => !r.isBenchmark);
+  const benchRows = rows.filter((r) => r.isBenchmark);
+
+  const row = (r) => `
+    <tr class="${r.isBenchmark ? "pft-bench" : ""}">
+      <td><span class="pft-dot" style="background:${r.color}"></span><span class="pft-name-full">${r.label}</span><span class="pft-name-short">${r.shortLabel || r.label}</span></td>
+      <td>${fmt(r.ret)}</td>
+      <td>${r.isBenchmark ? `<span class="pft-neu">—</span>` : fmt(r.vsN50)}</td>
+      <td>${r.isBenchmark ? `<span class="pft-neu">—</span>` : fmt(r.vsN500)}</td>
+      <td class="pft-rolling pft-group-start">${fmt(r.r1y)}</td>
+      <td class="pft-rolling">${fmt(r.r3y)}</td>
+      <td class="pft-rolling">${fmt(r.r5y)}</td>
+    </tr>`;
+
+  wrap.style.display = "";
+  wrap.innerHTML = `
+    <div class="pft-wrap">
+      <table class="pft-table">
+        <colgroup>
+          <col class="pft-col-name">
+          <col><col><col>
+          <col class="pft-rolling"><col class="pft-rolling"><col class="pft-rolling">
+        </colgroup>
+        <thead>
+          <tr class="pft-group-row">
+            <th></th>
+            <th colspan="3" class="pft-center pft-period-header">${perfActivePeriod} period</th>
+            <th colspan="3" class="pft-center pft-rolling pft-group-start">Rolling returns</th>
+          </tr>
+          <tr class="pft-col-row">
+            <th></th>
+            <th>Return</th>
+            <th>vs N50</th>
+            <th>vs N500</th>
+            <th class="pft-rolling pft-group-start">1Y</th>
+            <th class="pft-rolling">3Y</th>
+            <th class="pft-rolling">5Y</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${fundRows.map(row).join("")}
+          ${benchRows.map(row).join("")}
+        </tbody>
+      </table>
+    </div>`;
 }
 
 function updatePerfBottomStats(labels, datasets, sinceInfo) {
@@ -7426,6 +7499,7 @@ function updatePerfBottomStats(labels, datasets, sinceInfo) {
   } else if (bwRow) {
     bwRow.innerHTML = "";
   }
+  renderPerfTable(labels, datasets, sinceInfo);
 }
 
 function switchPerfPeriod(period, activeFunds, oldestNavDate) {
@@ -7554,6 +7628,7 @@ function renderHoldingsCharts() {
     const color = HC_COLORS[idx % HC_COLORS.length];
     perfChipData.push({
       label: name,
+      shortLabel: shortFundName(name),
       color,
       visible: prevVisibility[name] ?? true,
     });
@@ -7576,25 +7651,6 @@ function renderHoldingsCharts() {
   if (chipRow) {
     chipRow.innerHTML = "";
 
-    // filter chips wrap (created first so toggle can reference it)
-    const chipsWrap = document.createElement("div");
-    chipsWrap.className = "hc-chips-inner";
-
-    // filter toggle button
-    const filterToggle = document.createElement("button");
-    filterToggle.className = "hc-filter-toggle";
-    const updateToggleLabel = () => {
-      const total = perfChipData.length;
-      const active = perfChipData.filter((c) => c.visible).length;
-      const isOpen = chipsWrap.classList.contains("hc-chips-inner--open");
-      const countLabel = active < total ? `${active}/${total}` : `${total}`;
-      filterToggle.innerHTML = `Funds <span class="hc-filter-badge">${countLabel}</span> ${isOpen ? "▲" : "▼"}`;
-    };
-    filterToggle.addEventListener("click", () => {
-      chipsWrap.classList.toggle("hc-chips-inner--open");
-      updateToggleLabel();
-    });
-
     // period buttons
     const periodWrap = document.createElement("div");
     periodWrap.className = "hc-period-row";
@@ -7613,33 +7669,7 @@ function renderHoldingsCharts() {
       periodBtns.appendChild(btn);
     });
     periodWrap.appendChild(periodBtns);
-    periodWrap.appendChild(filterToggle);
     chipRow.appendChild(periodWrap);
-
-    // filter chips
-    perfChipData.forEach((c) => {
-      const chip = document.createElement("span");
-      chip.className = "hc-chip" + (c.visible ? "" : " hc-chip--off");
-      chip.dataset.label = c.label;
-      chip.innerHTML = `<span class="hc-chip-dot" style="background:${c.color}"></span><span class="hc-chip-full">${c.label}</span><span class="hc-chip-short">${shortFundName(c.label)}</span><span class="hc-chip-ret"></span><span class="hc-chip-since"></span>`;
-      chip.addEventListener("click", () => {
-        c.visible = !c.visible;
-        chip.classList.toggle("hc-chip--off", !c.visible);
-        updateToggleLabel();
-        if (perfChartInstance) {
-          const ds = perfChartInstance.data.datasets.find(
-            (d) => d.label === c.label,
-          );
-          if (ds) {
-            ds.hidden = !c.visible;
-            perfChartInstance.update();
-          }
-        }
-      });
-      chipsWrap.appendChild(chip);
-    });
-    updateToggleLabel();
-    chipRow.appendChild(chipsWrap);
   }
 
   // --- show loader, defer chart build ---
@@ -7715,6 +7745,7 @@ function renderHoldingsCharts() {
               maxRotation: 0,
               autoSkip: true,
               maxTicksLimit: window.innerWidth <= 768 ? 5 : 10,
+              align: "inner",
             },
           },
           y: {
@@ -13617,7 +13648,9 @@ function updateCompactDashboard() {
 
   const mfValue = summary.currentValue;
 
-  elements.compactHoldingsCount.textContent = activeFunds.length;
+  elements.compactHoldingsCount.textContent =
+    activeFunds.length +
+    (activeFunds.length === 1 ? " Active Holding" : " Active Holdings");
   elements.compactTotalValue.textContent = formatNumber(mfValue);
 
   elements.compactInvested.textContent = "₹" + formatNumber(summary.costPrice);
@@ -16931,7 +16964,7 @@ function displayTaxPlanning() {
         <div class="tax-holding-values">
           <div class="tax-holding-value">₹${formatNumber(fund.currentValue)}</div>
           <div class="tax-holding-percentage ${fund.unrealizedGain >= 0 ? "gain" : "loss"}">
-            ${fund.unrealizedGain >= 0 ? "+₹" : "-₹"}${formatNumber(Math.abs(fund.unrealizedGain))} 
+            ${fund.unrealizedGain >= 0 ? "+₹" : "-₹"}${formatNumber(Math.abs(fund.unrealizedGain))}
             (${fund.unrealizedGain >= 0 ? "+" : ""}${gainPercent}%)
           </div>
         </div>
@@ -17024,7 +17057,7 @@ function displayTaxPlanning() {
         <div class="tax-holding-values">
           <div class="tax-holding-value">₹${formatNumber(fund.currentValue)}</div>
           <div class="tax-holding-percentage ${fund.unrealizedGain >= 0 ? "gain" : "loss"}">
-            ${fund.unrealizedGain >= 0 ? "+₹" : "-₹"}${formatNumber(Math.abs(fund.unrealizedGain))} 
+            ${fund.unrealizedGain >= 0 ? "+₹" : "-₹"}${formatNumber(Math.abs(fund.unrealizedGain))}
             (${fund.unrealizedGain >= 0 ? "+" : ""}${gainPercent}%)
           </div>
         </div>
@@ -17425,7 +17458,7 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
     targetIsins.add("INF789F01XA0"); // UTI Nifty 50 Index
 
     if (updateType === "initial") {
-      // For initial load, split into active (full fetch) and past (light fetch)
+      // Active funds: full fetch. Past/redeemed funds: light fetch + NAV history.
       const pastIsins = new Set();
       if (portfolioData.cas_type === "SUMMARY") {
         portfolioData.folios.forEach((folio) => {
@@ -17440,8 +17473,6 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
           if (!folio.schemes || !Array.isArray(folio.schemes)) return;
           folio.schemes.forEach((scheme) => {
             if (!scheme.isin) return;
-            // scheme.close is the closing unit balance written by the CAS parser.
-            // Fall back to active if the field is absent (older cache without it).
             const hasUnits =
               scheme.close != null ? parseFloat(scheme.close) > 0.001 : true;
             if (hasUnits) targetIsins.add(scheme.isin);
@@ -17449,8 +17480,7 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
           });
         });
       }
-      // A fund held across multiple folios (one active, one redeemed) ends up in
-      // both sets. Active always wins — remove those ISINs from pastIsins.
+      // A fund held across multiple folios (one active, one redeemed) — active wins.
       targetIsins.forEach((isin) => pastIsins.delete(isin));
 
       const searchKeyJson = await getSearchKeys();
@@ -17614,6 +17644,21 @@ async function _fetchPeersInBackground(statsSnapshot) {
     Object.entries(result.data).forEach(([isin, peers]) => {
       if (mfStats[isin]) mfStats[isin].similar_schemes = peers;
     });
+
+    // If FDM is open and the viewed fund's peers just arrived, refresh the peers tbody
+    const tbody = document.getElementById("fdm-peers-tbody");
+    const currentIsin = window._fdmCurrentIsin;
+    if (tbody && currentIsin && result.data[currentIsin]) {
+      const newPeers = mfStats[currentIsin]?.similar_schemes || [];
+      window._fdmPeers = newPeers;
+      const { col, dir } = window._fdmPeerSort || { col: "return3y", dir: -1 };
+      tbody.innerHTML = window._buildFdmPeerRows(
+        newPeers,
+        col,
+        dir,
+        window._fdmPeerLimit ?? 10,
+      );
+    }
 
     // Persist merged peers back to IndexedDB so they survive page reloads
     if (currentUser && portfolioData) {
@@ -17791,6 +17836,7 @@ async function updateAllUsersStats(updateType = "auto") {
       body: JSON.stringify({
         searchKeys: activeSearchKeys,
         lightSearchKeys: pastSearchKeys,
+        lightIncludeNav: true,
       }),
     });
 
@@ -18787,6 +18833,59 @@ async function callHealthCheck() {
     console.error("Health check failed:", err);
   }
 }
+
+// ── Info-tip tooltip (mobile tap + desktop hover) ────────────────────────────
+(function () {
+  const bubble = document.createElement("div");
+  bubble.id = "info-tip-bubble";
+  document.body.appendChild(bubble);
+
+  function showBubble(tip) {
+    bubble.textContent = tip.dataset.tooltip || "";
+    bubble.classList.add("visible");
+    const r = tip.getBoundingClientRect();
+    // Position above the icon, centred horizontally
+    let left = r.left + r.width / 2 - 120;
+    let top = r.top - bubble.offsetHeight - 8;
+    // Clamp to viewport
+    left = Math.max(8, Math.min(left, window.innerWidth - 248));
+    if (top < 8) top = r.bottom + 8; // flip below if no room above
+    bubble.style.left = left + "px";
+    bubble.style.top = top + "px";
+  }
+
+  function hideBubble() {
+    bubble.classList.remove("visible");
+  }
+
+  const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+  if (canHover) {
+    // Desktop: show/hide on hover
+    document.addEventListener("mouseover", (e) => {
+      const tip = e.target.closest(".info-tip");
+      if (tip) showBubble(tip);
+    });
+    document.addEventListener("mouseout", (e) => {
+      if (e.target.closest(".info-tip")) hideBubble();
+    });
+  } else {
+    // Mobile/touch: tap to toggle, outside tap to close
+    document.addEventListener("click", (e) => {
+      const tip = e.target.closest(".info-tip");
+      if (tip) {
+        e.stopPropagation();
+        if (bubble.classList.contains("visible")) {
+          hideBubble();
+        } else {
+          showBubble(tip);
+        }
+      } else {
+        hideBubble();
+      }
+    });
+  }
+})();
 
 window.addEventListener("DOMContentLoaded", async () => {
   initializeTheme();
