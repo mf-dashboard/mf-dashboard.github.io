@@ -99,7 +99,6 @@ const BACKEND_SERVER =
     ? "http://localhost:3000"
     : "https://my-mf-dashboard-backend.onrender.com";
 
-console.log("🔧 Backend Server:", BACKEND_SERVER);
 const DEBUG_MODE = false;
 
 // Bump this whenever a new field is added to mfStats that requires a fresh
@@ -107,7 +106,7 @@ const DEBUG_MODE = false;
 // copies). Bumping this forces an immediate full update — bypassing the
 // 6 AM gate and the 7-day cadence — the next time the app loads, and also
 // resets the 7-day weekly-update counter.
-const STATS_SCHEMA_VERSION = 5;
+const STATS_SCHEMA_VERSION = 6;
 const STATS_SCHEMA_VERSION_KEY = "statsSchemaVersion";
 
 // Warm Financial Intelligence palette — mirrors the CSS tbc-fill nth-child rules
@@ -380,7 +379,6 @@ async function loadParsedCASJson() {
     // Determine if we need to fetch MF stats (empty or missing)
     const statsMissing = !mfStats || Object.keys(mfStats).length === 0;
     if (statsMissing) {
-      console.log("📊 mfStats not loaded — fetching from backend (initial)...");
       updateProcessingProgress(40, "Pulling MF stats…");
       await fetchOrUpdateMFStats("initial");
       if (isSummaryCAS) {
@@ -390,9 +388,6 @@ async function loadParsedCASJson() {
         enableSummaryIncompatibleTabs();
       }
     } else {
-      console.log(
-        `✅ mfStats already present (${Object.keys(mfStats).length} funds) — skipping fetch.`,
-      );
       if (isSummaryCAS) {
         updateProcessingProgress(90, "Rendering dashboard…");
         processSummaryCAS();
@@ -453,6 +448,12 @@ async function loadParsedCASJson() {
       mfStats,
       true,
       currentUser,
+    );
+    storageManager.updateLastFullUpdate(currentUser);
+    storageManager.updateLastNavUpdate(currentUser);
+    localStorage.setItem(
+      STATS_SCHEMA_VERSION_KEY,
+      String(STATS_SCHEMA_VERSION),
     );
 
     localStorage.setItem(`investorName_${currentUser}`, fullInvestorName);
@@ -533,14 +534,11 @@ async function loadFileFromTab() {
       body: formData,
     });
 
-    console.log("Backend response received, status:", response.status);
-
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const result = await response.json();
-    console.log("Result parsed:", result.success ? "SUCCESS" : "FAILED");
 
     if (!result.success) {
       showToast("CAS parsing failed: " + result.error, "error");
@@ -553,13 +551,6 @@ async function loadFileFromTab() {
 
     // Detect CAS type
     isSummaryCAS = portfolioData.cas_type === "SUMMARY";
-
-    console.log(
-      "CAS Type:",
-      isSummaryCAS ? "SUMMARY" : "DETAILED",
-      " - Folios Fetched: ",
-      portfolioData.folios?.length,
-    );
 
     if (isSummaryCAS) {
       updateProcessingProgress(40, "Pulling MF stats…");
@@ -591,9 +582,6 @@ async function loadFileFromTab() {
     if (existingUserWithSameName) {
       // Same investor - overwrite automatically
       currentUser = existingUserWithSameName;
-      console.log(
-        `♻️ Overwriting existing user: ${currentUser} (same investor: ${fullInvestorName})`,
-      );
     } else {
       // Different investor - check if first name with increment exists
       const existingUsersWithFirstName = allUsers.filter((user) => {
@@ -611,15 +599,9 @@ async function loadFileFromTab() {
           newUserName = `${firstNameFromCAS}_${counter}`;
         }
         currentUser = newUserName;
-        console.log(
-          `✨ Creating new user with increment: ${currentUser} (different investor: ${fullInvestorName})`,
-        );
       } else {
         // First name doesn't exist - use first name
         currentUser = firstNameFromCAS;
-        console.log(
-          `✨ Creating new user: ${currentUser} (new investor: ${fullInvestorName})`,
-        );
       }
     }
 
@@ -634,6 +616,12 @@ async function loadFileFromTab() {
       mfStats,
       true,
       currentUser,
+    );
+    storageManager.updateLastFullUpdate(currentUser);
+    storageManager.updateLastNavUpdate(currentUser);
+    localStorage.setItem(
+      STATS_SCHEMA_VERSION_KEY,
+      String(STATS_SCHEMA_VERSION),
     );
 
     // Store the file signature for this user
@@ -704,13 +692,6 @@ async function getSearchKeys() {
     if (cachedKeys && cachedHash === dataHash) {
       return cachedKeys;
     }
-
-    console.log(
-      cachedKeys
-        ? "🔄 Search keys changed, updating cache..."
-        : "📥 Loading search keys for first time...",
-      Object.keys(searchKeys).length,
-    );
 
     ManifestManager.saveSearchKeys(searchKeys, dataHash);
 
@@ -825,7 +806,6 @@ function calculatePortfolioAlpha(weightedReturns, benchmarks) {
 
 function aggregateFundWiseData() {
   if (isSummaryCAS) {
-    console.log("⏭️ Skipping aggregateFundWiseData for Summary CAS");
     return fundWiseData;
   }
 
@@ -861,7 +841,6 @@ function aggregateFundWiseData() {
 
       // Skip if this folio+scheme combination is hidden
       if (hiddenFolios.includes(uniqueKey)) {
-        console.log(`⏭️ Skipping hidden folio+scheme: ${uniqueKey}`);
         return;
       }
 
@@ -1068,7 +1047,6 @@ function aggregateFundWiseData() {
       : null;
   });
 
-  console.log("Fund Wise Data:", fundWiseData);
   return fundWiseData;
 }
 function processSummaryCAS() {
@@ -1084,7 +1062,6 @@ function processSummaryCAS() {
   portfolioData.folios.forEach((folio) => {
     // Skip if folio is hidden
     if (hiddenFolios.includes(folio.folio)) {
-      console.log(`⏭️ Skipping hidden folio: ${folio.folio}`);
       return;
     }
 
@@ -1193,7 +1170,6 @@ function processSummaryCAS() {
       };
     }
   });
-  console.log("Fund Wise Data:", fundWiseData);
 
   const benchmarkSummary = aggregateBenchmarkReturns(fundWiseData);
   Object.values(fundWiseData).forEach((fund) => {
@@ -6033,9 +6009,9 @@ function displayExpenseImpact() {
 
   const topFund = data.mostExpensiveFund;
   const topErClass = topFund
-    ? topFund.expenseRatio > 1.0
+    ? topFund.expenseRatio > 1.5
       ? "loss"
-      : topFund.expenseRatio > 0.5
+      : topFund.expenseRatio > 1.0
         ? "warning"
         : "gain"
     : "gain";
@@ -6063,7 +6039,7 @@ function displayExpenseImpact() {
           <h4>Annual Cost</h4>
           <div class="summary-row">
             <span>Annual Cost</span>
-            <span class="loss">₹${formatNumber(data.annualCost)}</span>
+            <span class="${erClass}">₹${formatNumber(data.annualCost)}</span>
           </div>
           <div class="ei-card-sub"><i class="fa-solid fa-calendar"></i> Estimated per year</div>
         </div>
@@ -7907,7 +7883,9 @@ function updateFundBreakdown() {
     });
 
     wrapGridInTable(pastRedeemedGrid);
+    sortFltTable("pastRedeemedGrid", "pnl");
     applyFltSortIndicator(pastRedeemedGrid);
+    applyPastHoldingsLimit(pastRedeemedGrid);
 
     renderHoldingsToolbar(pastGrid, "past", {
       count: pastCount,
@@ -7934,7 +7912,7 @@ function updateFundBreakdown() {
 const fltSortState = {
   currentFolioGrid: { col: "value", dir: -1 },
   pastFolioGrid: { col: "pnl", dir: -1 },
-  pastRedeemedGrid: { col: "pnl", dir: -1 },
+  pastRedeemedGrid: { col: null, dir: -1 },
 };
 
 function sortFltTable(gridId, col) {
@@ -7977,6 +7955,19 @@ function sortFltTable(gridId, col) {
     return (va - vb) * state.dir;
   });
   rows.forEach((r) => tbody.appendChild(r));
+
+  // Re-apply past holdings row limit after sorting (order changed, so classes need to move)
+  const expandBtn = gridEl?.nextElementSibling;
+  if (expandBtn?.classList.contains("past-holdings-expand-btn")) {
+    const isExpanded = expandBtn.dataset.expanded === "true";
+    rows.forEach((r) => r.classList.remove(PAST_LIMIT_CLASS));
+    if (!isExpanded) {
+      rows
+        .slice(PAST_HOLDINGS_LIMIT)
+        .forEach((r) => r.classList.add(PAST_LIMIT_CLASS));
+    }
+    // Button label stays correct; data-expanded and innerHTML already reflect current state
+  }
 
   // Update header arrow indicators
   table.querySelectorAll(".flt-th[data-sort-col]").forEach((th) => {
@@ -8030,7 +8021,7 @@ function wrapGridInTable(gridEl) {
       ${isCurrentGrid ? mkTh("1D", "oneday", true) : ""}
       ${mkTh("P&amp;L", "pnl", true)}
       ${!isSummaryCAS ? mkTh("XIRR", "xirr", true) : ""}
-      ${mkTh("", null, true)}
+      ${isCurrentGrid ? mkTh("", null, true) : ""}
     </tr>`;
   table.appendChild(thead);
 
@@ -8353,11 +8344,11 @@ function createFundCardWithTransactions(
   isActive = true,
 ) {
   const card = document.createElement("tr");
-  card.className = "flt-row";
   if (isActive && current > 0) {
+    card.className = "flt-row";
     card.onclick = () => showFundDetailsModal(fundKey, false);
   } else {
-    card.onclick = () => showFundDetailsModal(fundKey, true, [...fund.folios]);
+    card.className = "flt-row flt-row--no-click";
   }
   card.dataset.fundName = (
     fund.schemeDisplay ||
@@ -8458,11 +8449,7 @@ function createFundCardWithTransactions(
         </button>
       </div>`
       : showViewDetailsForPast
-        ? `<div class="fund-card-actions">
-          <button class="fund-action-btn primary" onclick="showFundDetailsModal('${fundKey}', true, ['${fund.folios.join("','")}'])">
-            <i class="fa-solid fa-chart-line"></i> View Details
-          </button>
-        </div>`
+        ? ""
         : "";
 
   const xirrClass =
@@ -8474,7 +8461,7 @@ function createFundCardWithTransactions(
   const detailsBtnHTML =
     isActive && current > 0
       ? `<button class="flt-details-btn" onclick="event.stopPropagation();showFundDetailsModal('${fundKey}', false)" title="View Details"><i class="fa-solid fa-chart-line"></i><span class="flt-btn-label"> Details</span></button>`
-      : `<button class="flt-details-btn" onclick="event.stopPropagation();showFundDetailsModal('${fundKey}', true, ['${fund.folios.join("','")}'])" title="View Details"><i class="fa-solid fa-chart-line"></i><span class="flt-btn-label"> Details</span></button>`;
+      : "";
 
   // 1D return column content
   const oneDayRupees = oneDayReturn
@@ -8522,8 +8509,8 @@ function createFundCardWithTransactions(
     ...(!isSummaryCAS
       ? [`<span class="flt-val ${xirrClass}">${xirrText}</span>`]
       : []),
-    // Details button
-    detailsBtnHTML,
+    // Details button — omitted for past holdings (no modal)
+    ...(isActive ? [detailsBtnHTML] : []),
   ];
 
   cells.forEach((html, i) => {
@@ -9239,27 +9226,50 @@ function showFundDetailsModal(
       );
     });
 
-    let display = sorted;
-    if (limit && sorted.length > limit) {
-      const isCurrentPeer = (p) => {
-        const base = (p.scheme_name || p.fund_name || "")
-          .replace(/\s+(Direct|Regular)\s+(Growth|Plan|Option).*/i, "")
-          .trim()
-          .toLowerCase();
-        return (
-          (window._fdmCurrentIsin && p.isin === window._fdmCurrentIsin) ||
-          (window._fdmCurrentBaseName && base === window._fdmCurrentBaseName)
-        );
-      };
-      const topN = sorted.slice(0, limit);
-      if (topN.some(isCurrentPeer)) {
-        display = topN;
-      } else {
-        const currentIdx = sorted.findIndex(isCurrentPeer);
+    const isCurrentPeer = (p) => {
+      const base = (p.scheme_name || p.fund_name || "")
+        .replace(/\s+(Direct|Regular)\s+(Growth|Plan|Option).*/i, "")
+        .trim()
+        .toLowerCase();
+      return (
+        (window._fdmCurrentIsin && p.isin === window._fdmCurrentIsin) ||
+        (window._fdmCurrentBaseName && base === window._fdmCurrentBaseName)
+      );
+    };
+
+    let display = limit ? sorted.slice(0, limit) : sorted;
+
+    // Ensure base fund is visible — inject if not already in display
+    if (!display.some(isCurrentPeer)) {
+      const currentIdx = sorted.findIndex(isCurrentPeer);
+      let basePeer = null;
+      if (currentIdx >= 0) {
+        basePeer = sorted[currentIdx];
+      } else if (extendedData) {
+        basePeer = {
+          isin: extendedData.isin || fund.isin,
+          scheme_name:
+            extendedData.scheme_name || fund.schemeDisplay || fund.scheme,
+          logo_url: extendedData.logo_url || null,
+          aum: extendedData.aum || null,
+          return1y: extendedData.return_stats?.return1y ?? null,
+          return3y: extendedData.return_stats?.return3y ?? null,
+          expense_ratio: extendedData.expense_ratio || null,
+          expense_ratio_history: extendedData.expense_ratio_history || [],
+          groww_rating: extendedData.groww_rating || null,
+          risk: (() => {
+            const rn = extendedData.return_stats?.risk_rating;
+            if (rn != null) return _riskLevels[rn - 1] || null;
+            return extendedData.portfolio_stats?.risk || null;
+          })(),
+          fund_house: extendedData.amc || null,
+        };
+      }
+      if (basePeer) {
         display =
-          currentIdx >= 0
-            ? [...sorted.slice(0, limit - 1), sorted[currentIdx]]
-            : topN;
+          limit && display.length >= limit
+            ? [...display.slice(0, limit - 1), basePeer]
+            : [...display, basePeer];
       }
     }
 
@@ -9279,7 +9289,7 @@ function showFundDetailsModal(
         const medianTER = getRepresentativeTER(peer.expense_ratio_history);
         const er =
           medianTER != null ? medianTER : parseFloat(peer.expense_ratio || 0);
-        const erClass = er > 1.0 ? "loss" : er > 0.5 ? "warning" : "gain";
+        const erClass = er > 1.5 ? "loss" : er > 1.0 ? "warning" : "gain";
         const ret1y = peer.return1y ?? null;
         const ret3y = peer.return3y ?? null;
         const aum = peer.aum ? `₹${formatNumber(Math.round(peer.aum))}Cr` : "—";
@@ -9534,9 +9544,9 @@ function showFundDetailsModal(
 
         <!-- Charts Row -->
         <div class="fund-details-charts-row">
-          <div class="fund-charts-top-row">
-          <!-- Valuation History (hidden for Summary CAS — no nav history without transaction dates) -->
-          <div class="fund-chart-card" ${isSummaryCAS ? 'style="display:none"' : ""}>
+          <div class="fund-charts-top-row" ${isPastHolding || isSummaryCAS ? 'style="grid-template-columns:1fr"' : ""}>
+          <!-- Valuation History (hidden for Summary CAS or past holdings) -->
+          <div class="fund-chart-card" ${isSummaryCAS || isPastHolding ? 'style="display:none"' : ""}>
             <div class="fund-chart-card-header">
               <span class="fund-chart-card-icon"><i class="fa-solid fa-chart-line"></i></span>
               <span class="fund-chart-card-title">Valuation History</span>
@@ -9807,7 +9817,7 @@ function showFundDetailsModal(
 
         <!-- Composition Charts Section -->
         ${
-          extendedData
+          extendedData && !isPastHolding
             ? `
         <div class="fund-composition-card">
           <div class="fund-composition-card-header">
@@ -14034,9 +14044,7 @@ function populateCompactPastHoldings(fundsWithMetrics, listElement = null) {
 
     const item = document.createElement("div");
     item.className = "compact-holding-item chi-hero chi-hero--past";
-    item.onclick = () => {
-      showFundDetailsModal(fundKey, true);
-    };
+    // Past holdings — no modal
 
     item.innerHTML = `
       <div class="chi-accent ${isProfit ? "chi-accent--gain" : "chi-accent--loss"}"></div>
@@ -14061,7 +14069,63 @@ function populateCompactPastHoldings(fundsWithMetrics, listElement = null) {
 
     list.appendChild(item);
   });
+
+  applyPastHoldingsLimit(list);
 }
+const PAST_HOLDINGS_LIMIT = 10;
+const PAST_LIMIT_CLASS = "past-limit-hidden";
+
+// Hides items beyond PAST_HOLDINGS_LIMIT and inserts an expand/collapse button
+// immediately after containerEl (not inside it, to avoid CSS grid layout issues).
+// Works for both table tbody rows and flex/block list items.
+function applyPastHoldingsLimit(containerEl) {
+  const tbody = containerEl.querySelector("tbody");
+  const items = tbody
+    ? Array.from(tbody.querySelectorAll("tr"))
+    : Array.from(containerEl.children);
+
+  if (items.length <= PAST_HOLDINGS_LIMIT) return;
+
+  items
+    .slice(PAST_HOLDINGS_LIMIT)
+    .forEach((el) => el.classList.add(PAST_LIMIT_CLASS));
+
+  // Remove any stale expand button from a previous render (re-render safe)
+  const existingBtn = containerEl.nextElementSibling;
+  if (existingBtn?.classList.contains("past-holdings-expand-btn")) {
+    existingBtn.remove();
+  }
+
+  const btn = document.createElement("button");
+  btn.className = "past-holdings-expand-btn";
+  btn.dataset.expanded = "false";
+  btn.dataset.containerId = containerEl.id;
+  btn.innerHTML = `<i class="fa-solid fa-chevron-down"></i> View all ${items.length} funds`;
+  btn.setAttribute("onclick", "togglePastHoldingsExpand(this)");
+
+  // Insert after containerEl, not inside — avoids being a grid/flex item of the container
+  containerEl.insertAdjacentElement("afterend", btn);
+}
+
+function togglePastHoldingsExpand(btn) {
+  const containerId = btn.dataset.containerId;
+  const container = containerId ? document.getElementById(containerId) : null;
+  if (!container) return;
+  const tbody = container.querySelector("tbody");
+  const currentItems = tbody
+    ? Array.from(tbody.querySelectorAll("tr"))
+    : Array.from(container.children);
+  const isExpanded = btn.dataset.expanded === "true";
+  const nowExpanded = !isExpanded;
+  currentItems
+    .slice(PAST_HOLDINGS_LIMIT)
+    .forEach((el) => el.classList.toggle(PAST_LIMIT_CLASS, !nowExpanded));
+  btn.dataset.expanded = String(nowExpanded);
+  btn.innerHTML = nowExpanded
+    ? `<i class="fa-solid fa-chevron-up"></i> Show less`
+    : `<i class="fa-solid fa-chevron-down"></i> View all ${currentItems.length} funds`;
+}
+
 function toggleCompactXIRR(displayMode) {
   const xirrElements = document.querySelectorAll(".compact-holding-xirr");
   const absElements = document.querySelectorAll(".compact-holding-abs");
@@ -14383,7 +14447,6 @@ async function loadFamilyDashboard() {
     }
 
     const familyMetrics = calculateFamilyMetrics(allUserData);
-    console.log("Family Metrics: ", familyMetrics);
 
     familyDashboardCache = familyMetrics;
     familyDashboardCacheTimestamp = Date.now();
@@ -15716,8 +15779,6 @@ function switchToUser(userName) {
   currentUser = userName;
   localStorage.setItem("lastActiveUser", currentUser);
 
-  console.log("Switching to user:", userName);
-
   showSimpleSplash(`Switching to ${investorName}…`);
 
   toggleFamilyDashboard();
@@ -15783,8 +15844,6 @@ async function deleteSingleUser(userName) {
           portfolioData = stored.casData;
           mfStats = stored.mfStats;
           isSummaryCAS = portfolioData.cas_type === "SUMMARY";
-
-          console.log(`🔄 Switched to user: ${currentUser}`);
         }
       } else {
         currentUser = null;
@@ -16022,8 +16081,6 @@ function updateCurrentUserDisplay() {
     }
     return;
   }
-
-  console.log("Current User:", currentUser);
 
   const display = document.getElementById("currentUserDisplay");
   if (display) {
@@ -17360,8 +17417,6 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
       return {};
     }
 
-    console.log(`🔄 Fetching MF stats (${updateType})...`);
-
     // Step 1: Collect ISINs based on updateType and CAS type
     const targetIsins = new Set();
 
@@ -17370,21 +17425,52 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
     targetIsins.add("INF789F01XA0"); // UTI Nifty 50 Index
 
     if (updateType === "initial") {
-      // For initial load, fetch ALL funds
+      // For initial load, split into active (full fetch) and past (light fetch)
+      const pastIsins = new Set();
       if (portfolioData.cas_type === "SUMMARY") {
         portfolioData.folios.forEach((folio) => {
-          if (folio.isin) targetIsins.add(folio.isin);
+          if (!folio.isin) return;
+          const hasValue =
+            folio.current_value && parseFloat(folio.current_value || 0) > 0;
+          if (hasValue) targetIsins.add(folio.isin);
+          else pastIsins.add(folio.isin);
         });
       } else {
         portfolioData.folios.forEach((folio) => {
-          if (folio.schemes && Array.isArray(folio.schemes)) {
-            folio.schemes.forEach((scheme) => {
-              if (scheme.isin) targetIsins.add(scheme.isin);
-            });
-          }
+          if (!folio.schemes || !Array.isArray(folio.schemes)) return;
+          folio.schemes.forEach((scheme) => {
+            if (!scheme.isin) return;
+            // scheme.close is the closing unit balance written by the CAS parser.
+            // Fall back to active if the field is absent (older cache without it).
+            const hasUnits =
+              scheme.close != null ? parseFloat(scheme.close) > 0.001 : true;
+            if (hasUnits) targetIsins.add(scheme.isin);
+            else pastIsins.add(scheme.isin);
+          });
         });
       }
-      console.log(`📊 Initial load: Fetching all ${targetIsins.size} funds`);
+      // A fund held across multiple folios (one active, one redeemed) ends up in
+      // both sets. Active always wins — remove those ISINs from pastIsins.
+      targetIsins.forEach((isin) => pastIsins.delete(isin));
+
+      const searchKeyJson = await getSearchKeys();
+      const activeSearchKeys = [
+        ...new Set(
+          [...targetIsins].map((isin) => searchKeyJson[isin]).filter(Boolean),
+        ),
+      ];
+      const pastSearchKeys = [
+        ...new Set(
+          [...pastIsins].map((isin) => searchKeyJson[isin]).filter(Boolean),
+        ),
+      ];
+
+      if (activeSearchKeys.length === 0 && pastSearchKeys.length === 0) {
+        console.warn("No funds to fetch stats for");
+        return mfStats || {};
+      }
+
+      return await _fetchFull(activeSearchKeys, updateType, pastSearchKeys);
     } else {
       if (portfolioData.cas_type === "SUMMARY") {
         portfolioData.folios.forEach((folio) => {
@@ -17405,35 +17491,24 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
           }
         });
       }
-      console.log(
-        `📊 Update mode: Fetching ${targetIsins.size} active holdings`,
-      );
+
+      const searchKeyJson = await getSearchKeys();
+      const searchKeys = [...targetIsins]
+        .map((isin) => {
+          const v = searchKeyJson[isin];
+          if (!v) console.warn(`⚠️ No search value found for ISIN: ${isin}`);
+          return v;
+        })
+        .filter(Boolean);
+      const uniqueSearchKeys = [...new Set(searchKeys)];
+
+      if (uniqueSearchKeys.length === 0) {
+        console.warn("No funds to fetch stats for");
+        return mfStats || {};
+      }
+
+      return await _fetchFull(uniqueSearchKeys, updateType, []);
     }
-
-    const uniqueIsins = [...targetIsins];
-
-    // Step 2: Get ISIN → searchString map
-    const searchKeyJson = await getSearchKeys();
-
-    // Step 3: Find corresponding search strings
-    const searchKeys = uniqueIsins
-      .map((isin) => {
-        const searchValue = searchKeyJson[isin];
-        if (!searchValue)
-          console.log(`⚠️ No search value found for ISIN: ${isin}`);
-        return searchValue;
-      })
-      .filter(Boolean);
-
-    const uniqueSearchKeys = [...new Set(searchKeys)];
-
-    if (uniqueSearchKeys.length === 0) {
-      console.warn("No funds to fetch stats for");
-      return mfStats || {};
-    }
-
-    // For initial uploads and updates, always use the unified /api/mf-stats endpoint
-    return await _fetchFull(uniqueSearchKeys, updateType);
   } catch (err) {
     console.error("❌ Failed to fetch MF stats:", err);
     showToast("Failed to fetch MF stats: " + err.message, "error");
@@ -17441,11 +17516,15 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
   }
 }
 
-async function _fetchFull(uniqueSearchKeys, updateType) {
+async function _fetchFull(searchKeys, updateType, lightSearchKeys = []) {
   const response = await fetch(BACKEND_SERVER + "/api/mf-stats", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ searchKeys: uniqueSearchKeys }),
+    body: JSON.stringify({
+      searchKeys,
+      lightSearchKeys,
+      lightIncludeNav: updateType === "initial",
+    }),
   });
 
   if (!response.ok) throw new Error(`API error: ${response.status}`);
@@ -17457,13 +17536,8 @@ async function _fetchFull(uniqueSearchKeys, updateType) {
 
   if (updateType === "initial") {
     mfStats = newStats;
-    console.log(
-      "✅ MF Stats fetched successfully (initial):",
-      Object.keys(mfStats).length,
-      "funds",
-    );
 
-    // Render portfolio immediately — all data (nav, portfolio_stats, etc.) is present
+    // Render portfolio immediately — peers load in background
     updateProcessingProgress(70, "Data aggregated");
     if (isSummaryCAS) {
       processSummaryCAS();
@@ -17477,16 +17551,82 @@ async function _fetchFull(uniqueSearchKeys, updateType) {
       ...mfStats,
       ...newStats,
     };
-    console.log(
-      "✅ MF Stats updated successfully:",
-      Object.keys(newStats).length,
-      "active funds updated,",
-      Object.keys(mfStats).length,
-      "total funds in cache",
-    );
   }
 
+  // Phase 2: load peers in background for active funds (non-blocking)
+  _fetchPeersInBackground(newStats);
+
   return mfStats;
+}
+
+async function _fetchPeersInBackground(statsSnapshot) {
+  try {
+    const BENCHMARK_ISINS = new Set(["INF247L01957", "INF789F01XA0"]);
+    const userPortfolioIsins = new Set();
+    if (portfolioData) {
+      if (portfolioData.cas_type === "SUMMARY") {
+        portfolioData.folios.forEach((f) => {
+          if (f.isin) userPortfolioIsins.add(f.isin);
+        });
+      } else {
+        portfolioData.folios.forEach((f) =>
+          f.schemes?.forEach((s) => {
+            if (s.isin) userPortfolioIsins.add(s.isin);
+          }),
+        );
+      }
+    }
+    const funds = Object.values(statsSnapshot)
+      .filter(
+        (f) =>
+          !f._is_past &&
+          !(BENCHMARK_ISINS.has(f.isin) && !userPortfolioIsins.has(f.isin)) &&
+          f.isin &&
+          f.category &&
+          f.sub_category &&
+          f.plan_type &&
+          f.scheme_type,
+      )
+      .map((f) => ({
+        isin: f.isin,
+        category: f.category,
+        sub_category: f.sub_category,
+        plan_type: f.plan_type,
+        scheme_type: f.scheme_type,
+      }));
+
+    if (!funds.length) return;
+
+    const response = await fetch(BACKEND_SERVER + "/api/mf-peers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ funds }),
+    });
+
+    if (!response.ok) {
+      console.warn("⚠️ Peers fetch failed:", response.status);
+      return;
+    }
+
+    const result = await response.json();
+    if (!result.success) return;
+
+    Object.entries(result.data).forEach(([isin, peers]) => {
+      if (mfStats[isin]) mfStats[isin].similar_schemes = peers;
+    });
+
+    // Persist merged peers back to IndexedDB so they survive page reloads
+    if (currentUser && portfolioData) {
+      await storageManager.savePortfolioData(
+        portfolioData,
+        mfStats,
+        false,
+        currentUser,
+      );
+    }
+  } catch (err) {
+    console.warn("⚠️ Background peers fetch failed:", err.message);
+  }
 }
 async function updateMFStats() {
   if (!portfolioData) {
@@ -17571,8 +17711,6 @@ async function updateAllUsersStats(updateType = "auto") {
     return false;
   }
 
-  console.log(`🔄 Updating stats for ${users.length} users (${updateType})...`);
-
   // Collect ONLY ACTIVE ISINs from ALL users
   const allIsins = new Set();
 
@@ -17581,6 +17719,8 @@ async function updateAllUsersStats(updateType = "auto") {
   allIsins.add("INF789F01XA0"); // UTI Nifty 50 Index
 
   const userDataMap = new Map();
+
+  const allPastIsins = new Set();
 
   for (const user of users) {
     try {
@@ -17592,20 +17732,24 @@ async function updateAllUsersStats(updateType = "auto") {
 
       userDataMap.set(user, { casData, mfStats: mfStatsUser });
 
-      // Full stats update: collect ALL ISINs (active + redeemed) so that
-      // funds which were parsed before new fields (e.g. launch_date, manager)
-      // were added also get their stale cached objects refreshed.
       if (casData.cas_type === "SUMMARY") {
         casData.folios.forEach((folio) => {
-          if (folio.isin) allIsins.add(folio.isin);
+          if (!folio.isin) return;
+          const hasValue =
+            folio.current_value && parseFloat(folio.current_value || 0) > 0;
+          if (hasValue) allIsins.add(folio.isin);
+          else allPastIsins.add(folio.isin);
         });
       } else {
         casData.folios.forEach((folio) => {
-          if (folio.schemes && Array.isArray(folio.schemes)) {
-            folio.schemes.forEach((scheme) => {
-              if (scheme.isin) allIsins.add(scheme.isin);
-            });
-          }
+          if (!folio.schemes || !Array.isArray(folio.schemes)) return;
+          folio.schemes.forEach((scheme) => {
+            if (!scheme.isin) return;
+            const hasUnits =
+              scheme.close != null ? parseFloat(scheme.close) > 0.001 : true;
+            if (hasUnits) allIsins.add(scheme.isin);
+            else allPastIsins.add(scheme.isin);
+          });
         });
       }
     } catch (err) {
@@ -17613,34 +17757,41 @@ async function updateAllUsersStats(updateType = "auto") {
     }
   }
 
-  if (allIsins.size === 0) {
-    console.log("No active holdings found across all users");
+  // Active wins — a fund held across multiple folios (one active, one redeemed)
+  // should be fetched with full data.
+  allIsins.forEach((isin) => allPastIsins.delete(isin));
+
+  if (allIsins.size === 0 && allPastIsins.size === 0) {
+    console.log("No holdings found across all users");
     return false;
   }
 
-  console.log(
-    `📊 Fetching stats for ${allIsins.size} unique funds (active + redeemed)...`,
-  );
-
   // Get search keys for all ISINs
   const searchKeyJson = await getSearchKeys();
-  const searchKeys = [...allIsins]
-    .map((isin) => searchKeyJson[isin])
-    .filter(Boolean);
-  const uniqueSearchKeys = [...new Set(searchKeys)];
+  const activeSearchKeys = [
+    ...new Set(
+      [...allIsins].map((isin) => searchKeyJson[isin]).filter(Boolean),
+    ),
+  ];
+  const pastSearchKeys = [
+    ...new Set(
+      [...allPastIsins].map((isin) => searchKeyJson[isin]).filter(Boolean),
+    ),
+  ];
 
-  if (uniqueSearchKeys.length === 0) {
+  if (activeSearchKeys.length === 0 && pastSearchKeys.length === 0) {
     console.warn("No search keys found");
     return false;
   }
 
   try {
-    // Single unified fetch via /api/mf-stats — full data in one go
-    console.log("⚡ Fetching unified stats for all users...");
     const response = await fetch(BACKEND_SERVER + "/api/mf-stats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ searchKeys: uniqueSearchKeys }),
+      body: JSON.stringify({
+        searchKeys: activeSearchKeys,
+        lightSearchKeys: pastSearchKeys,
+      }),
     });
 
     if (!response.ok) throw new Error(`API error: ${response.status}`);
@@ -17667,7 +17818,6 @@ async function updateAllUsersStats(updateType = "auto") {
           storageManager.markManualStatsUpdate(user);
           storageManager.markManualNavUpdate(user);
         }
-        console.log(`✅ Stats saved for user: ${user}`);
       } catch (err) {
         console.error(`Error saving stats for user ${user}:`, err);
       }
@@ -17687,8 +17837,10 @@ async function updateAllUsersStats(updateType = "auto") {
       }
     }
 
+    // Phase 2: load peers in background for active funds
+    _fetchPeersInBackground(newStats);
+
     hideSimpleSplash();
-    console.log("Fund statistics updated successfully!");
     invalidateFamilyDashboardCache();
     updateFooterInfo();
 
@@ -17703,11 +17855,8 @@ async function updateAllUsersNav(updateType = "auto") {
   const users = storageManager.getAllUsers();
 
   if (users.length === 0) {
-    console.log("No users to update");
     return false;
   }
-
-  console.log(`🔄 Updating NAV for ${users.length} users (${updateType})...`);
 
   // Collect NAV update data from all users
   const navUpdateData = {};
@@ -17740,28 +17889,26 @@ async function updateAllUsersNav(updateType = "auto") {
         });
       } else {
         casData.folios.forEach((folio) => {
-          if (folio.schemes && Array.isArray(folio.schemes)) {
-            folio.schemes.forEach((scheme) => {
-              const hasValue =
-                scheme.isActive ||
-                (scheme.currentValue &&
-                  parseFloat(scheme.currentValue || 0) > 0);
+          if (!folio.schemes || !Array.isArray(folio.schemes)) return;
+          folio.schemes.forEach((scheme) => {
+            // Use scheme.close (closing unit balance from CAS parser) to detect active holdings.
+            const hasUnits =
+              scheme.close != null ? parseFloat(scheme.close) > 0.001 : true;
 
-              if (
-                scheme.isin &&
-                hasValue &&
-                mfStatsUser[scheme.isin]?.scheme_code
-              ) {
-                if (!navUpdateData[scheme.isin]) {
-                  navUpdateData[scheme.isin] = {
-                    scheme_code: mfStatsUser[scheme.isin].scheme_code,
-                    last_nav_date:
-                      mfStatsUser[scheme.isin].latest_nav_date || null,
-                  };
-                }
+            if (
+              scheme.isin &&
+              hasUnits &&
+              mfStatsUser[scheme.isin]?.scheme_code
+            ) {
+              if (!navUpdateData[scheme.isin]) {
+                navUpdateData[scheme.isin] = {
+                  scheme_code: mfStatsUser[scheme.isin].scheme_code,
+                  last_nav_date:
+                    mfStatsUser[scheme.isin].latest_nav_date || null,
+                };
               }
-            });
-          }
+            }
+          });
         });
       }
     } catch (err) {
@@ -17772,11 +17919,8 @@ async function updateAllUsersNav(updateType = "auto") {
   const activeHoldingsCount = Object.keys(navUpdateData).length;
 
   if (activeHoldingsCount === 0) {
-    console.log("ℹ️ No active holdings to update NAV for.");
     return true;
   }
-
-  console.log(`📊 Updating NAV for ${activeHoldingsCount} active holdings...`);
 
   // Single API call for all users
   try {
@@ -17855,8 +17999,6 @@ async function updateAllUsersNav(updateType = "auto") {
           if (updateType === "manual") {
             storageManager.markManualNavUpdate(user);
           }
-
-          console.log(`✅ Updated NAV for user: ${user}`);
         } catch (err) {
           console.error(`Error saving NAV data for user ${user}:`, err);
         }
@@ -17913,7 +18055,6 @@ async function updateAllUsersNav(updateType = "auto") {
         }
       }
 
-      console.log(`✅ NAV updated for all ${users.length} users`);
       invalidateFamilyDashboardCache();
       return true;
     }
@@ -17970,10 +18111,8 @@ async function checkAndPerformAutoUpdates() {
 
   // Check if full update is needed (every 7 days)
   if (storageManager.needsFullUpdate()) {
-    console.log("📅 Weekly update required (7+ days since last update)");
     const updated = await updateFullMFStats();
     if (updated) {
-      console.log("Portfolio statistics updated for the week!");
       return; // Full update includes NAV, so skip NAV-only update
     }
   }
@@ -17983,7 +18122,6 @@ async function checkAndPerformAutoUpdates() {
     storageManager.needsNavUpdate() &&
     !storageManager.hasManualNavUpdateToday()
   ) {
-    console.log("📅 Daily NAV update required");
     const updated = await updateNavHistoryOnly();
     if (updated) {
       if (isSummaryCAS) {
@@ -17994,10 +18132,7 @@ async function checkAndPerformAutoUpdates() {
         enableSummaryIncompatibleTabs();
       }
 
-      console.log("Latest NAV updated!");
       updateFooterInfo();
-    } else {
-      console.log("Failed to update NAV", "error");
     }
   }
 }
@@ -18489,6 +18624,11 @@ function closeTopbarOverflow() {
   const menu = document.getElementById("topbarOverflowMenu");
   if (menu) menu.classList.remove("open");
   document.removeEventListener("click", closeTopbarOverflowOnOutside);
+  // Reset mobile user list to closed so it doesn't reopen in an expanded state
+  const mobileUserList = document.getElementById("topbarMobileUserList");
+  if (mobileUserList) mobileUserList.classList.remove("open");
+  const caret = document.getElementById("topbarUserChipCaretMobile");
+  if (caret) caret.style.transform = "";
 }
 
 function closeTopbarOverflowOnOutside(e) {
@@ -18643,7 +18783,6 @@ window.addEventListener("resize", () => {
 async function callHealthCheck() {
   try {
     await fetch(BACKEND_SERVER + "/health");
-    console.log("Health check completed");
   } catch (err) {
     console.error("Health check failed:", err);
   }
@@ -18710,13 +18849,6 @@ window.addEventListener("DOMContentLoaded", async () => {
 
       isSummaryCAS = portfolioData.cas_type === "SUMMARY";
 
-      console.log(
-        "✅ Portfolio Data Loaded from IndexedDB - User:",
-        currentUser,
-        " - CAS Type:",
-        isSummaryCAS ? "SUMMARY" : "DETAILED",
-      );
-
       try {
         if (isSummaryCAS) {
           processSummaryCAS();
@@ -18727,7 +18859,6 @@ window.addEventListener("DOMContentLoaded", async () => {
 
         toggleFamilyDashboard();
         hideSimpleSplash();
-        console.log(`Portfolio loaded for ${currentUser}!`);
 
         updateFooterInfo();
         enableAllTabs();

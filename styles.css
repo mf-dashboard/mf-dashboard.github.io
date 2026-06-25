@@ -640,8 +640,39 @@ button:disabled {
 .flt-row:last-child {
   border-bottom: none;
 }
+.flt-row--no-click {
+  cursor: default;
+}
+.flt-row--no-click:hover {
+  background: none;
+}
 
 .flt-row:hover {
+  background: rgba(154, 107, 70, 0.04);
+}
+
+.past-limit-hidden,
+[class].past-limit-hidden {
+  display: none !important;
+}
+
+.past-holdings-expand-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 16px;
+  background: var(--bg-gradient);
+  border: 1px solid var(--border-primary);
+  margin-top: 10px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  justify-content: center;
+}
+.past-holdings-expand-btn:hover {
   background: rgba(154, 107, 70, 0.04);
 }
 
@@ -4645,6 +4676,12 @@ button.theme-toggle {
 .compact-holding-item:hover {
   background: rgba(154, 107, 70, 0.04);
 }
+.compact-holding-item.chi-hero--past {
+  cursor: default;
+}
+.compact-holding-item.chi-hero--past:hover {
+  background: none;
+}
 
 /* Left: fund name + meta */
 .compact-holding-info {
@@ -6537,6 +6574,18 @@ button.theme-toggle {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+.fdm-peers-table .gain {
+  color: var(--success);
+  font-weight: 600;
+}
+.fdm-peers-table .loss {
+  color: var(--danger);
+  font-weight: 600;
+}
+.fdm-peers-table .warning {
+  color: var(--warning);
+  font-weight: 600;
+}
 .fdm-peer-name-cell {
   display: flex;
   align-items: center;
@@ -8391,9 +8440,21 @@ button.theme-toggle {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .fund-chart-period-tabs {
+    gap: 4px;
+    background: transparent;
+    padding: 0;
+  }
+
   .fund-chart-period-btn {
-    padding: 3px 6px;
-    font-size: 9px;
+    padding: 4px 10px;
+    font-size: 10px;
+    border: 1px solid var(--border-primary);
+    color: var(--text-secondary);
+  }
+
+  .fund-chart-period-btn.active {
+    border-color: #9a6b46;
   }
 
   .fund-chart-card-title {
@@ -12162,6 +12223,15 @@ button.theme-toggle {
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.3px;
+}
+#expenseContent .gains-summary-card .summary-row span.gain {
+  color: var(--success);
+}
+#expenseContent .gains-summary-card .summary-row span.warning {
+  color: var(--warning);
+}
+#expenseContent .gains-summary-card .summary-row span.loss {
+  color: var(--loss-color, #c65a52);
 }
 
 /* gains-table inside these tabs */
