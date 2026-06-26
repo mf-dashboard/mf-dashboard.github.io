@@ -74,7 +74,7 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 The application automatically keeps your portfolio data fresh:
 
 - **Twice-Daily NAV Updates ⏰**
-  - Automatically fetched at 7:00 AM and 12:00 PM IST each day
+  - Automatically fetched at 9:00 AM and 12:00 PM IST each day
   - Each slot triggers a refresh if the last NAV update predates that slot
   - Incremental — only new data is fetched and merged
   - Runs silently in the background
@@ -491,7 +491,7 @@ Requires: IndexedDB, ES6+, Fetch API, File API.
 
 ### Update Restrictions
 
-- NAV: maximum twice per day, at 7:00 AM and 12:00 PM IST slots
+- NAV: maximum twice per day, at 9:00 AM and 12:00 PM IST slots
 - Fund stats: maximum once per week
 
 ### API Dependencies

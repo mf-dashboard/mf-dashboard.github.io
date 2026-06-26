@@ -100,7 +100,7 @@ const DEBUG_MODE = false;
 const STATS_SCHEMA_VERSION = 8;
 const STATS_SCHEMA_VERSION_KEY = "statsSchemaVersion";
 // Two auto-NAV update slots per day (hours in IST, 24-hour)
-const NAV_UPDATE_SLOTS_IST = [7, 12]; // 7 AM and 12 PM
+const NAV_UPDATE_SLOTS_IST = [9, 12]; // 9 AM and 12 PM
 
 // Warm Financial Intelligence palette — mirrors the CSS tbc-fill nth-child rules
 const CHART_COLORS_LIGHT = [
@@ -1355,14 +1355,10 @@ function calculateadvancedMetrics(fund) {
   const folioSummaries = {};
   const folioCashflows = {};
 
-  // Try to get a reliable NAV-per-unit from valuation
+  // Try to get a reliable NAV-per-unit from valuation.
   const valuation = fund.valuation || {};
   let globalNavPerUnit = 0;
-  if (valuation.nav && !isNaN(parseFloat(valuation.nav))) {
-    globalNavPerUnit = parseFloat(valuation.nav);
-  } else if (valuation.navPerUnit && !isNaN(parseFloat(valuation.navPerUnit))) {
-    globalNavPerUnit = parseFloat(valuation.navPerUnit);
-  } else if (
+  if (
     valuation.value &&
     fund.totalUnits &&
     !isNaN(parseFloat(valuation.value)) &&
@@ -1371,6 +1367,10 @@ function calculateadvancedMetrics(fund) {
   ) {
     globalNavPerUnit =
       parseFloat(valuation.value) / parseFloat(fund.totalUnits);
+  } else if (valuation.navPerUnit && !isNaN(parseFloat(valuation.navPerUnit))) {
+    globalNavPerUnit = parseFloat(valuation.navPerUnit);
+  } else if (valuation.nav && !isNaN(parseFloat(valuation.nav))) {
+    globalNavPerUnit = parseFloat(valuation.nav);
   } else {
     globalNavPerUnit = 0; // fallback
   }
@@ -1864,9 +1864,6 @@ function calculateSummary() {
     });
 
     // Build cashflows from advancedMetrics.folioSummaries
-    const fundCurrentValue = fifo.currentValue;
-    const isActiveFund = fundCurrentValue > 0;
-
     Object.values(fifo.folioSummaries).forEach((folioSummary) => {
       // Skip hidden folios in cashflow calculations
       const folioNum = folioSummary.folio;
@@ -1876,6 +1873,12 @@ function calculateSummary() {
         console.log(`⭐️ Skipping hidden folio in cashflows: ${folioNum}`);
         return;
       }
+
+      // A folio is "active" only if it still has remaining units.
+      // Using fund-level isActiveFund was wrong: it included fully-redeemed
+      // folios of a fund that has other active folios, polluting activeFlows
+      // with realized losses/gains that have no corresponding current value.
+      const isFolioActive = folioSummary.remainingUnits > 0;
 
       folioSummary.cashflows.forEach((cf) => {
         const enriched = {
@@ -1891,8 +1894,8 @@ function calculateSummary() {
         // Add ALL cashflows to allTimeFlows (both purchases and redemptions)
         allTimeFlows.push(enriched);
 
-        // For active funds, add to activeFlows
-        if (isActiveFund) {
+        // For activeFlows: only include folios that still hold units.
+        if (isFolioActive) {
           activeFlows.push(enriched);
         }
       });
