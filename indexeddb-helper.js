@@ -353,10 +353,12 @@ class StorageManager {
     }
 
     try {
-      this.addUser(user);
-
       await this.idb.saveFile(`cas-data-${user}.json`, casData);
       await this.idb.saveFile(`mf-stats-${user}.json`, mfStats);
+
+      // Only register the user after both writes succeed — prevents zombie
+      // state where the user appears in the list but has incomplete data.
+      this.addUser(user);
 
       const manifest = this.getManifest(user) || {};
       manifest.timestamp = new Date().toISOString();
@@ -446,21 +448,6 @@ class StorageManager {
     this.saveGlobalManifest(globalManifest);
   }
 
-  markManualNavUpdate(userName = null) {
-    const user = userName || currentUser;
-    const today = new Date().toISOString().split("T")[0];
-
-    if (user) {
-      const manifest = this.getManifest(user) || {};
-      manifest.lastManualNavUpdate = today;
-      this.saveManifest(manifest, user);
-    }
-
-    const globalManifest = this.getGlobalManifest() || {};
-    globalManifest.lastManualNavUpdate = today;
-    this.saveGlobalManifest(globalManifest);
-  }
-
   needsFullUpdate() {
     const manifest = this.getGlobalManifest();
     if (!manifest || !manifest.lastFullUpdate) return true;
@@ -476,10 +463,29 @@ class StorageManager {
     const manifest = this.getGlobalManifest();
     if (!manifest || !manifest.lastNavUpdate) return true;
 
-    const lastUpdate = new Date(manifest.lastNavUpdate);
-    const today = new Date();
+    const lastIST = new Date(
+      new Date(manifest.lastNavUpdate).toLocaleString("en-US", {
+        timeZone: "Asia/Kolkata",
+      }),
+    );
+    const nowIST = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
+    );
+    const slots =
+      typeof NAV_UPDATE_SLOTS_IST !== "undefined"
+        ? NAV_UPDATE_SLOTS_IST
+        : [7, 12];
+    const hourNow = nowIST.getHours();
 
-    return lastUpdate.toDateString() !== today.toDateString();
+    // Find the most recent slot that has passed today
+    const passedSlotHours = slots.filter((h) => hourNow >= h);
+    if (passedSlotHours.length === 0) return false; // No slot has passed yet
+
+    const lastPassedHour = Math.max(...passedSlotHours);
+    const lastPassedSlotTime = new Date(nowIST);
+    lastPassedSlotTime.setHours(lastPassedHour, 0, 0, 0);
+
+    return lastIST < lastPassedSlotTime;
   }
 
   hasManualStatsUpdateThisWeek() {
@@ -493,14 +499,6 @@ class StorageManager {
     return daysSinceUpdate < 7;
   }
 
-  hasManualNavUpdateToday() {
-    const manifest = this.getGlobalManifest();
-    if (!manifest || !manifest.lastManualNavUpdate) return false;
-
-    const today = new Date().toISOString().split("T")[0];
-    return manifest.lastManualNavUpdate === today;
-  }
-
   updateLastFullUpdate(userName = null) {
     const user = userName || currentUser;
     if (user) {
@@ -512,6 +510,30 @@ class StorageManager {
     const globalManifest = this.getGlobalManifest() || {};
     globalManifest.lastFullUpdate = new Date().toISOString();
     this.saveGlobalManifest(globalManifest);
+  }
+
+  saveBenchmarkData(returns, rolling) {
+    const manifest = this.getGlobalManifest() || {};
+    manifest.benchmarkReturns = returns;
+    manifest.benchmarkRolling = rolling;
+    manifest.lastBenchmarkUpdate = new Date().toISOString();
+    this.saveGlobalManifest(manifest);
+  }
+
+  getBenchmarkData() {
+    const manifest = this.getGlobalManifest();
+    if (!manifest) return null;
+    return {
+      returns: manifest.benchmarkReturns || null,
+      rolling: manifest.benchmarkRolling || null,
+    };
+  }
+
+  needsBenchmarkUpdate() {
+    const manifest = this.getGlobalManifest();
+    if (!manifest?.lastBenchmarkUpdate) return true;
+    const last = new Date(manifest.lastBenchmarkUpdate);
+    return new Date() - last > 7 * 24 * 60 * 60 * 1000;
   }
 }
 

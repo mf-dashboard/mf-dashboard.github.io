@@ -32,13 +32,13 @@ const ICONS = {
 function getChartTheme() {
   const isDark = isDarkMode();
   return {
-    textColor: isDark ? "#e5e7eb" : "#374151",
-    gridColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)",
-    borderColor: isDark ? "rgba(255, 255, 255, 0.2)" : "#e5e7eb",
-    tooltipBg: isDark ? "rgba(34, 37, 47, 0.95)" : "rgba(0, 0, 0, 0.8)",
-    tooltipBorder: isDark ? "rgba(102, 126, 234, 0.5)" : "#3b82f6",
-    growthValuation: isDark ? "#e5e7eb" : "#52528c",
-    growthCost: isDark ? "#9ca3af" : "#9ca3af",
+    textColor: isDark ? "#C8B8A8" : "#2F241D",
+    gridColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(231,222,211,0.7)",
+    borderColor: isDark ? "rgba(255,255,255,0.12)" : "#E7DED3",
+    tooltipBg: isDark ? "rgba(36,28,22,0.96)" : "rgba(47,36,29,0.92)",
+    tooltipBorder: isDark ? "#9A6B46" : "#9A6B46",
+    growthValuation: isDark ? "#C9944A" : "#9A6B46",
+    growthCost: isDark ? "#6B8C6E" : "#2F8F5B",
   };
 }
 
@@ -268,12 +268,6 @@ function getFinancialYear(date) {
   const fyEndYear = fyStartYear + 1;
 
   return `FY ${fyStartYear}-${String(fyEndYear).slice(-2)}`;
-}
-
-function isAfter6AM() {
-  const now = new Date();
-  const hours = now.getHours();
-  return hours >= 6;
 }
 
 // ============================================

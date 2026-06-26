@@ -36,17 +36,8 @@ let capitalGainsData = {
   },
 };
 
-// PORTFOLIO BENCHMARKS
-const PORTFOLIO_BENCHMARKS = {
-  nifty500: {
-    isin: "INF247L01957",
-    name: "Nifty 500",
-  },
-  nifty50: {
-    isin: "INF789F01XA0",
-    name: "Nifty 50",
-  },
-};
+// Benchmark indices fetched independently from the API (not as portfolio fund ISINs)
+const ROLLING_RETURN_BENCHMARKS = ["nifty-50-tri", "nifty-500-tri"];
 
 // Chart instances
 let projectionChartInstance = null;
@@ -108,6 +99,8 @@ const DEBUG_MODE = false;
 // resets the 7-day weekly-update counter.
 const STATS_SCHEMA_VERSION = 7;
 const STATS_SCHEMA_VERSION_KEY = "statsSchemaVersion";
+// Two auto-NAV update slots per day (hours in IST, 24-hour)
+const NAV_UPDATE_SLOTS_IST = [7, 12]; // 7 AM and 12 PM
 
 // Warm Financial Intelligence palette — mirrors the CSS tbc-fill nth-child rules
 const CHART_COLORS_LIGHT = [
@@ -763,24 +756,24 @@ async function processPortfolio(skipAnalytics = false) {
 }
 
 function getPortfolioBenchmarks() {
-  const getReturns = (isin) => {
-    const stats = mfStats?.[isin]?.return_stats || {};
+  const bmData = storageManager.getBenchmarkData();
+  const returns = bmData?.returns?.data || {};
 
-    return {
-      return1y: stats.return1y ?? null,
-      return3y: stats.return3y ?? null,
-      return5y: stats.return5y ?? null,
-    };
-  };
+  const n50 = returns["nifty-50-tri"] || {};
+  const n500 = returns["nifty-500-tri"] || {};
 
   return {
     nifty50: {
-      ...PORTFOLIO_BENCHMARKS.nifty50,
-      ...getReturns(PORTFOLIO_BENCHMARKS.nifty50.isin),
+      name: "Nifty 50",
+      return1y: n50.ret_1y ?? null,
+      return3y: n50.ret_3y ?? null,
+      return5y: n50.ret_5y ?? null,
     },
     nifty500: {
-      ...PORTFOLIO_BENCHMARKS.nifty500,
-      ...getReturns(PORTFOLIO_BENCHMARKS.nifty500.isin),
+      name: "Nifty 500",
+      return1y: n500.ret_1y ?? null,
+      return3y: n500.ret_3y ?? null,
+      return5y: n500.ret_5y ?? null,
     },
   };
 }
@@ -7176,10 +7169,9 @@ function updateGainCard(valueId, percentId, gain, percent, xirr) {
 }
 
 // ── Holdings Charts ──────────────────────────────────────────────────────────
-let perfChartInstance = null;
-let perfLatestStatsData = null; // { labels, datasets, sinceInfo } — kept current to avoid stale onComplete closure
-let perfChipData = []; // module-level: persists visibility across period switches
 let perfActivePeriod = "3Y"; // default period
+let perfActiveBenchmark = "n50"; // default benchmark for comparison
+let perfActiveFundsCache = []; // { name, trailing, rolling } per active fund
 
 const HC_COLORS = [
   "#9a6b46",
@@ -7191,7 +7183,6 @@ const HC_COLORS = [
   "#5a8f82",
   "#8b7355",
 ];
-const HC_DASHES = [[], [], [], [], [], [], [], []];
 
 function shortFundName(name) {
   return name
@@ -7243,297 +7234,231 @@ function perfPeriodStart(period, oldestNavDate) {
   return oldestNavDate; // Max
 }
 
-// Compute datasets + labels for a given startDate, using current chip visibility state
-function buildPerfDatasets(startDate, activeFunds) {
-  const today = new Date();
-  const labels = [];
-  const monthDates = [];
-  let cur = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-  while (cur <= today) {
-    const monthEnd = new Date(cur.getFullYear(), cur.getMonth() + 1, 0);
-    const point = monthEnd > today ? today : monthEnd;
-    labels.push(
-      point.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
-    );
-    monthDates.push(point);
-    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
-  }
+// Calculate average rolling CAGR for a fund over all complete windows of `years`
+function calculateFundRollingReturn(navHistory, years) {
+  if (!navHistory || navHistory.length < 2) return null;
+  const msInYear = 365.25 * 24 * 60 * 60 * 1000;
+  const windowMs = years * msInYear;
+  const entries = navHistory
+    .map((e) => ({ d: parseNavHistDate(e.date), nav: parseFloat(e.nav) }))
+    .filter((e) => e.d)
+    .sort((a, b) => a.d - b.d);
+  if (entries.length < 2) return null;
 
-  const datasets = [];
-  const sinceInfo = {}; // label -> "MMM 'YY" string for partial-history funds, null for full
-
-  activeFunds.forEach(([, fund], idx) => {
-    const navH = fund.navHistory;
-    if (!navH || navH.length < 2) return;
-
-    let baseNav = getNavOnOrBefore(navH, startDate);
-    let sinceDate = null;
-
-    if (!baseNav) {
-      // Fund doesn't have full period history — use its earliest available NAV
-      const oldestEntry = navH[navH.length - 1];
-      if (oldestEntry) {
-        const oldestDate = parseNavHistDate(oldestEntry.date);
-        if (oldestDate && oldestDate <= today) {
-          baseNav = parseFloat(oldestEntry.nav);
-          sinceDate = oldestDate;
-        }
-      }
+  const cagrs = [];
+  for (let i = 0; i < entries.length; i++) {
+    const start = entries[i];
+    // find entry closest to start.d + windowMs
+    const targetMs = start.d.getTime() + windowMs;
+    let best = null;
+    for (let j = i + 1; j < entries.length; j++) {
+      const diff = Math.abs(entries[j].d.getTime() - targetMs);
+      if (!best || diff < Math.abs(best.d.getTime() - targetMs))
+        best = entries[j];
+      if (entries[j].d.getTime() > targetMs + 30 * 24 * 60 * 60 * 1000) break;
     }
-    if (!baseNav) return;
-
-    const color = HC_COLORS[idx % HC_COLORS.length];
-    const name = fund.schemeDisplay || fund.scheme || "Fund";
-    const chipEntry = perfChipData.find((c) => c.label === name);
-
-    sinceInfo[name] = sinceDate
-      ? sinceDate
-          .toLocaleDateString("en-IN", { month: "short", year: "2-digit" })
-          .replace(" ", " '")
-      : null;
-
-    const data = monthDates.map((d) => {
-      if (sinceDate && d < sinceDate) return null;
-      const nav = getNavOnOrBefore(navH, d);
-      return nav != null ? Math.round((nav / baseNav) * 1000) / 10 : null;
-    });
-    datasets.push({
-      label: name,
-      data,
-      borderColor: color,
-      borderWidth: 2,
-      borderDash: HC_DASHES[idx % HC_DASHES.length],
-      pointRadius: 0,
-      tension: 0.3,
-      fill: false,
-      spanGaps: false,
-      hidden: chipEntry ? !chipEntry.visible : false,
-    });
-  });
-
-  const addBenchmark = (isin, label, color, dash) => {
-    const navH = mfStats?.[isin]?.nav_history;
-    if (!navH || navH.length < 2) return;
-    const baseNav = getNavOnOrBefore(navH, startDate);
-    if (!baseNav) return;
-    const chipEntry = perfChipData.find((c) => c.label === label);
-    const data = monthDates.map((d) => {
-      const nav = getNavOnOrBefore(navH, d);
-      return nav != null ? Math.round((nav / baseNav) * 1000) / 10 : null;
-    });
-    datasets.push({
-      label,
-      data,
-      borderColor: color,
-      borderWidth: 1.5,
-      borderDash: dash,
-      pointRadius: 0,
-      tension: 0.3,
-      fill: false,
-      spanGaps: false,
-      hidden: chipEntry ? !chipEntry.visible : false,
-    });
-    sinceInfo[label] = null;
-  };
-  addBenchmark(
-    PORTFOLIO_BENCHMARKS.nifty50.isin,
-    "Nifty 50",
-    "#7A6C61",
-    [],
-  );
-  addBenchmark(
-    PORTFOLIO_BENCHMARKS.nifty500.isin,
-    "Nifty 500",
-    "#B0A89E",
-    [],
-  );
-
-  return { labels, monthDates, datasets, sinceInfo };
+    if (!best) continue;
+    const actualYears = (best.d - start.d) / msInYear;
+    if (actualYears < years * 0.9) continue; // window too short
+    const cagr = (Math.pow(best.nav / start.nav, 1 / actualYears) - 1) * 100;
+    cagrs.push(cagr);
+  }
+  if (cagrs.length === 0) return null;
+  return cagrs.reduce((s, v) => s + v, 0) / cagrs.length;
 }
 
-function renderPerfTable(labels, datasets, sinceInfo) {
+function renderPerfTable() {
   const wrap = document.getElementById("perfTableWrap");
   if (!wrap) return;
-  const lastIdx = labels.length - 1;
-  if (lastIdx < 0) { wrap.style.display = "none"; return; }
 
-  const fmt = (r) => r == null ? `<span class="pft-neu">—</span>` : `<span class="${r >= 0 ? "pft-pos" : "pft-neg"}">${r >= 0 ? "+" : ""}${r.toFixed(1)}%</span>`;
+  const periodYears = { "1Y": 1, "3Y": 3, "5Y": 5, "10Y": 10 };
+  const years = periodYears[perfActivePeriod] || 3;
 
-  const getRet = (ds, lookbackMonths) => {
-    const idx = lastIdx - lookbackMonths;
-    if (idx < 0) return null;
-    const end = ds.data[lastIdx];
-    const start = ds.data[idx];
-    if (end == null || start == null || start === 0) return null;
-    return (end / start - 1) * 100;
+  const bmData = storageManager.getBenchmarkData();
+  const bmReturnsData = bmData?.returns?.data || {};
+  const bmRollingData = bmData?.rolling?.data || {};
+
+  const findBmReturn = (key, period) => {
+    const row = bmReturnsData?.[key];
+    if (!row) return null;
+    const map = {
+      "1Y": "ret_1y",
+      "3Y": "ret_3y",
+      "5Y": "ret_5y",
+      "10Y": "ret_10y",
+    };
+    return row[map[period]] ?? null;
   };
 
-  const n50ds = datasets.find((d) => d.label === "Nifty 50");
-  const n500ds = datasets.find((d) => d.label === "Nifty 500");
-  const n50ret = n50ds ? (n50ds.data[lastIdx] != null ? n50ds.data[lastIdx] - 100 : null) : null;
-  const n500ret = n500ds ? (n500ds.data[lastIdx] != null ? n500ds.data[lastIdx] - 100 : null) : null;
+  const findBmRolling = (key, period) => {
+    const map = { "1Y": "1yr", "3Y": "3yr", "5Y": "5yr", "10Y": "10yr" };
+    const windowKey = map[period];
+    return bmRollingData?.[key]?.data?.[windowKey]?.average ?? null;
+  };
 
-  const rows = perfChipData.map((c) => {
-    const ds = datasets.find((d) => d.label === c.label);
-    if (!ds) return null;
-    const endVal = ds.data[lastIdx];
-    const ret = endVal != null ? endVal - 100 : null;
-    const r1y = getRet(ds, 12);
-    const r3y = getRet(ds, 36);
-    const r5y = getRet(ds, 60);
-    const vsN50 = !c.isBenchmark && ret != null && n50ret != null ? ret - n50ret : null;
-    const vsN500 = !c.isBenchmark && ret != null && n500ret != null ? ret - n500ret : null;
-    return { ...c, ret, r1y, r3y, r5y, vsN50, vsN500 };
-  }).filter(Boolean);
+  const BMS = [
+    { key: "nifty-50-tri", label: "Nifty 50 TRI", shortKey: "n50" },
+    { key: "nifty-500-tri", label: "Nifty 500 TRI", shortKey: "n500" },
+  ];
 
-  const fundRows = rows.filter((r) => !r.isBenchmark);
-  const benchRows = rows.filter((r) => r.isBenchmark);
+  const fmt = (v, pct = true) => {
+    if (v == null) return `<span class="pft-neu">—</span>`;
+    const s = pct
+      ? `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`
+      : `${v >= 0 ? "+" : ""}${v.toFixed(2)}`;
+    return `<span class="${v >= 0 ? "pft-pos" : "pft-neg"}">${s}</span>`;
+  };
 
-  const row = (r) => `
-    <tr class="${r.isBenchmark ? "pft-bench" : ""}">
-      <td><span class="pft-dot" style="background:${r.color}"></span><span class="pft-name-full">${r.label}</span><span class="pft-name-short">${r.shortLabel || r.label}</span></td>
-      <td>${fmt(r.ret)}</td>
-      <td>${r.isBenchmark ? `<span class="pft-neu">—</span>` : fmt(r.vsN50)}</td>
-      <td>${r.isBenchmark ? `<span class="pft-neu">—</span>` : fmt(r.vsN500)}</td>
-      <td class="pft-rolling pft-group-start">${fmt(r.r1y)}</td>
-      <td class="pft-rolling">${fmt(r.r3y)}</td>
-      <td class="pft-rolling">${fmt(r.r5y)}</td>
-    </tr>`;
+  const renderTable = () => {
+    const selectedBms = BMS.filter((b) => b.shortKey === perfActiveBenchmark);
 
-  wrap.style.display = "";
+    let headCols = `<th class="pft-col-name">Fund</th><th>Trailing ${perfActivePeriod}</th><th class="pft-hide-mobile">Rolling ${perfActivePeriod} avg</th>`;
+    selectedBms.forEach((b) => {
+      headCols += `<th class="pft-group-start">vs ${b.shortKey === "n50" ? "N50" : "N500"} trailing</th><th class="pft-hide-mobile">vs ${b.shortKey === "n50" ? "N50" : "N500"} rolling</th>`;
+    });
+
+    const bmTrailing = {};
+    const bmRollingVal = {};
+    BMS.forEach((b) => {
+      bmTrailing[b.shortKey] = findBmReturn(b.key, perfActivePeriod);
+      bmRollingVal[b.shortKey] = findBmRolling(b.key, perfActivePeriod);
+    });
+
+    let fundRows = "";
+    perfActiveFundsCache.forEach((f) => {
+      const tr = f.trailing[perfActivePeriod] ?? null;
+      const rr = f.rolling[perfActivePeriod] ?? null;
+      let alphaCols = "";
+      selectedBms.forEach((b) => {
+        const at =
+          tr != null && bmTrailing[b.shortKey] != null
+            ? tr - bmTrailing[b.shortKey]
+            : null;
+        const ar =
+          rr != null && bmRollingVal[b.shortKey] != null
+            ? rr - bmRollingVal[b.shortKey]
+            : null;
+        alphaCols += `<td class="pft-group-start">${fmt(at, false)}</td><td class="pft-hide-mobile">${fmt(ar, false)}</td>`;
+      });
+      fundRows += `<tr>
+        <td class="pft-col-name"><span class="pft-name">${f.name}</span>${f.sub ? `<span class="pft-sub">${f.sub}</span>` : ""}</td>
+        <td>${fmt(tr)}</td><td class="pft-hide-mobile">${fmt(rr)}</td>${alphaCols}
+      </tr>`;
+    });
+
+    let bmRows = "";
+    BMS.forEach((b, i) => {
+      const tr = bmTrailing[b.shortKey];
+      const rr = bmRollingVal[b.shortKey];
+      let blanks = "";
+      selectedBms.forEach(() => {
+        blanks += `<td class="pft-group-start pft-neu">—</td><td class="pft-hide-mobile pft-neu">—</td>`;
+      });
+      bmRows += `<tr class="pft-bench${i === 0 ? " pft-bench-first" : ""}">
+        <td class="pft-col-name pft-bench-name">${b.label}</td>
+        <td>${fmt(tr)}</td><td class="pft-hide-mobile">${fmt(rr)}</td>${blanks}
+      </tr>`;
+    });
+
+    return `<table class="pft-table"><thead><tr>${headCols}</tr></thead><tbody>${fundRows}${bmRows}</tbody></table>`;
+  };
+
+  // Build controls + table
+  const periodBtns = ["1Y", "3Y", "5Y", "10Y"]
+    .map(
+      (p) =>
+        `<button class="hc-period-btn${p === perfActivePeriod ? " hc-period-btn--active" : ""}" data-period="${p}">${p}</button>`,
+    )
+    .join("");
+
+  const bmBtns = BMS.map(
+    (b) =>
+      `<button class="hc-period-btn${b.shortKey === perfActiveBenchmark ? " hc-period-btn--active" : ""}" data-bm="${b.shortKey}">${b.shortKey === "n50" ? "Nifty 50" : "Nifty 500"}</button>`,
+  ).join("");
+
   wrap.innerHTML = `
-    <div class="pft-wrap">
-      <table class="pft-table">
-        <colgroup>
-          <col class="pft-col-name">
-          <col><col><col>
-          <col class="pft-rolling"><col class="pft-rolling"><col class="pft-rolling">
-        </colgroup>
-        <thead>
-          <tr class="pft-group-row">
-            <th></th>
-            <th colspan="3" class="pft-center pft-period-header">${perfActivePeriod} period</th>
-            <th colspan="3" class="pft-center pft-rolling pft-group-start">Rolling returns</th>
-          </tr>
-          <tr class="pft-col-row">
-            <th></th>
-            <th>Return</th>
-            <th>vs N50</th>
-            <th>vs N500</th>
-            <th class="pft-rolling pft-group-start">1Y</th>
-            <th class="pft-rolling">3Y</th>
-            <th class="pft-rolling">5Y</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${fundRows.map(row).join("")}
-          ${benchRows.map(row).join("")}
-        </tbody>
-      </table>
-    </div>`;
-}
-
-function updatePerfBottomStats(labels, datasets, sinceInfo) {
-  const lastIdx = labels.length - 1;
-  const fmt = (r) => `${r >= 0 ? "+" : ""}${r.toFixed(1)}%`;
-
-  // update return % directly on each chip
-  perfChipData.forEach((c) => {
-    const chip = document.querySelector(
-      `#perfChipRow [data-label="${c.label}"]`,
-    );
-    if (!chip) return;
-    const ds = datasets.find((d) => d.label === c.label);
-    const val = ds?.data?.[lastIdx];
-    const ret = val != null ? val - 100 : null;
-    const since = sinceInfo?.[c.label];
-    const retEl = chip.querySelector(".hc-chip-ret");
-    if (retEl) {
-      retEl.textContent = ret != null ? fmt(ret) : "--";
-      retEl.className = `hc-chip-ret ${ret != null ? (ret >= 0 ? "positive" : "negative") : ""}`;
-    }
-    const sinceEl = chip.querySelector(".hc-chip-since");
-    if (sinceEl) {
-      sinceEl.textContent = since ? `since ${since}` : "";
-    }
-  });
-
-  // best / worst — only funds with full period history (sinceInfo[label] === null)
-  const periodYears =
-    { "1Y": 1, "2Y": 2, "3Y": 3, "5Y": 5, "7Y": 7, "10Y": 10 }[
-      perfActivePeriod
-    ] || null;
-  const annualized = (ret) => {
-    if (!periodYears || periodYears <= 1) return null;
-    const cagr = (Math.pow(1 + ret / 100, 1 / periodYears) - 1) * 100;
-    return `${cagr >= 0 ? "+" : ""}${cagr.toFixed(1)}% p.a.`;
-  };
-
-  const fundEntries = perfChipData
-    .filter((c) => !c.isBenchmark && !sinceInfo?.[c.label])
-    .map((c) => {
-      const ds = datasets.find((d) => d.label === c.label);
-      const val = ds?.data?.[lastIdx];
-      return { ...c, ret: val != null ? val - 100 : null };
-    })
-    .filter((c) => c.ret != null)
-    .sort((a, b) => b.ret - a.ret);
-
-  const bwRow = document.getElementById("perfBestWorstRow");
-  if (bwRow && fundEntries.length >= 2) {
-    const best = fundEntries[0];
-    const worst = fundEntries[fundEntries.length - 1];
-    const bestAnn = annualized(best.ret);
-    const worstAnn = annualized(worst.ret);
-    bwRow.innerHTML = `
-      <div class="hc-bw-card">
-        <span class="hc-bw-badge best">Best performer</span>
-        <div class="hc-bw-name" title="${best.label}">${best.label}</div>
-        <div class="hc-bw-ret positive">${fmt(best.ret)}${bestAnn ? `<span class="hc-bw-ann">${bestAnn} annualized</span>` : ""}</div>
+    <div class="perf-controls">
+      <div class="hc-period-btns">${periodBtns}</div>
+      <div class="perf-bm-selector">
+        <span class="perf-bm-vs">Compare vs</span>
+        <div class="hc-period-btns">${bmBtns}</div>
       </div>
-      <div class="hc-bw-card">
-        <span class="hc-bw-badge worst">Lowest return</span>
-        <div class="hc-bw-name" title="${worst.label}">${worst.label}</div>
-        <div class="hc-bw-ret ${worst.ret >= 0 ? "positive" : "negative"}">${fmt(worst.ret)}${worstAnn ? `<span class="hc-bw-ann">${worstAnn} annualized</span>` : ""}</div>
-      </div>`;
-  } else if (bwRow) {
-    bwRow.innerHTML = "";
-  }
-  renderPerfTable(labels, datasets, sinceInfo);
-}
+    </div>
+    <div class="pft-wrap" id="perfTableInner">${renderTable()}</div>`;
 
-function switchPerfPeriod(period, activeFunds, oldestNavDate) {
-  perfActivePeriod = period;
-
-  // update active state on period buttons
-  document.querySelectorAll(".hc-period-btn").forEach((btn) => {
-    btn.classList.toggle(
-      "hc-period-btn--active",
-      btn.dataset.period === period,
-    );
+  // Wire up period buttons
+  wrap.querySelectorAll("[data-period]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      perfActivePeriod = btn.dataset.period;
+      renderPerfTable();
+    });
   });
 
-  const perfWrap = document.getElementById("perfChartWrap");
-  if (perfWrap) perfWrap.classList.add("loading");
+  // Wire up benchmark buttons
+  wrap.querySelectorAll("[data-bm]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      perfActiveBenchmark = btn.dataset.bm;
+      wrap
+        .querySelectorAll("[data-bm]")
+        .forEach((b) =>
+          b.classList.toggle(
+            "hc-period-btn--active",
+            b.dataset.bm === perfActiveBenchmark,
+          ),
+        );
+      const inner = wrap.querySelector("#perfTableInner");
+      if (inner) inner.innerHTML = renderTable();
+    });
+  });
+}
 
-  setTimeout(() => {
-    const startDate = perfPeriodStart(period, oldestNavDate);
-    const { labels, datasets, sinceInfo } = buildPerfDatasets(
-      startDate,
-      activeFunds,
+function renderPerfSection() {
+  if (!fundWiseData) return;
+  const section = document.getElementById("holdingsChartsSection");
+  if (!section) return;
+
+  // Trigger benchmark fetch for users with no cached benchmark data
+  if (!storageManager.getBenchmarkData()?.returns) {
+    _fetchBenchmarksInBackground();
+  }
+
+  const periodYears = { "1Y": 1, "3Y": 3, "5Y": 5, "10Y": 10 };
+
+  const activeFunds = Object.entries(fundWiseData)
+    .filter(([, f]) => (f.advancedMetrics?.currentValue || 0) > 0)
+    .sort(
+      (a, b) =>
+        (b[1].advancedMetrics?.currentValue || 0) -
+        (a[1].advancedMetrics?.currentValue || 0),
     );
 
-    perfLatestStatsData = { labels, datasets, sinceInfo };
+  // Rebuild fund cache with trailing + rolling for all periods
+  perfActiveFundsCache = activeFunds
+    .filter(([, f]) => f.navHistory && f.navHistory.length >= 2)
+    .map(([, fund]) => {
+      const rs = mfStats?.[fund.isin]?.return_stats || {};
+      const trailing = {
+        "1Y": rs.return1y ?? null,
+        "3Y": rs.return3y ?? null,
+        "5Y": rs.return5y ?? null,
+        "10Y": rs.return10y ?? null,
+      };
+      const rolling = {};
+      Object.entries(periodYears).forEach(([p, y]) => {
+        rolling[p] = calculateFundRollingReturn(fund.navHistory, y);
+      });
+      return {
+        name: (fund.schemeDisplay || fund.scheme || "Fund").replace(
+          /\s+Fund$/i,
+          "",
+        ),
+        sub: fund.category || "",
+        trailing,
+        rolling,
+      };
+    });
 
-    if (perfChartInstance) {
-      perfChartInstance.data.labels = labels;
-      perfChartInstance.data.datasets = datasets;
-      perfChartInstance.update("none");
-    }
-
-    if (perfWrap) perfWrap.classList.remove("loading");
-    updatePerfBottomStats(labels, datasets, sinceInfo);
-  }, 0);
+  renderPerfTable();
 }
 
 function renderHoldingsCharts() {
@@ -7552,6 +7477,7 @@ function renderHoldingsCharts() {
     section.style.display = "none";
     return;
   }
+  section.style.display = "";
 
   // --- allocation bars (top 9 + Others if > 10) ---
   const totalValue = activeFunds.reduce(
@@ -7603,175 +7529,8 @@ function renderHoldingsCharts() {
     }
   }
 
-  // --- find oldest nav date across all funds + benchmarks (for Max period) ---
-  let oldestNavDate = new Date();
-  const allNavSources = [
-    ...activeFunds.map(([, f]) => f.navHistory),
-    mfStats?.[PORTFOLIO_BENCHMARKS.nifty50.isin]?.nav_history,
-    mfStats?.[PORTFOLIO_BENCHMARKS.nifty500.isin]?.nav_history,
-  ].filter(Boolean);
-  allNavSources.forEach((navH) => {
-    if (!navH.length) return;
-    const oldest = parseNavHistDate(navH[navH.length - 1].date);
-    if (oldest && oldest < oldestNavDate) oldestNavDate = oldest;
-  });
-
-  // --- build chip data once (preserving visibility across re-renders) ---
-  const prevVisibility = Object.fromEntries(
-    perfChipData.map((c) => [c.label, c.visible]),
-  );
-  perfChipData = [];
-  activeFunds.forEach(([, fund], idx) => {
-    const navH = fund.navHistory;
-    if (!navH || navH.length < 2) return;
-    const name = fund.schemeDisplay || fund.scheme || "Fund";
-    const color = HC_COLORS[idx % HC_COLORS.length];
-    perfChipData.push({
-      label: name,
-      shortLabel: shortFundName(name),
-      color,
-      visible: prevVisibility[name] ?? true,
-    });
-  });
-  perfChipData.push({
-    label: "Nifty 50",
-    color: "#7A6C61",
-    visible: prevVisibility["Nifty 50"] ?? true,
-    isBenchmark: true,
-  });
-  perfChipData.push({
-    label: "Nifty 500",
-    color: "#B0A89E",
-    visible: prevVisibility["Nifty 500"] ?? true,
-    isBenchmark: true,
-  });
-
-  // --- period selector ---
-  const chipRow = document.getElementById("perfChipRow");
-  if (chipRow) {
-    chipRow.innerHTML = "";
-
-    // period buttons
-    const periodWrap = document.createElement("div");
-    periodWrap.className = "hc-period-row";
-    const periodBtns = document.createElement("div");
-    periodBtns.className = "hc-period-btns";
-    ["1Y", "2Y", "3Y", "5Y", "7Y", "10Y"].forEach((p) => {
-      const btn = document.createElement("button");
-      btn.className =
-        "hc-period-btn" +
-        (p === perfActivePeriod ? " hc-period-btn--active" : "");
-      btn.dataset.period = p;
-      btn.textContent = p;
-      btn.addEventListener("click", () =>
-        switchPerfPeriod(p, activeFunds, oldestNavDate),
-      );
-      periodBtns.appendChild(btn);
-    });
-    periodWrap.appendChild(periodBtns);
-    chipRow.appendChild(periodWrap);
-  }
-
-  // --- show loader, defer chart build ---
-  const perfWrap = document.getElementById("perfChartWrap");
-  if (perfWrap) perfWrap.classList.add("loading");
-  section.style.display = "";
-
-  setTimeout(() => {
-    const startDate = perfPeriodStart(perfActivePeriod, oldestNavDate);
-    const { labels, datasets, sinceInfo } = buildPerfDatasets(
-      startDate,
-      activeFunds,
-    );
-
-    const canvas = document.getElementById("holdingsPerfChart");
-    if (!canvas || !datasets.length) {
-      if (perfWrap) perfWrap.classList.remove("loading");
-      return;
-    }
-
-    if (perfChartInstance) {
-      perfChartInstance.destroy();
-      perfChartInstance = null;
-    }
-    perfLatestStatsData = { labels, datasets, sinceInfo };
-    perfChartInstance = new Chart(canvas, {
-      type: "line",
-      data: { labels, datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: "index", intersect: false },
-        plugins: {
-          legend: { display: false },
-          datalabels: { display: false },
-          tooltip: {
-            enabled: window.innerWidth > 768,
-            backgroundColor:
-              getComputedStyle(document.documentElement)
-                .getPropertyValue("--bg-white")
-                .trim() || "#FFFCF8",
-            borderColor:
-              getComputedStyle(document.documentElement)
-                .getPropertyValue("--border-medium")
-                .trim() || "#E7DED3",
-            borderWidth: 1,
-            titleColor:
-              getComputedStyle(document.documentElement)
-                .getPropertyValue("--text-primary")
-                .trim() || "#2F241D",
-            bodyColor:
-              getComputedStyle(document.documentElement)
-                .getPropertyValue("--text-secondary")
-                .trim() || "#7A6C61",
-            padding: 10,
-            itemSort: (a, b) =>
-              (b.parsed.y ?? -Infinity) - (a.parsed.y ?? -Infinity),
-            callbacks: {
-              label: (ctx) => {
-                if (ctx.parsed.y == null) return ` ${ctx.dataset.label}: --`;
-                const ret = ctx.parsed.y - 100;
-                return ` ${ctx.dataset.label}: ${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%`;
-              },
-            },
-          },
-        },
-        scales: {
-          x: {
-            grid: { color: "rgba(231,222,211,0.5)" },
-            ticks: {
-              color: "#7A6C61",
-              font: { size: 10 },
-              maxRotation: 0,
-              autoSkip: true,
-              maxTicksLimit: window.innerWidth <= 768 ? 5 : 10,
-              align: "inner",
-            },
-          },
-          y: {
-            grid: { color: "rgba(231,222,211,0.5)" },
-            ticks: {
-              color: "#7A6C61",
-              font: { size: 10 },
-              callback: (v) => v.toFixed(0),
-            },
-          },
-        },
-        animation: {
-          duration: 0,
-          onComplete: () => {
-            if (perfWrap) perfWrap.classList.remove("loading");
-            if (perfLatestStatsData)
-              updatePerfBottomStats(
-                perfLatestStatsData.labels,
-                perfLatestStatsData.datasets,
-                perfLatestStatsData.sinceInfo,
-              );
-          },
-        },
-      },
-    });
-  }, 0);
+  // --- performance table ---
+  renderPerfSection();
 }
 
 // FUND BREAKDOWN
@@ -9345,7 +9104,7 @@ function showFundDetailsModal(
               ${logoHTML}
               <div>
                 <div class="fdm-peer-name">${shortName}</div>
-                <div class="fdm-peer-house">${peer.fund_house || ""}</div>
+                <div class="fdm-peer-house">${standardizeTitle(peer.fund_house || "")}</div>
               </div>
             </div>
           </td>
@@ -10017,11 +9776,11 @@ function showFundDetailsModal(
             </div>
             <div class="fund-meta-item">
               <span class="fund-meta-label">ISIN</span>
-              <span class="fund-meta-value fund-meta-value--mono">${extendedData.isin || "--"}</span>
+              <span class="fund-meta-value">${extendedData.isin || "--"}</span>
             </div>
             <div class="fund-meta-item">
               <span class="fund-meta-label">Scheme Code</span>
-              <span class="fund-meta-value fund-meta-value--mono">${extendedData.scheme_code || "--"}</span>
+              <span class="fund-meta-value">${extendedData.scheme_code || "--"}</span>
             </div>
             <div class="fund-meta-item">
               <span class="fund-meta-label">Category</span>
@@ -12515,6 +12274,26 @@ function updateChart() {
 
     const colors = getChartTheme();
 
+    const drawFromLeftPlugin = {
+      id: "drawFromLeft",
+      beforeDatasetsDraw(c) {
+        if (c._drawDone) return;
+        const p = c._drawProgress ?? 0;
+        const { ctx, chartArea: { left, top, right, bottom } } = c;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(left, top - 5, (right - left) * p, bottom - top + 10);
+        ctx.clip();
+        c._clipActive = true;
+      },
+      afterDatasetsDraw(c) {
+        if (c._clipActive) {
+          c._clipActive = false;
+          c.ctx.restore();
+        }
+      },
+    };
+
     chart = new Chart(ctx, {
       type: "line",
       data: {
@@ -12549,13 +12328,11 @@ function updateChart() {
           },
         ],
       },
+      plugins: [drawFromLeftPlugin],
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: {
-          duration: 0,
-          easing: "easeInOutQuart",
-        },
+        animation: { duration: 0 },
         interaction: { intersect: false, mode: "index", axis: "x" },
         events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
         onClick: (evt, activeEls, chart) => {
@@ -12703,6 +12480,25 @@ function updateChart() {
         }, 100);
       });
     }
+
+    // Drive left-to-right draw animation via rAF, independent of Chart.js
+    // internal updates (hover, tooltip) which would re-trigger onProgress.
+    (function animateDrawFromLeft() {
+      const startTime = performance.now();
+      const DURATION = 700;
+      function ease(t) {
+        return t < 0.5 ? 8 * t ** 4 : 1 - (-2 * t + 2) ** 4 / 2;
+      }
+      function tick() {
+        if (!chart) return;
+        const p = Math.min((performance.now() - startTime) / DURATION, 1);
+        chart._drawProgress = ease(p);
+        chart.draw();
+        if (p < 1) requestAnimationFrame(tick);
+        else chart._drawDone = true;
+      }
+      requestAnimationFrame(tick);
+    })();
 
     updateStatsForGrowth(data);
     return;
@@ -15627,12 +15423,7 @@ function invalidateFamilyDashboardCache() {
 
 // USER MANAGEMENT
 function setDataManagementButtons(hasUsers) {
-  const ids = [
-    "deleteAllUsersBtn",
-    "updateNavBtn",
-    "updateStatsBtn",
-    "clearCacheBtn",
-  ];
+  const ids = ["deleteAllUsersBtn", "updateStatsBtn", "clearCacheBtn"];
   ids.forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -17585,32 +17376,17 @@ async function _fetchFull(searchKeys, updateType, lightSearchKeys = []) {
 
   // Phase 2: load peers in background for active funds (non-blocking)
   _fetchPeersInBackground(newStats);
+  _fetchBenchmarksInBackground();
 
   return mfStats;
 }
 
 async function _fetchPeersInBackground(statsSnapshot) {
   try {
-    const BENCHMARK_ISINS = new Set(["INF247L01957", "INF789F01XA0"]);
-    const userPortfolioIsins = new Set();
-    if (portfolioData) {
-      if (portfolioData.cas_type === "SUMMARY") {
-        portfolioData.folios.forEach((f) => {
-          if (f.isin) userPortfolioIsins.add(f.isin);
-        });
-      } else {
-        portfolioData.folios.forEach((f) =>
-          f.schemes?.forEach((s) => {
-            if (s.isin) userPortfolioIsins.add(s.isin);
-          }),
-        );
-      }
-    }
     const funds = Object.values(statsSnapshot)
       .filter(
         (f) =>
           !f._is_past &&
-          !(BENCHMARK_ISINS.has(f.isin) && !userPortfolioIsins.has(f.isin)) &&
           f.isin &&
           f.category &&
           f.sub_category &&
@@ -17709,42 +17485,23 @@ async function updateMFStats() {
   }
 }
 
-async function updateNavManually() {
-  if (!portfolioData) {
-    showToast("Please load a portfolio first", "warning");
-    return;
-  }
-
-  // Check if already updated today (auto + manual)
-  if (
-    !storageManager.needsNavUpdate() &&
-    storageManager.hasManualNavUpdateToday()
-  ) {
-    showToast(
-      "NAV already updated today for all users. Please try again tomorrow after 6 AM.",
-      "info",
-    );
-    return;
-  }
-
-  const confirmUpdate = confirm(
-    "This will fetch the latest NAV for ALL users. Continue?",
-  );
-
-  if (!confirmUpdate) return;
-
-  showSimpleSplash("Updating NAV…");
-
+async function _fetchBenchmarksInBackground() {
+  if (!storageManager.needsBenchmarkUpdate()) return;
   try {
-    await updateAllUsersNav("manual");
-
-    hideSimpleSplash();
-    showToast("NAV updated successfully for all users!", "success");
-    updateFooterInfo();
-  } catch (err) {
-    hideSimpleSplash();
-    console.error("NAV update error:", err);
-    showToast("Failed to update NAV: " + err.message, "error");
+    const names = ROLLING_RETURN_BENCHMARKS.join(",");
+    const [returnsRes, rollingRes] = await Promise.all([
+      fetch(`${BACKEND_SERVER}/api/benchmark-returns`),
+      fetch(
+        `${BACKEND_SERVER}/api/benchmark-rolling-returns-all?names=${names}`,
+      ),
+    ]);
+    if (!returnsRes.ok || !rollingRes.ok) return;
+    const returns = await returnsRes.json();
+    const rolling = await rollingRes.json();
+    storageManager.saveBenchmarkData(returns, rolling);
+    renderPerfSection();
+  } catch (e) {
+    console.warn("Benchmark background fetch failed:", e);
   }
 }
 
@@ -17758,11 +17515,6 @@ async function updateAllUsersStats(updateType = "auto") {
 
   // Collect ONLY ACTIVE ISINs from ALL users
   const allIsins = new Set();
-
-  // Always fetch portfolio benchmark funds
-  allIsins.add("INF247L01957"); // MO Nifty 500 Index
-  allIsins.add("INF789F01XA0"); // UTI Nifty 50 Index
-
   const userDataMap = new Map();
 
   const allPastIsins = new Set();
@@ -17862,7 +17614,6 @@ async function updateAllUsersStats(updateType = "auto") {
         storageManager.updateLastFullUpdate(user);
         if (updateType === "manual") {
           storageManager.markManualStatsUpdate(user);
-          storageManager.markManualNavUpdate(user);
         }
       } catch (err) {
         console.error(`Error saving stats for user ${user}:`, err);
@@ -17885,6 +17636,7 @@ async function updateAllUsersStats(updateType = "auto") {
 
     // Phase 2: load peers in background for active funds
     _fetchPeersInBackground(newStats);
+    _fetchBenchmarksInBackground();
 
     hideSimpleSplash();
     invalidateFamilyDashboardCache();
@@ -17897,222 +17649,6 @@ async function updateAllUsersStats(updateType = "auto") {
   }
 }
 
-async function updateAllUsersNav(updateType = "auto") {
-  const users = storageManager.getAllUsers();
-
-  if (users.length === 0) {
-    return false;
-  }
-
-  // Collect NAV update data from all users
-  const navUpdateData = {};
-  const userDataMap = new Map();
-
-  for (const user of users) {
-    try {
-      const stored = await storageManager.loadPortfolioData(user);
-      if (!stored) continue;
-
-      const casData = stored.casData;
-      const mfStatsUser = stored.mfStats;
-
-      userDataMap.set(user, { casData, mfStats: mfStatsUser });
-
-      // Collect active holdings
-      if (casData.cas_type === "SUMMARY") {
-        casData.folios.forEach((folio) => {
-          const hasValue =
-            folio.current_value && parseFloat(folio.current_value || 0) > 0;
-
-          if (folio.isin && hasValue && mfStatsUser[folio.isin]?.scheme_code) {
-            if (!navUpdateData[folio.isin]) {
-              navUpdateData[folio.isin] = {
-                scheme_code: mfStatsUser[folio.isin].scheme_code,
-                last_nav_date: mfStatsUser[folio.isin].latest_nav_date || null,
-              };
-            }
-          }
-        });
-      } else {
-        casData.folios.forEach((folio) => {
-          if (!folio.schemes || !Array.isArray(folio.schemes)) return;
-          folio.schemes.forEach((scheme) => {
-            // Use scheme.close (closing unit balance from CAS parser) to detect active holdings.
-            const hasUnits =
-              scheme.close != null ? parseFloat(scheme.close) > 0.001 : true;
-
-            if (
-              scheme.isin &&
-              hasUnits &&
-              mfStatsUser[scheme.isin]?.scheme_code
-            ) {
-              if (!navUpdateData[scheme.isin]) {
-                navUpdateData[scheme.isin] = {
-                  scheme_code: mfStatsUser[scheme.isin].scheme_code,
-                  last_nav_date:
-                    mfStatsUser[scheme.isin].latest_nav_date || null,
-                };
-              }
-            }
-          });
-        });
-      }
-    } catch (err) {
-      console.error(`Error loading data for user ${user}:`, err);
-    }
-  }
-
-  const activeHoldingsCount = Object.keys(navUpdateData).length;
-
-  if (activeHoldingsCount === 0) {
-    return true;
-  }
-
-  // Single API call for all users
-  try {
-    const response = await fetch(BACKEND_SERVER + "/api/update-nav-only", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ navUpdateData }),
-    });
-
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
-
-    const result = await response.json();
-
-    if (result.success) {
-      const updatedNavData = result.data;
-
-      // Update each user's data
-      for (const [user, userData] of userDataMap.entries()) {
-        try {
-          const updatedMfStats = { ...userData.mfStats };
-
-          // Apply NAV updates
-          Object.keys(updatedNavData).forEach((isin) => {
-            if (updatedMfStats[isin]) {
-              const newNavData = updatedNavData[isin];
-
-              if (newNavData.latest_nav) {
-                updatedMfStats[isin].latest_nav = newNavData.latest_nav;
-              }
-              if (newNavData.latest_nav_date) {
-                updatedMfStats[isin].latest_nav_date =
-                  newNavData.latest_nav_date;
-              }
-
-              if (newNavData.nav_entries && newNavData.nav_entries.length > 0) {
-                const existingHistory = updatedMfStats[isin].nav_history || [];
-
-                if (newNavData.is_full_history) {
-                  updatedMfStats[isin].nav_history = newNavData.nav_entries;
-                } else {
-                  const combined = [
-                    ...newNavData.nav_entries,
-                    ...existingHistory,
-                  ];
-                  const uniqueByDate = Array.from(
-                    new Map(combined.map((item) => [item.date, item])).values(),
-                  );
-
-                  uniqueByDate.sort((a, b) => {
-                    const [dayA, monthA, yearA] = a.date.split("-");
-                    const [dayB, monthB, yearB] = b.date.split("-");
-                    const dateA = new Date(`${yearA}-${monthA}-${dayA}`);
-                    const dateB = new Date(`${yearB}-${monthB}-${dayB}`);
-                    return dateB - dateA;
-                  });
-
-                  updatedMfStats[isin].nav_history = uniqueByDate;
-                }
-              }
-
-              if (newNavData.meta) {
-                updatedMfStats[isin].meta = newNavData.meta;
-              }
-            }
-          });
-
-          await storageManager.savePortfolioData(
-            userData.casData,
-            updatedMfStats,
-            false,
-            user,
-          );
-
-          storageManager.updateLastNavUpdate(user);
-
-          if (updateType === "manual") {
-            storageManager.markManualNavUpdate(user);
-          }
-        } catch (err) {
-          console.error(`Error saving NAV data for user ${user}:`, err);
-        }
-      }
-
-      // Refresh current user's view
-      if (currentUser && userDataMap.has(currentUser)) {
-        mfStats = { ...userDataMap.get(currentUser).mfStats };
-
-        // Apply updates to current view
-        Object.keys(updatedNavData).forEach((isin) => {
-          if (mfStats[isin]) {
-            const newNavData = updatedNavData[isin];
-            if (newNavData.latest_nav) {
-              mfStats[isin].latest_nav = newNavData.latest_nav;
-            }
-            if (newNavData.latest_nav_date) {
-              mfStats[isin].latest_nav_date = newNavData.latest_nav_date;
-            }
-            if (newNavData.nav_entries) {
-              const existingHistory = mfStats[isin].nav_history || [];
-              if (newNavData.is_full_history) {
-                mfStats[isin].nav_history = newNavData.nav_entries;
-              } else {
-                const combined = [
-                  ...newNavData.nav_entries,
-                  ...existingHistory,
-                ];
-                const uniqueByDate = Array.from(
-                  new Map(combined.map((item) => [item.date, item])).values(),
-                );
-                uniqueByDate.sort((a, b) => {
-                  const [dayA, monthA, yearA] = a.date.split("-");
-                  const [dayB, monthB, yearB] = b.date.split("-");
-                  const dateA = new Date(`${yearA}-${monthA}-${dayA}`);
-                  const dateB = new Date(`${yearB}-${monthB}-${dayB}`);
-                  return dateB - dateA;
-                });
-                mfStats[isin].nav_history = uniqueByDate;
-              }
-            }
-            if (newNavData.meta) {
-              mfStats[isin].meta = newNavData.meta;
-            }
-          }
-        });
-
-        if (isSummaryCAS) {
-          processSummaryCAS();
-          disableSummaryIncompatibleTabs();
-        } else {
-          await processPortfolio();
-          enableSummaryIncompatibleTabs();
-        }
-      }
-
-      invalidateFamilyDashboardCache();
-      return true;
-    }
-    return false;
-  } catch (err) {
-    console.error("❌ NAV update failed:", err);
-    return false;
-  }
-}
-async function updateNavHistoryOnly() {
-  return await updateAllUsersNav("auto");
-}
 async function updateFullMFStats() {
   return await updateAllUsersStats("auto");
 }
@@ -18122,9 +17658,7 @@ async function checkAndPerformAutoUpdates() {
     return;
   }
 
-  // Stats schema check runs immediately, bypassing the 6 AM gate — if a new
-  // field was added server-side that requires a full re-pull, the user
-  // shouldn't have to wait until tomorrow morning to get it.
+  // Schema check runs immediately, bypassing slot gates
   const storedSchemaVersion = parseInt(
     localStorage.getItem(STATS_SCHEMA_VERSION_KEY) || "0",
     10,
@@ -18137,49 +17671,30 @@ async function checkAndPerformAutoUpdates() {
     );
     const updated = await updateFullMFStats();
     if (updated) {
-      // updateAllUsersStats already calls storageManager.updateLastFullUpdate()
-      // per user internally, which resets the 7-day weekly-update counter.
       localStorage.setItem(
         STATS_SCHEMA_VERSION_KEY,
         String(STATS_SCHEMA_VERSION),
       );
       console.log("Portfolio statistics updated due to schema change!");
-      return; // Full update includes NAV, so skip NAV-only update
+      return;
     }
     console.log("⚠️ Schema-triggered full update failed, will retry next load");
   }
 
-  // Only auto-update after 6 AM
-  if (!isAfter6AM()) {
-    console.log("⏰ Auto-updates only run after 6 AM");
+  // Only auto-update after first NAV slot (7 AM IST)
+  const nowIST = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
+  );
+  if (nowIST.getHours() < NAV_UPDATE_SLOTS_IST[0]) {
+    console.log(
+      `⏰ Auto-updates only run after ${NAV_UPDATE_SLOTS_IST[0]}:00 AM IST`,
+    );
     return;
   }
 
-  // Check if full update is needed (every 7 days)
-  if (storageManager.needsFullUpdate()) {
-    const updated = await updateFullMFStats();
-    if (updated) {
-      return; // Full update includes NAV, so skip NAV-only update
-    }
-  }
-
-  // Check if NAV update is needed (daily, only if not manually updated today)
-  if (
-    storageManager.needsNavUpdate() &&
-    !storageManager.hasManualNavUpdateToday()
-  ) {
-    const updated = await updateNavHistoryOnly();
-    if (updated) {
-      if (isSummaryCAS) {
-        processSummaryCAS();
-        disableSummaryIncompatibleTabs();
-      } else {
-        await processPortfolio();
-        enableSummaryIncompatibleTabs();
-      }
-
-      updateFooterInfo();
-    }
+  // Run stats update (includes NAV) if 7-day cadence is due or a NAV slot has passed unfulfilled
+  if (storageManager.needsFullUpdate() || storageManager.needsNavUpdate()) {
+    await updateFullMFStats();
   }
 }
 
@@ -18737,14 +18252,35 @@ function updateFooterInfo() {
 
     const nextNavDate = (() => {
       if (!manifest.lastNavUpdate) return "--";
-      const last = new Date(manifest.lastNavUpdate);
-      const todayIST = new Date(
+      const lastIST = new Date(
+        new Date(manifest.lastNavUpdate).toLocaleString("en-US", {
+          timeZone: "Asia/Kolkata",
+        }),
+      );
+      const nowIST = new Date(
         new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
       );
-      if (last.toDateString() !== todayIST.toDateString()) return "Today";
-      const tomorrow = new Date(last);
+      const fmtDateIST = (d) =>
+        d.toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+      const fmtSlot = (h) => (h === 12 ? "12:00 PM" : `${h}:00 AM`);
+
+      // Find the first today-slot whose threshold time is after lastNavUpdate
+      for (const slotHour of NAV_UPDATE_SLOTS_IST) {
+        const slotTime = new Date(nowIST);
+        slotTime.setHours(slotHour, 0, 0, 0);
+        if (lastIST < slotTime) {
+          return `${fmtDateIST(slotTime)} ${fmtSlot(slotHour)} IST *`;
+        }
+      }
+      // All today's slots satisfied — next is tomorrow's first slot
+      const tomorrow = new Date(nowIST);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      return fmtDateOnly(tomorrow);
+      tomorrow.setHours(NAV_UPDATE_SLOTS_IST[0], 0, 0, 0);
+      return `${fmtDateIST(tomorrow)} ${fmtSlot(NAV_UPDATE_SLOTS_IST[0])} IST *`;
     })();
 
     // Next Stats update — lastFullUpdate + 7 days
@@ -18858,7 +18394,9 @@ async function callHealthCheck() {
     bubble.classList.remove("visible");
   }
 
-  const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const canHover = window.matchMedia(
+    "(hover: hover) and (pointer: fine)",
+  ).matches;
 
   if (canHover) {
     // Desktop: show/hide on hover
@@ -20276,7 +19814,7 @@ function renderDashboardMonthlyFlowCard() {
         <div class="mf-pace-text">${pace}</div>
       </div>
     </div>
-    <div class="ms-footer" style="cursor:pointer" onclick="switchDashboardTab('charts')">
+    <div class="ms-footer" style="cursor:pointer" onclick="switchDashboardTab('performance')">
       View full projection → Performance tab
     </div>`;
 }

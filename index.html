@@ -38,7 +38,7 @@
       data-cf-beacon='{"token": "4d8174ccb12041b3a010d11343f45f18"}'
     ></script> -->
     <!-- End Cloudflare Web Analytics -->
-    <link rel="stylesheet" href="styles.css?v=202606266" />
+    <link rel="stylesheet" href="styles.css?v=2026062610" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -69,7 +69,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=202606266" />
+    <link rel="manifest" href="/manifest.json?v=2026062610" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -593,51 +593,76 @@
 
             <!-- RIGHT COLUMN -->
             <div class="md-col">
-              <!-- NAV + Stats -->
-              <div class="md-two-col">
-                <div class="md-card">
-                  <div class="md-card-header">
-                    <div class="md-card-icon">
-                      <i class="fa-solid fa-rotate"></i>
-                    </div>
-                    <div>
-                      <div class="md-card-title">Update NAV</div>
-                      <div class="md-card-sub">
-                        Daily &middot; Last:
-                        <span id="lastNavUpdateDate">--</span>
-                      </div>
+              <!-- Stats -->
+              <div class="md-card">
+                <div class="md-card-header">
+                  <div class="md-card-icon">
+                    <i class="fa-solid fa-database"></i>
+                  </div>
+                  <div>
+                    <div class="md-card-title">Fund Stats</div>
+                    <div class="md-card-sub">
+                      Weekly &middot; Last:
+                      <span id="lastStatsUpdateDate">--</span>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    id="updateNavBtn"
-                    class="md-btn md-btn-outline"
-                    onclick="updateNavManually()"
-                  >
-                    Update NAV
-                  </button>
                 </div>
-                <div class="md-card">
-                  <div class="md-card-header">
-                    <div class="md-card-icon">
-                      <i class="fa-solid fa-database"></i>
-                    </div>
+                <button
+                  type="button"
+                  id="updateStatsBtn"
+                  class="md-btn md-btn-outline"
+                  onclick="updateMFStats()"
+                >
+                  Update Stats
+                </button>
+              </div>
+
+              <!-- Auto-update schedule info -->
+              <div class="md-card md-update-info">
+                <p class="md-update-info-label">Auto-update schedule</p>
+                <div class="md-two-col md-update-slots">
+                  <div class="md-update-slot">
+                    <i class="fa-regular fa-clock"></i>
                     <div>
-                      <div class="md-card-title">Fund Stats</div>
-                      <div class="md-card-sub">
-                        Weekly &middot; Last:
-                        <span id="lastStatsUpdateDate">--</span>
+                      <div class="md-update-slot-title">
+                        7:00 AM &amp; 12:00 PM IST
+                      </div>
+                      <div class="md-update-slot-desc">
+                        NAV fetched at each slot. Whichever slot has passed
+                        since the last update triggers a refresh.
                       </div>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    id="updateStatsBtn"
-                    class="md-btn md-btn-outline"
-                    onclick="updateMFStats()"
-                  >
-                    Update Stats
-                  </button>
+                  <div class="md-update-slot">
+                    <i class="fa-regular fa-calendar"></i>
+                    <div>
+                      <div class="md-update-slot-title">
+                        Weekly &mdash; full stats
+                      </div>
+                      <div class="md-update-slot-desc">
+                        Every 7 days pulls fresh expense ratios, returns, peer
+                        ranks, and nav history for all funds.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="md-update-notes">
+                  <div class="md-update-note">
+                    <i class="fa-solid fa-upload"></i>
+                    <span
+                      ><strong>CAS upload</strong> counts as a full update. Sets
+                      the NAV clock to the upload time, so the next auto-refresh
+                      triggers at the next unfulfilled slot.</span
+                    >
+                  </div>
+                  <div class="md-update-note">
+                    <i class="fa-solid fa-database"></i>
+                    <span
+                      ><strong>Update Stats</strong> manually triggers the same
+                      full pull. Resets both the NAV and the 7-day stats
+                      clock.</span
+                    >
+                  </div>
                 </div>
               </div>
 
@@ -1077,23 +1102,10 @@
               <div class="hc-header">
                 <span class="hc-title">Performance vs Benchmark</span>
                 <span class="hc-sub"
-                  >All funds indexed to 100 at period start</span
+                  >Trailing &amp; rolling returns by period</span
                 >
               </div>
-              <div class="hc-chips" id="perfChipRow"></div>
-              <div class="hc-chart-wrap" id="perfChartWrap">
-                <div class="chart-loading">
-                  <div class="chart-spinner"></div>
-                </div>
-                <canvas
-                  id="holdingsPerfChart"
-                  role="img"
-                  aria-label="Line chart comparing fund returns against Nifty 50 and Nifty 500"
-                  >Performance data unavailable.</canvas
-                >
-              </div>
-              <div id="perfTableWrap" style="display: none"></div>
-              <div class="hc-bw-row" id="perfBestWorstRow"></div>
+              <div id="perfTableWrap"></div>
             </div>
           </div>
         </section>
@@ -1339,8 +1351,8 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=202606266"></script>
-    <script src="utils.js?v=202606266"></script>
-    <script src="scripts.js?v=202606266"></script>
+    <script src="indexeddb-helper.js?v=2026062610"></script>
+    <script src="utils.js?v=2026062610"></script>
+    <script src="scripts.js?v=2026062610"></script>
   </body>
 </html>

@@ -73,12 +73,12 @@ A comprehensive web-based portfolio tracker for Indian mutual fund investors. Tr
 
 The application automatically keeps your portfolio data fresh:
 
-- **Daily NAV Updates ⏰**
-  - Automatically fetched every day when you load the app
-  - Manual trigger available from the Manage Data tab
-  - Limited to once per day to avoid unnecessary API calls
+- **Twice-Daily NAV Updates ⏰**
+  - Automatically fetched at 7:00 AM and 12:00 PM IST each day
+  - Each slot triggers a refresh if the last NAV update predates that slot
   - Incremental — only new data is fetched and merged
   - Runs silently in the background
+  - No separate manual NAV trigger — use **Update Stats** to force an immediate full refresh (resets both the NAV and 7-day stats clock)
 
 - **Weekly Fund Statistics Updates 📅**
   - Triggered automatically every week
@@ -86,6 +86,12 @@ The application automatically keeps your portfolio data fresh:
   - Manual trigger available from the Manage Data tab
   - Limited to once per week
   - Non-blocking background process
+
+- **Weekly Benchmark Data Updates 📊**
+  - Fetches Nifty 50 TRI and Nifty 500 TRI trailing returns (1Y/3Y/5Y/10Y) and rolling return averages
+  - Stored globally in browser localStorage (shared across all users)
+  - Refreshed automatically once per week in the background
+  - Powers the Performance vs Benchmark table and portfolio alpha calculations
 
 - **Smart Update Tracking**: The Manage Data tab shows last-updated timestamps for CAS parsing, fund stats, and NAV.
 
@@ -172,7 +178,7 @@ Portfolio summary cards, asset allocation, fund house distribution, sector break
 
 ![Current Holdings](./img/screenshots/current-holdings.png)
 
-Fund cards with current value, P&L, XIRR, units, average NAV, and average holding days. Below the fund grid, two new charts: **Portfolio Allocation** (horizontal bar, by current value) and **Performance vs Benchmark** (indexed line chart with period selector and fund filter). Click "View Details" to drill into valuation history, benchmark comparison, and extended fund stats.
+Fund cards with current value, P&L, XIRR, units, average NAV, and average holding days. Below the fund grid: **Portfolio Allocation** (horizontal bar, by current value) and **Performance vs Benchmark** — a table showing each fund's trailing and rolling returns for the selected period (1Y/3Y/5Y/10Y, default 3Y), alongside the selected benchmark (Nifty 50 TRI or Nifty 500 TRI) and alpha. Click "View Details" to drill into valuation history, benchmark comparison, and extended fund stats.
 
 ---
 
@@ -293,6 +299,7 @@ Visit: [My MF Dashboard](https://mf-dashboard.github.io)
 Fund cards with value, cost, units, P&L, XIRR, avg NAV, avg hold days. "View Details" opens valuation history, performance vs category/benchmark, and extended stats (Alpha, Beta, Sharpe, Sortino, AUM, Expense Ratio, Rating, Holdings).
 
 Below the fund grid:
+
 - **Portfolio Allocation**: Horizontal bar chart showing each fund's share of total current value
 - **Performance vs Benchmark**: Line chart with all holdings + Nifty 50 + Nifty 500 indexed to 100 at the period start. Use period buttons (1Y/2Y/3Y/5Y/7Y/10Y) and fund filter chips to customise the view. Returns summary and best/worst performer cards (with annualized return) shown below. On mobile, chips collapse behind a filter toggle to reduce clutter.
 
@@ -462,7 +469,7 @@ Requires: IndexedDB, ES6+, Fetch API, File API.
 
 ### Update Restrictions
 
-- NAV: maximum once per day (prevents API abuse)
+- NAV: maximum twice per day, at 7:00 AM and 12:00 PM IST slots
 - Fund stats: maximum once per week
 
 ### API Dependencies
@@ -536,17 +543,18 @@ MIT License — see [LICENSE](LICENSE). Free to use, modify, and distribute with
 
 **New Features**:
 
-- ✅ Performance vs Benchmark chart in Current Holdings — all funds + Nifty 50 + Nifty 500 indexed to 100, period selector (1Y/2Y/3Y/5Y/7Y/10Y), toggleable fund filter chips, returns summary row, best/worst performer cards with annualized CAGR
+- ✅ Performance vs Benchmark table in Current Holdings — per-fund trailing and rolling returns for the selected period (1Y/3Y/5Y/10Y, default 3Y), with benchmark selector (Nifty 50 TRI / Nifty 500 TRI) and alpha column; benchmark rows pinned at the bottom; mobile shows trailing + alpha only (rolling columns hidden)
 - ✅ Portfolio Allocation chart in Current Holdings — horizontal bar chart by current value
-- ✅ Partial-history fund support in Performance chart — funds without full period history shown with "since MMM 'YY" label and excluded from best/worst ranking
-- ✅ Mobile filter toggle — Performance vs Benchmark chip row collapses behind a "Funds (N)" toggle button on mobile to reduce clutter
+- ✅ Global benchmark data cache — Nifty 50 TRI and Nifty 500 TRI trailing and rolling returns fetched from backend, stored in localStorage, refreshed weekly; powers Performance vs Benchmark table and portfolio alpha in Dashboard and Family Dashboard
+- ✅ Left-to-right draw animation on Portfolio History chart (Performance tab) on period switch
 
 **Improvements**:
 
 - Warm Financial Intelligence design system — calm, precise, trustworthy visual language across light and dark themes; warm charcoal dark mode (not a simple invert)
-- Short fund names on mobile for performance chart chips and returns row (e.g. "Bandhan SC", "PPFAS FC")
-- Performance chart spinner held until chart is fully painted (no premature spinner removal)
-- Period switch uses `update('none')` for instant re-render without animation flash
+- Transactional user registration on CAS upload — user is added to the users list only after both CAS and stats writes to IndexedDB succeed, preventing zombie user state on interrupted saves
+- Portfolio History chart line colors updated to design system palette (accent brown for value, success green for invested cost)
+- Fund names in Performance vs Benchmark table strip trailing " Fund" suffix for compactness
+- AMC names in Peers comparison now normalized through the same `standardizeTitle` mapping used for fund cards
 - Fixed sidebar toggle incorrectly appearing on mobile and tablet
 
 ### Version 2.0.0
