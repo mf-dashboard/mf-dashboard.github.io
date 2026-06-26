@@ -97,7 +97,7 @@ const DEBUG_MODE = false;
 // copies). Bumping this forces an immediate full update — bypassing the
 // 6 AM gate and the 7-day cadence — the next time the app loads, and also
 // resets the 7-day weekly-update counter.
-const STATS_SCHEMA_VERSION = 7;
+const STATS_SCHEMA_VERSION = 8;
 const STATS_SCHEMA_VERSION_KEY = "statsSchemaVersion";
 // Two auto-NAV update slots per day (hours in IST, 24-hour)
 const NAV_UPDATE_SLOTS_IST = [7, 12]; // 7 AM and 12 PM
@@ -2057,6 +2057,18 @@ function calculateOverlapAnalysis() {
     return { error: "Need at least 2 active funds to analyze overlap" };
   }
 
+  // Precompute holdings Maps once per fund (avoids O(n²) rebuilds)
+  const holdingMaps = activeFunds.map((fund) =>
+    fund.holdings
+      ? new Map(
+          fund.holdings.map((h) => [
+            h.company_name,
+            parseFloat(h.corpus_per || 0),
+          ]),
+        )
+      : null,
+  );
+
   // Calculate pairwise overlap
   for (let i = 0; i < activeFunds.length; i++) {
     for (let j = i + 1; j < activeFunds.length; j++) {
@@ -2065,18 +2077,8 @@ function calculateOverlapAnalysis() {
 
       if (!fund1.holdings || !fund2.holdings) continue;
 
-      const holdings1 = new Map(
-        fund1.holdings.map((h) => [
-          h.company_name,
-          parseFloat(h.corpus_per || 0),
-        ]),
-      );
-      const holdings2 = new Map(
-        fund2.holdings.map((h) => [
-          h.company_name,
-          parseFloat(h.corpus_per || 0),
-        ]),
-      );
+      const holdings1 = holdingMaps[i];
+      const holdings2 = holdingMaps[j];
 
       let overlapPercentage = 0;
       const commonStocks = [];
@@ -12279,7 +12281,10 @@ function updateChart() {
       beforeDatasetsDraw(c) {
         if (c._drawDone) return;
         const p = c._drawProgress ?? 0;
-        const { ctx, chartArea: { left, top, right, bottom } } = c;
+        const {
+          ctx,
+          chartArea: { left, top, right, bottom },
+        } = c;
         ctx.save();
         ctx.beginPath();
         ctx.rect(left, top - 5, (right - left) * p, bottom - top + 10);
@@ -17443,6 +17448,7 @@ async function _fetchPeersInBackground(statsSnapshot) {
         mfStats,
         false,
         currentUser,
+        "Peers data",
       );
     }
   } catch (err) {
@@ -17652,6 +17658,93 @@ async function updateAllUsersStats(updateType = "auto") {
 async function updateFullMFStats() {
   return await updateAllUsersStats("auto");
 }
+
+async function updateNavOnly() {
+  const users = storageManager.getAllUsers();
+  if (users.length === 0) return false;
+
+  // Collect active ISINs with scheme_code + last_nav_date from all users
+  const navUpdateData = {};
+  const userDataMap = new Map();
+
+  for (const user of users) {
+    const stored = await storageManager.loadPortfolioData(user);
+    if (!stored) continue;
+    userDataMap.set(user, stored);
+
+    for (const [isin, stats] of Object.entries(stored.mfStats || {})) {
+      if (!stats?.scheme_code) continue;
+      if (navUpdateData[isin]) continue; // already added by another user
+      navUpdateData[isin] = {
+        scheme_code: stats.scheme_code,
+        last_nav_date: stats.latest_nav_date || null,
+      };
+    }
+  }
+
+  if (Object.keys(navUpdateData).length === 0) return false;
+
+  try {
+    const response = await fetch(`${BACKEND_SERVER}/api/update-nav-only`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ navUpdateData }),
+    });
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error);
+
+    const updates = result.data || {};
+    if (Object.keys(updates).length === 0) {
+      console.log("✅ NAV already up to date");
+      for (const user of users) storageManager.updateLastNavUpdate(user);
+      return true;
+    }
+
+    // Apply single-entry appends to global mfStats once, then update per-user timestamps
+    const globalStats = (await storageManager.loadGlobalMFStats()) || {};
+    const navPatch = {};
+    for (const [isin, upd] of Object.entries(updates)) {
+      if (!globalStats[isin]) continue;
+      navPatch[isin] = {
+        ...globalStats[isin],
+        latest_nav: upd.latest_nav,
+        latest_nav_date: upd.latest_nav_date,
+        nav_history: [upd.nav_entry, ...(globalStats[isin].nav_history || [])],
+      };
+    }
+    if (Object.keys(navPatch).length > 0) {
+      await storageManager.saveGlobalMFStats(navPatch);
+    }
+    for (const user of users) {
+      storageManager.updateLastNavUpdate(user);
+    }
+
+    // Refresh current user's in-memory stats and re-render
+    if (currentUser) {
+      for (const [isin, upd] of Object.entries(updates)) {
+        if (!mfStats[isin]) continue;
+        mfStats[isin] = {
+          ...mfStats[isin],
+          latest_nav: upd.latest_nav,
+          latest_nav_date: upd.latest_nav_date,
+          nav_history: [upd.nav_entry, ...(mfStats[isin].nav_history || [])],
+        };
+      }
+      if (isSummaryCAS) processSummaryCAS();
+      else await processPortfolio();
+    }
+
+    console.log(
+      `✅ NAV-only update applied for ${Object.keys(updates).length} funds`,
+    );
+    return true;
+  } catch (err) {
+    console.warn("NAV-only update failed:", err);
+    return false;
+  }
+}
+
 async function checkAndPerformAutoUpdates() {
   if (!portfolioData || !mfStats) {
     console.log("ℹ️ No portfolio data, skipping auto-updates");
@@ -17692,9 +17785,15 @@ async function checkAndPerformAutoUpdates() {
     return;
   }
 
-  // Run stats update (includes NAV) if 7-day cadence is due or a NAV slot has passed unfulfilled
-  if (storageManager.needsFullUpdate() || storageManager.needsNavUpdate()) {
+  const needsFull = storageManager.needsFullUpdate();
+  const needsNav = storageManager.needsNavUpdate();
+
+  if (needsFull) {
+    // Full weekly stats refresh — fetches everything including complete NAV history
     await updateFullMFStats();
+  } else if (needsNav) {
+    // NAV slot passed but stats are still fresh — lightweight latest-only update
+    await updateNavOnly();
   }
 }
 

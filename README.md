@@ -152,7 +152,9 @@ The application automatically keeps your portfolio data fresh:
 
 ### Manage Data — New User
 
-![New User](./img/screenshots/new-user.png)
+| Light                                                | Dark                                                           |
+| ---------------------------------------------------- | -------------------------------------------------------------- |
+| ![Upload and Update](./img/screenshots/new-user.png) | ![Upload and Update Dark](./img/screenshots/dark/new-user.png) |
 
 On first visit, upload your CAMS CAS PDF and enter the password to load your portfolio. The guide panel walks you through obtaining the file from CAMS Online.
 
@@ -160,7 +162,9 @@ On first visit, upload your CAMS CAS PDF and enter the password to load your por
 
 ### Manage Data — Returning User
 
-![Upload and Update](./img/screenshots/upload-and-update.png)
+| Light                                                         | Dark                                                                    |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| ![Upload and Update](./img/screenshots/upload-and-update.png) | ![Upload and Update Dark](./img/screenshots/dark/upload-and-update.png) |
 
 Upload a fresh CAS, manage users, trigger manual NAV or fund stats updates, and view last-update timestamps.
 
@@ -168,7 +172,9 @@ Upload a fresh CAS, manage users, trigger manual NAV or fund stats updates, and 
 
 ### Dashboard
 
-![Dashboard](./img/screenshots/dashboard.png)
+| Light                                         | Dark                                                    |
+| --------------------------------------------- | ------------------------------------------------------- |
+| ![Dashboard](./img/screenshots/dashboard.png) | ![Dashboard Dark](./img/screenshots/dark/dashboard.png) |
 
 Portfolio summary cards, asset allocation, fund house distribution, sector breakdown, top holdings, and weighted returns — all at a glance.
 
@@ -176,7 +182,9 @@ Portfolio summary cards, asset allocation, fund house distribution, sector break
 
 ### Current Holdings
 
-![Current Holdings](./img/screenshots/current-holdings.png)
+| Light                                                       | Dark                                                                  |
+| ----------------------------------------------------------- | --------------------------------------------------------------------- |
+| ![Current Holdings](./img/screenshots/current-holdings.png) | ![Current Holdings Dark](./img/screenshots/dark/current-holdings.png) |
 
 Fund cards with current value, P&L, XIRR, units, average NAV, and average holding days. Below the fund grid: **Portfolio Allocation** (horizontal bar, by current value) and **Performance vs Benchmark** — a table showing each fund's trailing and rolling returns for the selected period (1Y/3Y/5Y/10Y, default 3Y), alongside the selected benchmark (Nifty 50 TRI or Nifty 500 TRI) and alpha. Click "View Details" to drill into valuation history, benchmark comparison, and extended fund stats.
 
@@ -192,7 +200,9 @@ Fully exited funds with withdrawn amount, realized P&L, and XIRR.
 
 ### Portfolio Analysis
 
-![Analysis](./img/screenshots/analysis.png)
+| Light                                       | Dark                                                  |
+| ------------------------------------------- | ----------------------------------------------------- |
+| ![Analysis](./img/screenshots/analysis.png) | ![Analysis Dark](./img/screenshots/dark/analysis.png) |
 
 Interactive portfolio history charts, average monthly buy/sell/net summary, SIP projection calculator (up to 20 years), and a transaction calendar heatmap.
 
@@ -208,7 +218,9 @@ View and download all-time or active-holdings transactions as Excel files.
 
 ### Capital Gains
 
-![Capital Gains](./img/screenshots/capital-gains.png)
+| Light                                                 | Dark                                                            |
+| ----------------------------------------------------- | --------------------------------------------------------------- |
+| ![Capital Gains](./img/screenshots/capital-gains.png) | ![Capital Gains Dark](./img/screenshots/dark/capital-gains.png) |
 
 Financial year-wise STCG/LTCG breakdown, transaction-level detail, and downloadable Excel reports covering FY 2019-20 through the current year.
 
@@ -216,7 +228,9 @@ Financial year-wise STCG/LTCG breakdown, transaction-level detail, and downloada
 
 ### Tax Planning
 
-![Tax Planning](./img/screenshots/tax-planning.png)
+| Light                                               | Dark                                                          |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| ![Tax Planning](./img/screenshots/tax-planning.png) | ![Tax Planning Dark](./img/screenshots/dark/tax-planning.png) |
 
 Unrealized LTCG and STCG at a glance, long-term vs short-term holdings split, and actionable tax optimization tips including LTCG harvesting.
 
@@ -224,7 +238,9 @@ Unrealized LTCG and STCG at a glance, long-term vs short-term holdings split, an
 
 ### Overlap Analysis
 
-![Overlap Analysis](./img/screenshots/overlap-analysis.png)
+| Light                                                       | Dark                                                                  |
+| ----------------------------------------------------------- | --------------------------------------------------------------------- |
+| ![Overlap Analysis](./img/screenshots/overlap-analysis.png) | ![Overlap Analysis Dark](./img/screenshots/dark/overlap-analysis.png) |
 
 Highest overlapping fund pairs with overlap percentage and common stock count, plus a full list of stocks held across multiple funds.
 
@@ -232,7 +248,9 @@ Highest overlapping fund pairs with overlap percentage and common stock count, p
 
 ### Expense Impact
 
-![Expense Impact](./img/screenshots/expense-impact.png)
+| Light                                                   | Dark                                                              |
+| ------------------------------------------------------- | ----------------------------------------------------------------- |
+| ![Expense Impact](./img/screenshots/expense-impact.png) | ![Expense Impact Dark](./img/screenshots/dark/expense-impact.png) |
 
 Weighted expense ratio, annual cost, and lifetime cost across all funds with a fund-wise breakdown.
 
@@ -240,7 +258,9 @@ Weighted expense ratio, annual cost, and lifetime cost across all funds with a f
 
 ### Portfolio Health Score
 
-![Health Score](./img/screenshots/health-score.png)
+| Light                                               | Dark                                                          |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| ![Health Score](./img/screenshots/health-score.png) | ![Health Score Dark](./img/screenshots/dark/health-score.png) |
 
 Overall score out of 100 with letter grade, plus individual dimension scores for Diversification, Expense Ratio, Performance, and Overlap.
 
@@ -248,7 +268,9 @@ Overall score out of 100 with letter grade, plus individual dimension scores for
 
 ### Family Dashboard
 
-![Family Dashboard](./img/screenshots/family-dashboard.png)
+| Light                                                       | Dark                                                                  |
+| ----------------------------------------------------------- | --------------------------------------------------------------------- |
+| ![Family Dashboard](./img/screenshots/family-dashboard.png) | ![Family Dashboard Dark](./img/screenshots/dark/family-dashboard.png) |
 
 Aggregated family view with combined analytics, family-wide weighted returns, and a per-member breakdown.
 

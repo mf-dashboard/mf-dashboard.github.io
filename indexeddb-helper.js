@@ -225,21 +225,25 @@ class StorageManager {
     this.idb = new IDBHelper();
     this.manifestKey = "portfolio-manifest";
     this.usersKey = "portfolio-users";
-    // Tracks update state across ALL users (updates are performed for
-    // everyone at once, so "needs update" / "manual update used" checks
-    // must be global rather than per-user).
     this.globalManifestKey = "portfolio-global-update-manifest";
+    this._globalManifestCache = undefined; // in-memory cache, undefined = not yet loaded
   }
 
   getGlobalManifest() {
+    if (this._globalManifestCache !== undefined)
+      return this._globalManifestCache;
     try {
-      return JSON.parse(localStorage.getItem(this.globalManifestKey) || "null");
+      this._globalManifestCache = JSON.parse(
+        localStorage.getItem(this.globalManifestKey) || "null",
+      );
     } catch {
-      return null;
+      this._globalManifestCache = null;
     }
+    return this._globalManifestCache;
   }
 
   saveGlobalManifest(manifest) {
+    this._globalManifestCache = manifest;
     localStorage.setItem(this.globalManifestKey, JSON.stringify(manifest));
   }
 
@@ -340,11 +344,23 @@ class StorageManager {
     localStorage.setItem(key, JSON.stringify(manifest));
   }
 
+  async saveGlobalMFStats(newStats) {
+    const existing = (await this.idb.loadFile("mf-stats-global.json")) || {};
+    const merged = { ...existing, ...newStats };
+    await this.idb.saveFile("mf-stats-global.json", merged);
+    return merged;
+  }
+
+  async loadGlobalMFStats() {
+    return (await this.idb.loadFile("mf-stats-global.json")) || null;
+  }
+
   async savePortfolioData(
     casData,
     mfStats,
     isNewUpload = false,
     userName = null,
+    label = "Portfolio data",
   ) {
     const user = userName || currentUser;
     if (!user) {
@@ -354,7 +370,7 @@ class StorageManager {
 
     try {
       await this.idb.saveFile(`cas-data-${user}.json`, casData);
-      await this.idb.saveFile(`mf-stats-${user}.json`, mfStats);
+      await this.saveGlobalMFStats(mfStats);
 
       // Only register the user after both writes succeed — prevents zombie
       // state where the user appears in the list but has incomplete data.
@@ -372,7 +388,7 @@ class StorageManager {
 
       this.saveManifest(manifest, user);
 
-      console.log(`✅ Portfolio data saved for user: ${user}`);
+      console.log(`✅ ${label} saved for user: ${user}`);
     } catch (err) {
       console.error("Failed to save portfolio data:", err);
       throw err;
@@ -388,7 +404,17 @@ class StorageManager {
 
     try {
       const casData = await this.idb.loadFile(`cas-data-${user}.json`);
-      const mfStats = await this.idb.loadFile(`mf-stats-${user}.json`);
+      if (!casData) return null;
+
+      // Try global stats first; migrate from per-user file if needed
+      let mfStats = await this.loadGlobalMFStats();
+      if (!mfStats) {
+        const perUser = await this.idb.loadFile(`mf-stats-${user}.json`);
+        if (perUser) {
+          mfStats = await this.saveGlobalMFStats(perUser);
+          console.log("📦 Migrated per-user mf-stats to global store");
+        }
+      }
 
       if (casData && mfStats) {
         return { casData, mfStats };
