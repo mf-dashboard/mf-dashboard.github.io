@@ -125,23 +125,6 @@ class IDBHelper {
     }
   }
 
-  async listFiles() {
-    try {
-      const db = await this.init();
-      const transaction = db.transaction([this.storeName], "readonly");
-      const store = transaction.objectStore(this.storeName);
-
-      return new Promise((resolve, reject) => {
-        const request = store.getAllKeys();
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
-    } catch (err) {
-      console.error("IDB list error:", err);
-      return [];
-    }
-  }
-
   async clearAll() {
     try {
       const db = await this.init();
@@ -273,14 +256,12 @@ class StorageManager {
         localStorage.removeItem(this.usersKey);
         localStorage.removeItem("lastActiveUser");
         localStorage.removeItem(this.globalManifestKey);
-        console.log("🗑️ All users deleted, cleared user-specific localStorage");
       } else {
         localStorage.setItem(this.usersKey, JSON.stringify(users));
 
         const lastActive = localStorage.getItem("lastActiveUser");
         if (lastActive === userName) {
           localStorage.setItem("lastActiveUser", users[0]);
-          console.log(`🔄 Switched active user to: ${users[0]}`);
         }
       }
       localStorage.removeItem(`${this.manifestKey}-${userName}`);
@@ -289,7 +270,6 @@ class StorageManager {
       await this.idb.deleteFile(`cas-data-${userName}.json`);
       await this.idb.deleteFile(`mf-stats-${userName}.json`);
 
-      console.log(`✅ User "${userName}" deleted completely`);
       return true;
     } catch (err) {
       console.error(`❌ Error deleting user "${userName}":`, err);
@@ -307,15 +287,12 @@ class StorageManager {
         localStorage.removeItem(`${this.manifestKey}-${user}`);
 
         localStorage.removeItem(`lastCASFileInfo_${user}`);
-
-        console.log(`🗑️ Deleted data for user: ${user}`);
       }
 
       localStorage.removeItem(this.usersKey);
       localStorage.removeItem("lastActiveUser");
       localStorage.removeItem(this.globalManifestKey);
 
-      console.log("✅ All users deleted successfully");
       return true;
     } catch (err) {
       console.error("❌ Error deleting all users:", err);
@@ -387,8 +364,6 @@ class StorageManager {
       }
 
       this.saveManifest(manifest, user);
-
-      console.log(`✅ ${label} saved for user: ${user}`);
     } catch (err) {
       console.error("Failed to save portfolio data:", err);
       throw err;
@@ -412,7 +387,6 @@ class StorageManager {
         const perUser = await this.idb.loadFile(`mf-stats-${user}.json`);
         if (perUser) {
           mfStats = await this.saveGlobalMFStats(perUser);
-          console.log("📦 Migrated per-user mf-stats to global store");
         }
       }
 
@@ -429,7 +403,6 @@ class StorageManager {
 
   async clearAll() {
     if (!currentUser) {
-      console.log("⚠️ No current user to clear");
       return;
     }
 
@@ -440,10 +413,7 @@ class StorageManager {
 
     if (remainingUsers.length === 0) {
       localStorage.removeItem("lastActiveUser");
-      console.log("🗑️ Last user deleted, cleared lastActiveUser");
     }
-
-    console.log(`✅ Cleared all data for user: ${userName}`);
   }
 
   updateLastNavUpdate(userName = null) {

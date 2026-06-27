@@ -32,13 +32,8 @@
         }
       })();
     </script>
-    <!-- <script
-      defer
-      src="https://static.cloudflareinsights.com/beacon.min.js"
-      data-cf-beacon='{"token": "4d8174ccb12041b3a010d11343f45f18"}'
-    ></script> -->
     <!-- End Cloudflare Web Analytics -->
-    <link rel="stylesheet" href="styles.css?v=20260627a" />
+    <link rel="stylesheet" href="styles.css?v=20260627b" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -69,7 +64,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260627a" />
+    <link rel="manifest" href="/manifest.json?v=20260627b" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -786,17 +781,6 @@
               <div class="value" id="avgHoldingDays">--</div>
               <div class="subtext">days</div>
             </div>
-            <!-- Hidden compat spine — scripts.js targets these IDs -->
-            <div style="display: none" aria-hidden="true">
-              <div class="card">
-                <span id="totalInvested">0</span>
-                <span id="totalWithdrawn">0</span>
-              </div>
-              <div class="card">
-                <div class="value" id="realizedGain">₹0</div>
-                <div id="realizedGainPercent">0%</div>
-              </div>
-            </div>
           </div>
 
           <!-- ── Portfolio Overview (3-col) ── -->
@@ -1091,21 +1075,35 @@
             id="holdingsChartsSection"
             style="display: none"
           >
-            <div class="hc-card" id="hc-card-allocation">
-              <div class="hc-header">
-                <span class="hc-title">Portfolio Allocation</span>
-                <span class="hc-sub">By current value</span>
-              </div>
-              <div id="holdingsAllocBars"></div>
+            <div class="hc-section-toggle-row">
+              <button class="hc-show-all-btn" onclick="toggleHcShowAll(this)">All Funds</button>
             </div>
-            <div class="hc-card" id="hc-card-performance">
-              <div class="hc-header">
-                <span class="hc-title">Performance vs Benchmark</span>
-                <span class="hc-sub"
-                  >Trailing &amp; rolling returns by period</span
-                >
+            <div class="hc-section-row">
+              <div class="hc-card" id="hc-card-allocation">
+                <div class="hc-header">
+                  <span class="hc-title">Portfolio Allocation</span>
+                  <span class="hc-sub">By current value</span>
+                </div>
+                <div id="holdingsAllocBars"></div>
               </div>
-              <div id="perfTableWrap"></div>
+              <div class="hc-card" id="hc-card-performance">
+                <div class="hc-header">
+                  <span class="hc-title">Rolling Returns vs Benchmarks</span>
+                  <span class="hc-sub"
+                    >Rolling Returns by Period
+                    <i
+                      class="fa-solid fa-circle-info info-tip"
+                      style="
+                        color: var(--accent);
+                        font-size: 11px;
+                        padding-left: 3px;
+                      "
+                      data-tooltip="Rolling return is the average CAGR across all complete windows of the selected period within the fund's history. It smooths out entry-point bias and gives a more representative view of consistent performance than a single trailing return."
+                    ></i
+                  ></span>
+                </div>
+                <div id="perfTableWrap"></div>
+              </div>
             </div>
           </div>
         </section>
@@ -1351,8 +1349,8 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260627a"></script>
-    <script src="utils.js?v=20260627a"></script>
-    <script src="scripts.js?v=20260627a"></script>
+    <script src="indexeddb-helper.js?v=20260627b"></script>
+    <script src="utils.js?v=20260627b"></script>
+    <script src="scripts.js?v=20260627b"></script>
   </body>
 </html>

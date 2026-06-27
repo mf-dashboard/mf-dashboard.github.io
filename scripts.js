@@ -9,6 +9,8 @@
 // GLOBAL STATE
 // ============================================
 
+const DEBUG_MODE = false;
+
 let portfolioData = null;
 let lastUploadedFileInfo = null;
 let chart = null;
@@ -24,7 +26,7 @@ let allUsers = [];
 let familyDashboardCache = null;
 let familyDashboardCacheTimestamp = null;
 let familyDashboardInitialized = false;
-const showViewDetailsForPast = true;
+
 let mfStats = {};
 let capitalGainsData = {
   byYear: {},
@@ -37,7 +39,12 @@ let capitalGainsData = {
 };
 
 // Benchmark indices fetched independently from the API (not as portfolio fund ISINs)
-const ROLLING_RETURN_BENCHMARKS = ["nifty-50-tri", "nifty-500-tri"];
+const ROLLING_RETURN_BENCHMARKS = [
+  "nifty-50-tri",
+  "nifty-500-tri",
+  "domestic-price-of-gold",
+  "domestic-price-of-silver",
+];
 
 // Chart instances
 let projectionChartInstance = null;
@@ -90,8 +97,6 @@ const BACKEND_SERVER =
     ? "http://localhost:3000"
     : "https://my-mf-dashboard-backend.onrender.com";
 
-const DEBUG_MODE = false;
-
 // Bump this whenever a new field is added to mfStats that requires a fresh
 // full stats pull (i.e. data that won't exist in users' cached IndexedDB
 // copies). Bumping this forces an immediate full update — bypassing the
@@ -135,11 +140,6 @@ const CHART_COLORS_DARK = [
 
 function isDarkMode() {
   return document.documentElement.getAttribute("data-theme") === "dark";
-}
-
-function getCompositionColor(index, total) {
-  const palette = isDarkMode() ? CHART_COLORS_DARK : CHART_COLORS_LIGHT;
-  return palette[index % palette.length];
 }
 
 // Mirrors CSS tbc-fill nth-child rules — keep in sync with styles.css
@@ -232,25 +232,6 @@ function buildSegmentBar(wrapperId, labels, values, totalValue) {
 
 function getTbcColor(index) {
   return TBC_COLORS[index % TBC_COLORS.length];
-}
-
-// Apply distinct color palette to a Chart.js bar chart instance
-function applyColorToBarChart(chartInstance) {
-  if (!chartInstance || !chartInstance.data) return;
-  const count = chartInstance.data.labels?.length || 0;
-  if (count === 0) return;
-  const palette = isDarkMode() ? CHART_COLORS_DARK : CHART_COLORS_LIGHT;
-  const colors = Array.from(
-    { length: count },
-    (_, i) => palette[i % palette.length],
-  );
-  chartInstance.data.datasets.forEach((ds) => {
-    ds.backgroundColor = colors;
-    ds.borderColor = colors;
-    ds.borderWidth = 0;
-    ds.borderRadius = 4;
-  });
-  chartInstance.update("none");
 }
 
 // ============================================
@@ -1220,12 +1201,7 @@ function processSummaryCAS() {
 function getTaxCategory(extendedData, fund) {
   const scheme = fund?.scheme || "";
   const ft = (fund?.type || "").toLowerCase();
-  const logResult = (result, source, cat, subCat, secCat) => {
-    // console.log(
-    //   `${scheme} - ${ft} - ${cat} - ${subCat} - ${secCat} = ${result} [${source}]`,
-    // );
-    return result;
-  };
+  const logResult = (result) => result;
 
   if (!extendedData?.category) {
     // No stats data for this fund - infer from fund.type, then fund name
@@ -2965,21 +2941,6 @@ function _mapAssetKeyToLabel(keyLower) {
 }
 
 /**
- * Thin shim kept for any call-site that still passes a single (key, allocPct,
- * holdings) triple.  Internally delegates to resolveAssetAllocation so that
- * the splitting logic remains in one place.
- *
- * @deprecated  Prefer resolveAssetAllocation(fundAsset, holdings, weight).
- */
-function splitAssetKeyByHoldings(key, allocPct, holdings) {
-  // Reconstruct a minimal fundAsset map and weight=1 so that allocPct passes
-  // through unchanged.
-  const pseudoFundAsset = { [key]: allocPct }; // allocPct is already scaled %
-  // resolveAssetAllocation multiplies (val/100)*weight*100 = val when weight=1
-  return resolveAssetAllocation(pseudoFundAsset, holdings, 1);
-}
-
-/**
  * Derives debt instrument breakdown from a fund's holdings array.
  * Filters to holdings where nature_name === "DEBT" and groups by
  * instrument_name, returning corpus_per-weighted bucket percentages
@@ -4330,105 +4291,7 @@ function displayCapitalGains() {
   // Always show defaultFY (current FY even if no data, falls back gracefully)
   showYearGainsWithTransactions(defaultFY);
 }
-function showYearGains(fy) {
-  const yearData = capitalGainsData.byYear[fy];
-  if (!yearData) return;
 
-  // Update button states
-  document.querySelectorAll(".year-btn").forEach((btn) => {
-    btn.classList.remove("active");
-    if (btn.textContent.trim() === fy) {
-      btn.classList.add("active");
-    }
-  });
-
-  const display = document.getElementById("yearGainsDisplay");
-
-  let html = `
-    <div class="gains-table-wrapper">
-      <h4>STCG for ${fy}</h4>
-      <table class="gains-table gain-summary">
-        <thead>
-          <tr>
-            <th>Category</th>
-            <th>Gains</th>
-            <th>Redeemed</th>
-            <th>Tax Rate</th>
-          </tr>
-        </thead>
-        <tbody>
-  `;
-
-  ["equity", "debt", "hybrid"].forEach((cat) => {
-    const data = yearData[cat];
-    if (data.stcg !== 0 || data.stcgRedeemed !== 0) {
-      const taxRate = cat === "equity" ? "20%" : "As per slab";
-      const holdingPeriod = cat === "equity" ? "< 1Y" : "< 2Y";
-      html += `
-        <tr>
-          <td>${
-            cat.charAt(0).toUpperCase() + cat.slice(1)
-          } (${holdingPeriod})</td>
-          <td class="${data.stcg >= 0 ? "gain" : "loss"}">₹${formatNumber(
-            Math.abs(data.stcg),
-          )}</td>
-          <td>₹${formatNumber(data.stcgRedeemed)}</td>
-          <td>${taxRate}</td>
-        </tr>
-      `;
-    }
-  });
-
-  html += `
-        </tbody>
-      </table>
-
-      <h4>LTCG for ${fy}</h4>
-      <table class="gains-table gain-summary">
-        <thead>
-          <tr>
-            <th>Category</th>
-            <th>Gains</th>
-            <th>Redeemed</th>
-            <th>Tax Rate</th>
-          </tr>
-        </thead>
-        <tbody>
-  `;
-
-  ["equity", "debt", "hybrid"].forEach((cat) => {
-    const data = yearData[cat];
-    if (data.ltcg !== 0 || data.ltcgRedeemed !== 0) {
-      const taxRate =
-        cat === "debt"
-          ? "As per slab"
-          : cat === "hybrid"
-            ? "12.5%"
-            : "12.5% (>₹1.25L)";
-      const holdingPeriod = cat === "equity" ? "≥ 1Y" : "≥ 2Y";
-      html += `
-        <tr>
-          <td>${
-            cat.charAt(0).toUpperCase() + cat.slice(1)
-          } (${holdingPeriod})</td>
-          <td class="${data.ltcg >= 0 ? "gain" : "loss"}">₹${formatNumber(
-            Math.abs(data.ltcg),
-          )}</td>
-          <td>₹${formatNumber(data.ltcgRedeemed)}</td>
-          <td>${taxRate}</td>
-        </tr>
-      `;
-    }
-  });
-
-  html += `
-        </tbody>
-      </table>
-    </div>
-  `;
-
-  display.innerHTML = html;
-}
 function showYearGainsWithTransactions(fy) {
   const yearData = capitalGainsData.byYear[fy];
 
@@ -7025,10 +6888,6 @@ function updateSummaryCards(summary) {
       <div class="subtext" id="currentValueSubtext"></div>
     `;
 
-  // Update all other cards (existing code)
-  document.getElementById("totalInvested").textContent = formatNumber(
-    summary.totalInvested,
-  );
   document.getElementById("currentValue").textContent = formatNumber(
     summary.currentValue,
   );
@@ -7046,21 +6905,6 @@ function updateSummaryCards(summary) {
     summary.overallGain,
     overallPercent,
     summary.allTimeXirr,
-  );
-
-  const realizedPercent =
-    summary.totalInvested - summary.costPrice > 0
-      ? (
-          (summary.realizedGain / (summary.totalInvested - summary.costPrice)) *
-          100
-        ).toFixed(2)
-      : 0;
-  updateGainCard(
-    "realizedGain",
-    "realizedGainPercent",
-    summary.realizedGain,
-    realizedPercent,
-    null,
   );
 
   const unrealizedPercent =
@@ -7177,6 +7021,7 @@ function updateGainCard(valueId, percentId, gain, percent, xirr) {
 let perfActivePeriod = "3Y"; // default period
 let perfActiveBenchmark = "n50"; // default benchmark for comparison
 let perfActiveFundsCache = []; // { name, trailing, rolling } per active fund
+let hcShowAll = false; // toggle: show all funds vs top 10 in allocation + perf cards
 
 const HC_COLORS = [
   "#9a6b46",
@@ -7189,54 +7034,10 @@ const HC_COLORS = [
   "#8b7355",
 ];
 
-function shortFundName(name) {
-  return name
-    .replace(/\bMulti\s+Asset\s+Allocation\b/gi, "Multi Asset")
-    .replace(/\bLarge\s+[&and]+\s*Mid\s+Cap\b/gi, "L&MC")
-    .replace(/\bSmall\s+Cap\b/gi, "SC")
-    .replace(/\bMid\s+Cap\b/gi, "MC")
-    .replace(/\bLarge\s+Cap\b/gi, "LC")
-    .replace(/\bFlexi\s+Cap\b/gi, "FC")
-    .replace(/\bFocused\b/gi, "Focused")
-    .replace(/\s+Fund\s*$/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function parseNavHistDate(s) {
   const parts = s.split("-");
   if (parts.length !== 3) return null;
   return new Date(+parts[2], +parts[1] - 1, +parts[0]); // DD-MM-YYYY
-}
-
-function getNavOnOrBefore(navHistory, targetDate) {
-  for (const e of navHistory) {
-    const d = parseNavHistDate(e.date);
-    if (d && d <= targetDate) return parseFloat(e.nav);
-  }
-  return null;
-}
-
-// Returns the start Date for a given period label, given the oldest available nav date
-function perfPeriodStart(period, oldestNavDate) {
-  const today = new Date();
-  if (period === "1Y")
-    return new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-  if (period === "2Y")
-    return new Date(today.getFullYear() - 2, today.getMonth(), today.getDate());
-  if (period === "3Y")
-    return new Date(today.getFullYear() - 3, today.getMonth(), today.getDate());
-  if (period === "5Y")
-    return new Date(today.getFullYear() - 5, today.getMonth(), today.getDate());
-  if (period === "7Y")
-    return new Date(today.getFullYear() - 7, today.getMonth(), today.getDate());
-  if (period === "10Y")
-    return new Date(
-      today.getFullYear() - 10,
-      today.getMonth(),
-      today.getDate(),
-    );
-  return oldestNavDate; // Max
 }
 
 // Calculate average rolling CAGR for a fund over all complete windows of `years`
@@ -7302,8 +7103,30 @@ function renderPerfTable() {
   };
 
   const BMS = [
-    { key: "nifty-50-tri", label: "Nifty 50 TRI", shortKey: "n50" },
-    { key: "nifty-500-tri", label: "Nifty 500 TRI", shortKey: "n500" },
+    {
+      key: "nifty-50-tri",
+      label: "Nifty 50 TRI",
+      shortKey: "n50",
+      btnLabel: "N50",
+    },
+    {
+      key: "nifty-500-tri",
+      label: "Nifty 500 TRI",
+      shortKey: "n500",
+      btnLabel: "N500",
+    },
+    {
+      key: "domestic-price-of-gold",
+      label: "Gold",
+      shortKey: "gold",
+      btnLabel: "Gold",
+    },
+    {
+      key: "domestic-price-of-silver",
+      label: "Silver",
+      shortKey: "silver",
+      btnLabel: "Silver",
+    },
   ];
 
   const fmt = (v, pct = true) => {
@@ -7315,55 +7138,36 @@ function renderPerfTable() {
   };
 
   const renderTable = () => {
-    const selectedBms = BMS.filter((b) => b.shortKey === perfActiveBenchmark);
-
-    let headCols = `<th class="pft-col-name">Fund</th><th>Trailing ${perfActivePeriod}</th><th class="pft-hide-mobile">Rolling ${perfActivePeriod} avg</th>`;
-    selectedBms.forEach((b) => {
-      headCols += `<th class="pft-group-start">vs ${b.shortKey === "n50" ? "N50" : "N500"} trailing</th><th class="pft-hide-mobile">vs ${b.shortKey === "n50" ? "N50" : "N500"} rolling</th>`;
-    });
-
-    const bmTrailing = {};
+    const activeBm =
+      BMS.find((b) => b.shortKey === perfActiveBenchmark) || BMS[0];
     const bmRollingVal = {};
     BMS.forEach((b) => {
-      bmTrailing[b.shortKey] = findBmReturn(b.key, perfActivePeriod);
       bmRollingVal[b.shortKey] = findBmRolling(b.key, perfActivePeriod);
     });
+    const bmRr = bmRollingVal[activeBm.shortKey];
+
+    const headCols = `
+      <th class="pft-col-name">Fund</th>
+      <th class="pft-col-rolling">${perfActivePeriod} Rolling</th>
+      <th class="pft-col-alpha">vs ${activeBm.btnLabel}</th>`;
 
     let fundRows = "";
     perfActiveFundsCache.forEach((f) => {
-      const tr = f.trailing[perfActivePeriod] ?? null;
       const rr = f.rolling[perfActivePeriod] ?? null;
-      let alphaCols = "";
-      selectedBms.forEach((b) => {
-        const at =
-          tr != null && bmTrailing[b.shortKey] != null
-            ? tr - bmTrailing[b.shortKey]
-            : null;
-        const ar =
-          rr != null && bmRollingVal[b.shortKey] != null
-            ? rr - bmRollingVal[b.shortKey]
-            : null;
-        alphaCols += `<td class="pft-group-start">${fmt(at, false)}</td><td class="pft-hide-mobile">${fmt(ar, false)}</td>`;
-      });
+      const alpha = rr != null && bmRr != null ? rr - bmRr : null;
       fundRows += `<tr>
         <td class="pft-col-name"><span class="pft-name">${f.name}</span>${f.sub ? `<span class="pft-sub">${f.sub}</span>` : ""}</td>
-        <td>${fmt(tr)}</td><td class="pft-hide-mobile">${fmt(rr)}</td>${alphaCols}
+        <td class="pft-col-rolling">${fmt(rr)}</td>
+        <td class="pft-col-alpha">${fmt(alpha, false)}</td>
       </tr>`;
     });
 
-    let bmRows = "";
-    BMS.forEach((b, i) => {
-      const tr = bmTrailing[b.shortKey];
-      const rr = bmRollingVal[b.shortKey];
-      let blanks = "";
-      selectedBms.forEach(() => {
-        blanks += `<td class="pft-group-start pft-neu">—</td><td class="pft-hide-mobile pft-neu">—</td>`;
-      });
-      bmRows += `<tr class="pft-bench${i === 0 ? " pft-bench-first" : ""}">
-        <td class="pft-col-name pft-bench-name">${b.label}</td>
-        <td>${fmt(tr)}</td><td class="pft-hide-mobile">${fmt(rr)}</td>${blanks}
-      </tr>`;
-    });
+    const bmRow = `<tr class="pft-bench pft-bench-first">
+      <td class="pft-col-name pft-bench-name"><span class="pft-name">${activeBm.label}</span></td>
+      <td class="pft-col-rolling">${fmt(bmRr)}</td>
+      <td class="pft-col-alpha"><span class="pft-neu">—</span></td>
+    </tr>`;
+    const bmRows = bmRow;
 
     return `<table class="pft-table"><thead><tr>${headCols}</tr></thead><tbody>${fundRows}${bmRows}</tbody></table>`;
   };
@@ -7378,8 +7182,22 @@ function renderPerfTable() {
 
   const bmBtns = BMS.map(
     (b) =>
-      `<button class="hc-period-btn${b.shortKey === perfActiveBenchmark ? " hc-period-btn--active" : ""}" data-bm="${b.shortKey}">${b.shortKey === "n50" ? "Nifty 50" : "Nifty 500"}</button>`,
+      `<button class="hc-period-btn${b.shortKey === perfActiveBenchmark ? " hc-period-btn--active" : ""}" data-bm="${b.shortKey}">${b.btnLabel}</button>`,
   ).join("");
+
+  const bmLastUpdated = (() => {
+    const manifest = storageManager.getGlobalManifest?.() || {};
+    const d = manifest.lastBenchmarkUpdate
+      ? new Date(manifest.lastBenchmarkUpdate)
+      : null;
+    return d
+      ? d.toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : null;
+  })();
 
   wrap.innerHTML = `
     <div class="perf-controls">
@@ -7389,7 +7207,8 @@ function renderPerfTable() {
         <div class="hc-period-btns">${bmBtns}</div>
       </div>
     </div>
-    <div class="pft-wrap" id="perfTableInner">${renderTable()}</div>`;
+    <div class="pft-wrap" id="perfTableInner">${renderTable()}</div>
+    <div class="pft-footnote">${bmLastUpdated ? `Benchmark data last updated ${bmLastUpdated} · ` : ""}Past performance is not indicative of future returns.</div>`;
 
   // Wire up period buttons
   wrap.querySelectorAll("[data-period]").forEach((btn) => {
@@ -7422,8 +7241,16 @@ function renderPerfSection() {
   const section = document.getElementById("holdingsChartsSection");
   if (!section) return;
 
-  // Trigger benchmark fetch for users with no cached benchmark data
-  if (!storageManager.getBenchmarkData()?.returns) {
+  // Trigger benchmark fetch if data is stale or any rolling keys are missing
+  const _bmCheck = storageManager.getBenchmarkData();
+  const _bmMissingKeys = ROLLING_RETURN_BENCHMARKS.filter(
+    (k) => !(_bmCheck?.rolling?.data || {})[k],
+  );
+  if (
+    !_bmCheck?.returns ||
+    storageManager.needsBenchmarkUpdate() ||
+    _bmMissingKeys.length > 0
+  ) {
     _fetchBenchmarksInBackground();
   }
 
@@ -7438,7 +7265,8 @@ function renderPerfSection() {
     );
 
   // Rebuild fund cache with trailing + rolling for all periods
-  perfActiveFundsCache = activeFunds
+  const perfFundList = !hcShowAll && activeFunds.length > 10 ? activeFunds.slice(0, 10) : activeFunds;
+  perfActiveFundsCache = perfFundList
     .filter(([, f]) => f.navHistory && f.navHistory.length >= 2)
     .map(([, fund]) => {
       const rs = mfStats?.[fund.isin]?.return_stats || {};
@@ -7453,10 +7281,7 @@ function renderPerfSection() {
         rolling[p] = calculateFundRollingReturn(fund.navHistory, y);
       });
       return {
-        name: (fund.schemeDisplay || fund.scheme || "Fund").replace(
-          /\s+Fund$/i,
-          "",
-        ),
+        name: fund.schemeDisplay || fund.scheme || "Fund",
         sub: fund.category || "",
         trailing,
         rolling,
@@ -7464,6 +7289,13 @@ function renderPerfSection() {
     });
 
   renderPerfTable();
+}
+
+function toggleHcShowAll(btn) {
+  hcShowAll = !hcShowAll;
+  btn.textContent = hcShowAll ? "Top 10" : "All Funds";
+  btn.classList.toggle("active", hcShowAll);
+  renderHoldingsCharts();
 }
 
 function renderHoldingsCharts() {
@@ -7484,7 +7316,7 @@ function renderHoldingsCharts() {
   }
   section.style.display = "";
 
-  // --- allocation bars (top 9 + Others if > 10) ---
+  // --- allocation bars (top 9 + Others if > 10, unless hcShowAll) ---
   const totalValue = activeFunds.reduce(
     (s, [, f]) => s + (f.advancedMetrics?.currentValue || 0),
     0,
@@ -7493,8 +7325,8 @@ function renderHoldingsCharts() {
   if (allocCont && totalValue > 0) {
     allocCont.innerHTML = "";
     const allocFunds =
-      activeFunds.length > 10 ? activeFunds.slice(0, 9) : activeFunds;
-    const otherFunds = activeFunds.length > 10 ? activeFunds.slice(9) : [];
+      !hcShowAll && activeFunds.length > 10 ? activeFunds.slice(0, 10) : activeFunds;
+    const otherFunds = !hcShowAll && activeFunds.length > 10 ? activeFunds.slice(10) : [];
     allocFunds.forEach(([, fund], idx) => {
       const val = fund.advancedMetrics?.currentValue || 0;
       const pct = (val / totalValue) * 100;
@@ -7531,6 +7363,57 @@ function renderHoldingsCharts() {
         <span class="hc-alloc-val">₹${formatNumber(Math.round(othersVal))}</span>
       `;
       allocCont.appendChild(row);
+    }
+  }
+
+  // --- veteran / newest tiles ---
+  if (allocCont && activeFunds.length >= 2) {
+    let veteranFund = null,
+      newestFund = null;
+    let veteranDate = null,
+      newestDate = null;
+    activeFunds.forEach(([, fund]) => {
+      const buys = (fund.transactions || []).filter((t) => (t.units || 0) > 0);
+      if (!buys.length) return;
+      const first = buys.reduce(
+        (min, t) => (new Date(t.date) < new Date(min) ? t.date : min),
+        buys[0].date,
+      );
+      const d = new Date(first);
+      if (!veteranDate || d < veteranDate) {
+        veteranDate = d;
+        veteranFund = fund;
+      }
+      if (!newestDate || d > newestDate) {
+        newestDate = d;
+        newestFund = fund;
+      }
+    });
+    if (veteranFund && newestFund && veteranFund !== newestFund) {
+      const fmtMo = (d) =>
+        d.toLocaleString("en-IN", { month: "short", year: "numeric" });
+      const duration = (d) => {
+        const now = new Date();
+        let mo =
+          (now.getFullYear() - d.getFullYear()) * 12 +
+          (now.getMonth() - d.getMonth());
+        const yr = Math.floor(mo / 12);
+        mo = mo % 12;
+        return yr > 0 ? `${yr} yr${yr > 1 ? "s" : ""} ${mo} mo` : `${mo} mo`;
+      };
+      const tile = (badge, cls, fund, date) => `
+        <div class="hc-tenure-tile">
+          <div class="hc-tenure-badge hc-tenure-badge--${cls}">${badge}</div>
+          <div class="hc-tenure-name">${fund.schemeDisplay || fund.scheme}</div>
+          <div class="hc-tenure-meta">Since <strong>${fmtMo(date)}</strong> · ${duration(date)}</div>
+        </div>`;
+      const wrap = document.createElement("div");
+      wrap.className = "hc-tenure-wrap";
+      wrap.innerHTML =
+        tile("Portfolio Veteran", "veteran", veteranFund, veteranDate) +
+        tile("Newest Addition", "newest", newestFund, newestDate);
+      allocCont.appendChild(wrap);
+      void wrap.offsetWidth;
     }
   }
 
@@ -8243,9 +8126,7 @@ function createFundCardWithTransactions(
           <i class="fa-solid fa-eye"></i> Holdings (${fund.holdings.length})
         </button>
       </div>`
-      : showViewDetailsForPast
-        ? ""
-        : "";
+      : "";
 
   const xirrClass =
     xirrText === "--" ? "" : parseFloat(xirrText) >= 0 ? "gain" : "loss";
@@ -10472,108 +10353,6 @@ function renderModalFundValuationChart(fundKey, initialPeriod = "ALL") {
   });
 }
 
-function renderModalFundPerformanceChart(
-  fundKey,
-  extendedData,
-  benchmark_returns,
-) {
-  const ctx = document.getElementById("modalFundPerformanceChart");
-  if (!ctx) return;
-
-  const colors = getChartTheme();
-  const labels = ["1Y", "3Y", "5Y"];
-  const safeRound = (val) =>
-    typeof val === "number" && !isNaN(val) ? Math.round(val * 100) / 100 : null;
-
-  const stats = extendedData.return_stats || {};
-  const fundData = [stats.return1y, stats.return3y, stats.return5y].map(
-    safeRound,
-  );
-  const categoryData = [
-    stats.cat_return1y,
-    stats.cat_return3y,
-    stats.cat_return5y,
-  ].map(safeRound);
-  const benchmarkData = [
-    benchmark_returns?.return1y,
-    benchmark_returns?.return3y,
-    benchmark_returns?.return5y,
-  ].map(safeRound);
-
-  const datasets = [];
-
-  if (fundData.some((v) => v !== null))
-    datasets.push({
-      label: "Fund",
-      data: fundData,
-      backgroundColor: "#4482C9",
-      borderRadius: 6,
-      barThickness: 20,
-    });
-
-  if (categoryData.some((v) => v !== null))
-    datasets.push({
-      label: "Category",
-      data: categoryData,
-      backgroundColor: "#2F8F5B",
-      borderRadius: 6,
-      barThickness: 20,
-    });
-
-  if (benchmarkData.some((v) => v !== null))
-    datasets.push({
-      label: "Benchmark",
-      data: benchmarkData,
-      backgroundColor: "#C9872D",
-      borderRadius: 6,
-      barThickness: 20,
-    });
-
-  new Chart(ctx, {
-    type: "bar",
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      aspectRatio: 2.8,
-      plugins: {
-        legend: {
-          display: false,
-        },
-        tooltip: {
-          backgroundColor: colors.tooltipBg,
-          borderColor: colors.tooltipBorder,
-          borderWidth: 2,
-          titleColor: "#fff",
-          bodyColor: "#fff",
-          callbacks: {
-            label: (ctx) =>
-              `${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2)}%`,
-          },
-        },
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: {
-            font: { size: 11 },
-            color: colors.textColor,
-          },
-        },
-        y: {
-          beginAtZero: true,
-          grid: { display: true, color: colors.gridColor },
-          ticks: {
-            font: { size: 11 },
-            color: colors.textColor,
-            callback: (val) => `${val}%`,
-          },
-        },
-      },
-    },
-  });
-}
-
 function filterValuationChart(period, fundKey) {
   const fund = fundWiseData[fundKey];
   const allData = fund?.advancedMetrics?.dailyValuation;
@@ -11522,97 +11301,6 @@ function downloadFundHoldings(fundKey) {
 }
 
 // MODAL FUNCTIONS - TRANSACTIONS
-function showAllTimeTransactions() {
-  if (!allTimeFlows || allTimeFlows.length === 0) {
-    alert("No All-Time transactions available.");
-    return;
-  }
-
-  lockBodyScroll();
-
-  const modal = document.createElement("div");
-  modal.className = "transaction-modal-overlay";
-  modal.id = "allTimeTransactionsModal";
-
-  modal.innerHTML = `
-    <div class="transaction-modal">
-      <div class="modal-header">
-        <h2>All-Time Transactions</h2>
-        <button class="modal-close" onclick="closeAllTimeTransactions()"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-      <div class="modal-content" id="allTimeTxContent"></div>
-      <div class="modal-footer">
-        <button onclick="generateExcelReport(allTimeFlows, 'all_time_holdings_transactions.xlsx')">Download as Excel</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(modal);
-  if (window.innerWidth <= 1024) {
-    initializeModalSwipe(modal);
-  }
-  window.history.pushState({ modal: "allTime" }, "", window.location.pathname);
-
-  const allTimeContent = document.getElementById("allTimeTxContent");
-  allTimeContent.appendChild(
-    createTransactionTable(allTimeFlows, "allTimeTable"),
-  );
-
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) closeAllTimeTransactions();
-  });
-}
-
-function closeAllTimeTransactions() {
-  const modal = document.getElementById("allTimeTransactionsModal");
-  if (modal) modal.remove();
-  unlockBodyScroll();
-}
-
-function showActiveTransactions() {
-  if (!activeFlows || activeFlows.length === 0) {
-    alert("No Active transactions available.");
-    return;
-  }
-
-  lockBodyScroll();
-
-  const modal = document.createElement("div");
-  modal.className = "transaction-modal-overlay";
-  modal.id = "activeTransactionsModal";
-
-  modal.innerHTML = `
-    <div class="transaction-modal">
-      <div class="modal-header">
-        <h2>Active Holdings Transactions</h2>
-        <button class="modal-close" onclick="closeActiveTransactions()"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-      <div class="modal-content" id="activeTxContent"></div>
-      <div class="modal-footer">
-        <button onclick="generateExcelReport(activeFlows, 'active_holdings_transactions.xlsx')">Download as Excel</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(modal);
-  if (window.innerWidth <= 1024) {
-    initializeModalSwipe(modal);
-  }
-  window.history.pushState({ modal: "active" }, "", window.location.pathname);
-  const activeContent = document.getElementById("activeTxContent");
-  activeContent.appendChild(createTransactionTable(activeFlows, "activeTable"));
-
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) closeActiveTransactions();
-  });
-}
-
-function closeActiveTransactions() {
-  const modal = document.getElementById("activeTransactionsModal");
-  if (modal) modal.remove();
-  unlockBodyScroll();
-}
-
 function showFundTransactions(fundKey, folioNumbersStr) {
   const fund = fundWiseData[fundKey];
   if (!fund || !fund.advancedMetrics) {
@@ -12978,355 +12666,6 @@ function updateStatsForGrowth(data) {
       }">${latest.unrealizedGainPercent.toFixed(2)}%</div>
     </div>
   `;
-}
-function createFundValuationChart(fund, fundKey) {
-  const dailyValuation = fund.advancedMetrics?.dailyValuation;
-
-  if (!dailyValuation || dailyValuation.length === 0) {
-    return '<div style="padding: 10px; text-align: center; color: #9ca3af; font-size: 11px;">No valuation history available</div>';
-  }
-
-  const chartId = `fundChart_${fundKey.replace(/\s+/g, "_")}`;
-  const containerId = `fundChartContainer_${fundKey.replace(/\s+/g, "_")}`;
-
-  return `
-    <div class="folio-stat fund-card-separator-header"><span class="label">Valuation History (All Time): </span><span></span></div>
-    <div class="fund-card-separator loading" id="${containerId}" style="padding: 10px 0; height: 120px; position: relative;">
-      <canvas id="${chartId}" style="width: 100%; height: 120px;"></canvas>
-    </div>
-  `;
-}
-
-function createFundPerformanceChart(
-  fund,
-  fundKey,
-  extendedData,
-  benchmark_returns,
-) {
-  const chartId = `fundPerfChart_${fundKey.replace(/\s+/g, "_")}`;
-  const containerId = `fundPerfChartContainer_${fundKey.replace(/\s+/g, "_")}`;
-
-  const {
-    return1y,
-    return3y,
-    return5y,
-    cat_return1y,
-    cat_return3y,
-    cat_return5y,
-  } = extendedData.return_stats || {};
-
-  const index_return1y = benchmark_returns?.["return1y"] ?? null;
-  const index_return3y = benchmark_returns?.["return3y"] ?? null;
-  const index_return5y = benchmark_returns?.["return5y"] ?? null;
-
-  const valid = [
-    return1y,
-    return3y,
-    return5y,
-    cat_return1y,
-    cat_return3y,
-    cat_return5y,
-    index_return1y,
-    index_return3y,
-    index_return5y,
-  ].some((v) => v !== null && v !== undefined);
-
-  if (!valid)
-    return '<div style="padding:10px;text-align:center;color:#9ca3af;font-size:11px;">No performance data available</div>';
-
-  extendedData.return_stats = {
-    ...extendedData.return_stats,
-    index_return1y,
-    index_return3y,
-    index_return5y,
-  };
-
-  return `
-    <div class="folio-stat fund-card-separator-header">
-      <span class="label">Performance (Fund vs Category vs Benchmark):</span><span></span>
-    </div>
-    <div class="fund-card-separator loading" id="${containerId}" style="padding: 10px 0; height: 150px; position: relative;">
-      <canvas id="${chartId}" style="width:100%;height:150px;"></canvas>
-    </div>
-  `;
-}
-
-function renderFundValuationChart(fundKey, canvasId) {
-  const fund = fundWiseData[fundKey];
-  const dailyValuation = fund.advancedMetrics?.dailyValuation;
-
-  if (!dailyValuation || dailyValuation.length === 0) return;
-
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-
-  const containerId = `fundChartContainer_${fundKey.replace(/\s+/g, "_")}`;
-  const container = document.getElementById(containerId);
-
-  const colors = getChartTheme();
-  const ctx = canvas.getContext("2d");
-
-  const allData = dailyValuation;
-  const labels = allData.map((d) => {
-    const date = new Date(d.date);
-    return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
-  });
-
-  const values = allData.map((d) => d.value);
-  const costs = allData.map((d) => d.cost);
-
-  const chart = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: "Value",
-          data: values,
-          borderColor: "#9A6B46",
-          backgroundColor: "rgba(154, 107, 70, 0.1)",
-          fill: true,
-          tension: 0.4,
-          pointRadius: 0,
-          borderWidth: 2,
-        },
-        {
-          label: "Cost",
-          data: costs,
-          borderColor: "#C65A52",
-          backgroundColor: "rgba(198, 90, 82, 0.05)",
-          fill: false,
-          tension: 0.4,
-          pointRadius: 0,
-          borderWidth: 1,
-          borderDash: [3, 3],
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { intersect: false, mode: "index", axis: "x" },
-      events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
-      onClick: (evt, activeEls, chart) => {
-        if (!activeEls.length) {
-          chart.tooltip.setActiveElements([], { x: 0, y: 0 });
-          chart.update();
-        }
-      },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: colors.tooltipBg,
-          borderColor: colors.tooltipBorder,
-          borderWidth: 2,
-          titleColor: "#fff",
-          bodyColor: "#fff",
-          padding: 8,
-          titleFont: { size: 10 },
-          bodyFont: { size: 10 },
-          callbacks: {
-            title: (items) => {
-              const idx = items[0].dataIndex;
-              const date = new Date(allData[idx].date);
-              return date.toLocaleDateString("en-IN", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              });
-            },
-            label: (ctx) =>
-              ctx.datasetIndex === 0
-                ? `Value: ₹${ctx.parsed.y.toLocaleString("en-IN")}`
-                : `Cost: ₹${ctx.parsed.y.toLocaleString("en-IN")}`,
-          },
-        },
-      },
-      scales: {
-        x: {
-          display: false,
-          grid: { display: false },
-          ticks: {
-            maxTicksLimit: 5,
-            font: { size: 9 },
-            color: colors.textColor,
-          },
-        },
-        y: {
-          display: true,
-          grid: { display: false },
-          ticks: {
-            font: { size: 9 },
-            color: colors.textColor,
-            callback: (value) => {
-              if (value >= 100000)
-                return "₹" + (value / 100000).toFixed(1) + "L";
-              if (value >= 1000) return "₹" + (value / 1000).toFixed(0) + "K";
-              return "₹" + value;
-            },
-          },
-        },
-      },
-      animation: {
-        duration: 0,
-        onComplete: () => {
-          canvas.classList.add("chart-ready");
-          if (container) container.classList.remove("loading");
-        },
-      },
-    },
-  });
-
-  if (window.innerWidth <= 1024) {
-    canvas.addEventListener("touchend", function () {
-      setTimeout(() => {
-        if (chart && chart.tooltip) {
-          chart.tooltip.setActiveElements([], { x: 0, y: 0 });
-          chart.update("none");
-        }
-      }, 100);
-    });
-  }
-}
-
-function renderFundPerformanceChart(canvasId, extendedData) {
-  const ctx = document.getElementById(canvasId);
-  if (!ctx) return;
-
-  const fundKey = canvasId.replace("fundPerfChart_", "");
-  const containerId = `fundPerfChartContainer_${fundKey}`;
-  const container = document.getElementById(containerId);
-
-  const colors = getChartTheme();
-  const labels = ["1Y", "3Y", "5Y"];
-  const safeRound = (val) =>
-    typeof val === "number" && !isNaN(val) ? Math.round(val * 100) / 100 : null;
-
-  const stats = extendedData.return_stats || {};
-  const fundData = [stats.return1y, stats.return3y, stats.return5y].map(
-    safeRound,
-  );
-  const categoryData = [
-    stats.cat_return1y,
-    stats.cat_return3y,
-    stats.cat_return5y,
-  ].map(safeRound);
-  const benchmarkData = [
-    stats.index_return1y,
-    stats.index_return3y,
-    stats.index_return5y,
-  ].map(safeRound);
-
-  const datasets = [];
-
-  if (fundData.some((v) => v !== null))
-    datasets.push({
-      label: "Fund",
-      data: fundData,
-      backgroundColor: "#4482C9",
-      borderRadius: 6,
-      barThickness: 14,
-    });
-
-  if (categoryData.some((v) => v !== null))
-    datasets.push({
-      label: "Category",
-      data: categoryData,
-      backgroundColor: "#2F8F5B",
-      borderRadius: 6,
-      barThickness: 14,
-    });
-
-  if (benchmarkData.some((v) => v !== null))
-    datasets.push({
-      label: "Benchmark",
-      data: benchmarkData,
-      backgroundColor: "#C9872D",
-      borderRadius: 6,
-      barThickness: 14,
-    });
-
-  if (datasets.length === 0) {
-    ctx.parentElement.innerHTML =
-      '<div style="padding:10px;text-align:center;color:#9ca3af;font-size:11px;">No performance data available</div>';
-    if (container) container.classList.remove("loading");
-    return;
-  }
-
-  const chart = new Chart(ctx, {
-    type: "bar",
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { intersect: false, mode: "index", axis: "x" },
-      events: ["mousemove", "mouseout", "click", "touchstart", "touchmove"],
-      onClick: (evt, activeEls, chart) => {
-        if (!activeEls.length) {
-          chart.tooltip.setActiveElements([], { x: 0, y: 0 });
-          chart.update();
-        }
-      },
-      plugins: {
-        legend: {
-          display: true,
-          position: "bottom",
-          labels: {
-            boxWidth: 10,
-            font: { size: 9 },
-            color: colors.textColor,
-          },
-        },
-        tooltip: {
-          backgroundColor: colors.tooltipBg,
-          borderColor: colors.tooltipBorder,
-          borderWidth: 2,
-          titleColor: "#fff",
-          bodyColor: "#fff",
-          callbacks: {
-            label: (ctx) =>
-              `${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2)}%`,
-          },
-        },
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: {
-            font: { size: 10 },
-            color: colors.textColor,
-          },
-        },
-        y: {
-          beginAtZero: true,
-          grid: { display: false },
-          ticks: {
-            font: { size: 10 },
-            color: colors.textColor,
-            callback: (val) => `${val}%`,
-          },
-        },
-      },
-      animation: {
-        duration: 0,
-        onComplete: () => {
-          ctx.classList.add("chart-ready");
-          if (container) container.classList.remove("loading");
-        },
-      },
-    },
-  });
-
-  if (window.innerWidth <= 1024) {
-    ctx.addEventListener("touchend", function () {
-      setTimeout(() => {
-        if (chart && chart.tooltip) {
-          chart.tooltip.setActiveElements([], { x: 0, y: 0 });
-          chart.update("none");
-        }
-      }, 100);
-    });
-  }
 }
 
 // COMPACT DASHBOARD — main mobile summary card (Dashboard tab, no list)
@@ -15623,16 +14962,6 @@ function switchToUser(userName) {
     location.reload();
   }, 500);
 }
-function populateUserSelector(users) {
-  const selector = document.getElementById("userSelector");
-
-  users.forEach((user) => {
-    const option = document.createElement("option");
-    option.value = user;
-    option.textContent = user;
-    selector.appendChild(option);
-  });
-}
 async function deleteSingleUser(userName) {
   if (!userName) {
     showToast("No user specified", "warning");
@@ -16063,11 +15392,6 @@ function getHiddenFolios(userName) {
 function saveHiddenFolios(userName, hiddenFolios) {
   const key = `hiddenFolios_${userName}`;
   localStorage.setItem(key, JSON.stringify(hiddenFolios));
-}
-
-function isFolioHidden(userName, folioNumber) {
-  const hiddenFolios = getHiddenFolios(userName);
-  return hiddenFolios.includes(folioNumber);
 }
 
 function toggleFolioInPending(userName, folioNumber) {
@@ -17299,7 +16623,27 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
         return mfStats || {};
       }
 
-      return await _fetchFull(activeSearchKeys, updateType, pastSearchKeys);
+      const navDates =
+        updateType !== "initial"
+          ? Object.fromEntries(
+              [...targetIsins, ...pastIsins]
+                .filter(
+                  (isin) =>
+                    searchKeyJson[isin] && mfStats[isin]?.latest_nav_date,
+                )
+                .map((isin) => [
+                  searchKeyJson[isin],
+                  mfStats[isin].latest_nav_date,
+                ]),
+            )
+          : {};
+
+      return await _fetchFull(
+        activeSearchKeys,
+        updateType,
+        pastSearchKeys,
+        navDates,
+      );
     } else {
       if (portfolioData.cas_type === "SUMMARY") {
         portfolioData.folios.forEach((folio) => {
@@ -17336,7 +16680,22 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
         return mfStats || {};
       }
 
-      return await _fetchFull(uniqueSearchKeys, updateType, []);
+      const navDates =
+        updateType !== "initial"
+          ? Object.fromEntries(
+              [...targetIsins]
+                .filter(
+                  (isin) =>
+                    searchKeyJson[isin] && mfStats[isin]?.latest_nav_date,
+                )
+                .map((isin) => [
+                  searchKeyJson[isin],
+                  mfStats[isin].latest_nav_date,
+                ]),
+            )
+          : {};
+
+      return await _fetchFull(uniqueSearchKeys, updateType, [], navDates);
     }
   } catch (err) {
     console.error("❌ Failed to fetch MF stats:", err);
@@ -17345,7 +16704,12 @@ async function fetchOrUpdateMFStats(updateType = "auto") {
   }
 }
 
-async function _fetchFull(searchKeys, updateType, lightSearchKeys = []) {
+async function _fetchFull(
+  searchKeys,
+  updateType,
+  lightSearchKeys = [],
+  navDates = {},
+) {
   const response = await fetch(BACKEND_SERVER + "/api/mf-stats", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -17353,6 +16717,7 @@ async function _fetchFull(searchKeys, updateType, lightSearchKeys = []) {
       searchKeys,
       lightSearchKeys,
       lightIncludeNav: updateType === "initial",
+      navDates,
     }),
   });
 
@@ -17376,6 +16741,17 @@ async function _fetchFull(searchKeys, updateType, lightSearchKeys = []) {
       enableSummaryIncompatibleTabs();
     }
   } else {
+    // For incremental updates, merge delta nav_history into existing rather than replacing.
+    for (const [isin, fundData] of Object.entries(newStats)) {
+      if (fundData.nav_history_delta && mfStats[isin]?.nav_history?.length) {
+        const existing = mfStats[isin].nav_history;
+        const existingDates = new Set(existing.map((e) => e.date));
+        const newEntries = fundData.nav_history.filter(
+          (e) => !existingDates.has(e.date),
+        );
+        fundData.nav_history = [...newEntries, ...existing];
+      }
+    }
     mfStats = {
       ...mfStats,
       ...newStats,
@@ -17495,19 +16871,42 @@ async function updateMFStats() {
 }
 
 async function _fetchBenchmarksInBackground() {
-  if (!storageManager.needsBenchmarkUpdate()) return;
+  const stored = storageManager.getBenchmarkData();
+  const storedRollingData = stored?.rolling?.data || {};
+  const missingKeys = ROLLING_RETURN_BENCHMARKS.filter(
+    (k) => !storedRollingData[k],
+  );
+  const needsFullUpdate = storageManager.needsBenchmarkUpdate();
+
+  if (!needsFullUpdate && missingKeys.length === 0) return;
+
   try {
-    const names = ROLLING_RETURN_BENCHMARKS.join(",");
-    const [returnsRes, rollingRes] = await Promise.all([
-      fetch(`${BACKEND_SERVER}/api/benchmark-returns`),
-      fetch(
+    if (needsFullUpdate) {
+      const names = ROLLING_RETURN_BENCHMARKS.join(",");
+      const [returnsRes, rollingRes] = await Promise.all([
+        fetch(`${BACKEND_SERVER}/api/benchmark-returns`),
+        fetch(
+          `${BACKEND_SERVER}/api/benchmark-rolling-returns-all?names=${names}`,
+        ),
+      ]);
+      if (!returnsRes.ok || !rollingRes.ok) return;
+      const returns = await returnsRes.json();
+      const rolling = await rollingRes.json();
+      storageManager.saveBenchmarkData(returns, rolling);
+    } else {
+      // Only fetch missing benchmark keys and merge into stored rolling data
+      const names = missingKeys.join(",");
+      const rollingRes = await fetch(
         `${BACKEND_SERVER}/api/benchmark-rolling-returns-all?names=${names}`,
-      ),
-    ]);
-    if (!returnsRes.ok || !rollingRes.ok) return;
-    const returns = await returnsRes.json();
-    const rolling = await rollingRes.json();
-    storageManager.saveBenchmarkData(returns, rolling);
+      );
+      if (!rollingRes.ok) return;
+      const partial = await rollingRes.json();
+      const merged = {
+        ...stored.rolling,
+        data: { ...storedRollingData, ...(partial.data || {}) },
+      };
+      storageManager.saveBenchmarkData(stored.returns, merged);
+    }
     renderPerfSection();
   } catch (e) {
     console.warn("Benchmark background fetch failed:", e);
@@ -17704,16 +17103,21 @@ async function updateNavOnly() {
       return true;
     }
 
-    // Apply single-entry appends to global mfStats once, then update per-user timestamps
+    // Merge new NAV entries into global mfStats, then update per-user timestamps
     const globalStats = (await storageManager.loadGlobalMFStats()) || {};
     const navPatch = {};
     for (const [isin, upd] of Object.entries(updates)) {
       if (!globalStats[isin]) continue;
+      const existing = globalStats[isin].nav_history || [];
+      const existingDates = new Set(existing.map((e) => e.date));
+      const newEntries = (upd.nav_entries || []).filter(
+        (e) => !existingDates.has(e.date),
+      );
       navPatch[isin] = {
         ...globalStats[isin],
         latest_nav: upd.latest_nav,
         latest_nav_date: upd.latest_nav_date,
-        nav_history: [upd.nav_entry, ...(globalStats[isin].nav_history || [])],
+        nav_history: [...newEntries, ...existing],
       };
     }
     if (Object.keys(navPatch).length > 0) {
@@ -17727,11 +17131,16 @@ async function updateNavOnly() {
     if (currentUser) {
       for (const [isin, upd] of Object.entries(updates)) {
         if (!mfStats[isin]) continue;
+        const existing = mfStats[isin].nav_history || [];
+        const existingDates = new Set(existing.map((e) => e.date));
+        const newEntries = (upd.nav_entries || []).filter(
+          (e) => !existingDates.has(e.date),
+        );
         mfStats[isin] = {
           ...mfStats[isin],
           latest_nav: upd.latest_nav,
           latest_nav_date: upd.latest_nav_date,
-          nav_history: [upd.nav_entry, ...(mfStats[isin].nav_history || [])],
+          nav_history: [...newEntries, ...existing],
         };
       }
       if (isSummaryCAS) processSummaryCAS();
@@ -18536,15 +17945,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     document.body.classList.add("sidebar-expanded");
   }
   callHealthCheck();
-  // Show debug CAS inject row only when DEBUG_MODE is on
   const debugRow = document.getElementById("debugCASInjectRow");
-  if (debugRow) {
-    if (DEBUG_MODE) {
-      debugRow.classList.remove("hidden");
-    } else {
-      debugRow.classList.add("hidden");
-    }
-  }
+  if (debugRow) debugRow.classList.toggle("hidden", !DEBUG_MODE);
 
   const dashboard = document.getElementById("app");
 
@@ -18920,10 +18322,7 @@ async function takeFullPageScreenshot() {
     document.getElementById("screenshotBtnDesktop"),
   ].find((el) => el && el.offsetParent !== null);
 
-  if (typeof html2canvas === "undefined") {
-    console.log("Screenshot library not loaded");
-    return;
-  }
+  if (typeof html2canvas === "undefined") return;
 
   if (btn) {
     btn.classList.add("capturing");

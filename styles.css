@@ -608,23 +608,23 @@ button:disabled {
 }
 
 .past-holdings-expand-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 10px 16px;
-  background: var(--bg-gradient);
-  border: 1px solid var(--border-primary);
+  display: block;
   margin-top: 10px;
-  color: var(--accent);
-  font-size: 13px;
-  font-weight: 500;
+  margin-left: auto;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 4px 12px;
+  height: 28px;
+  border-radius: 14px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  color: var(--text-secondary);
   cursor: pointer;
-  text-align: center;
-  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .past-holdings-expand-btn:hover {
-  background: rgba(154, 107, 70, 0.04);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .flt-td {
@@ -2818,6 +2818,41 @@ button:disabled {
   gap: 16px;
   margin-top: 16px;
 }
+.hc-section-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.hc-show-all-btn {
+  font-size: 12px;
+  font-family: inherit;
+  padding: 4px 12px;
+  height: 28px;
+  border-radius: 14px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.hc-show-all-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.hc-show-all-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.hc-section-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
 
 .hc-card {
   background: var(--bg-card);
@@ -3357,15 +3392,18 @@ button:disabled {
 }
 
 .hc-alloc-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 4px 8px;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .hc-alloc-name {
-  width: 220px;
-  flex-shrink: 0;
+  width: auto;
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3373,7 +3411,7 @@ button:disabled {
 }
 
 .hc-alloc-dot {
-  display: none;
+  display: inline-block;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -3391,7 +3429,8 @@ button:disabled {
 }
 
 .hc-alloc-track {
-  flex: 1;
+  grid-column: 1 / -1;
+  grid-row: 2;
   height: 8px;
   background: var(--border-light);
   border-radius: 4px;
@@ -3405,24 +3444,75 @@ button:disabled {
 }
 
 .hc-alloc-pct {
-  width: 40px;
+  grid-column: 2;
+  grid-row: 1;
   text-align: right;
   font-size: 12px;
   font-weight: 700;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .hc-alloc-val {
-  width: 72px;
-  text-align: right;
-  font-size: 11px;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
+  display: none;
 }
 
+.hc-tenure-wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-light);
+}
+.hc-tenure-tile {
+  background: var(--bg-offwhite);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 10px 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+.hc-tenure-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+.hc-tenure-badge--veteran {
+  color: var(--accent);
+}
+.hc-tenure-badge--newest {
+  color: var(--success);
+}
+.hc-tenure-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+}
+.hc-tenure-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.hc-tenure-meta strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+@media (max-width: 834px) {
+  .hc-section-row {
+    grid-template-columns: 1fr;
+  }
+}
 @media (max-width: 600px) {
   .hc-card {
     padding: 16px;
@@ -3431,32 +3521,8 @@ button:disabled {
     flex-direction: column;
     gap: 2px;
   }
-  .hc-alloc-val {
-    display: none;
-  }
   .hc-alloc-row {
-    display: grid;
     grid-template-columns: 1fr auto;
-    grid-template-rows: auto auto;
-    gap: 4px 8px;
-    align-items: center;
-    margin-bottom: 12px;
-  }
-  .hc-alloc-name {
-    width: auto;
-    grid-column: 1;
-    grid-row: 1;
-  }
-  .hc-alloc-pct {
-    grid-column: 2;
-    grid-row: 1;
-  }
-  .hc-alloc-track {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
-  .hc-alloc-dot {
-    display: inline-block;
   }
 }
 
@@ -13610,6 +13676,16 @@ button.theme-toggle {
   border-radius: 10px;
   overflow: hidden;
 }
+.pft-footnote {
+  margin-top: 10px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+  border-top: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  padding: 4px;
+  text-align: center;
+}
 .pft-table {
   width: 100%;
   border-collapse: collapse;
@@ -13628,10 +13704,11 @@ button.theme-toggle {
 }
 .pft-table thead th.pft-col-name {
   text-align: left;
-  width: 50%;
+  width: 55%;
 }
-.pft-table thead th.pft-group-start {
-  border-left: 1px solid var(--border-light);
+.pft-col-rolling,
+.pft-col-alpha {
+  width: 22.5%;
 }
 .pft-table tbody tr {
   border-bottom: 1px solid var(--border-light);
@@ -13640,7 +13717,7 @@ button.theme-toggle {
   border-bottom: none;
 }
 .pft-table tbody tr.pft-bench {
-  background: var(--bg-offwhite);
+  background: var(--bg-gradient);
 }
 .pft-table tbody tr.pft-bench-first td {
   border-top: 1px solid var(--border-medium);
@@ -13654,10 +13731,7 @@ button.theme-toggle {
 }
 .pft-table tbody td.pft-col-name {
   text-align: left;
-  width: 50%;
-}
-.pft-table tbody td.pft-group-start {
-  border-left: 1px solid var(--border-light);
+  width: 55%;
 }
 .pft-name {
   display: block;
@@ -13665,9 +13739,7 @@ button.theme-toggle {
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: normal;
-  overflow-wrap: break-word;
-  word-break: break-word;
+  white-space: nowrap;
 }
 .pft-sub {
   display: block;

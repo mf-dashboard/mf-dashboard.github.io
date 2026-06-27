@@ -51,10 +51,6 @@ function formatNumber(num) {
   return Object.is(rounded, -0) ? "0" : rounded.toLocaleString("en-IN");
 }
 
-function truncateLabel(label, maxLength = 12) {
-  return label.length > maxLength ? label.slice(0, maxLength) + "..." : label;
-}
-
 function sortData(labels, data) {
   const combined = labels.map((label, i) => ({ label, value: data[i] }));
   combined.sort((a, b) => b.value - a.value);
@@ -468,93 +464,6 @@ function buildDoughnutChart(canvasId, labels, data, totalValue = 0) {
     .join("");
 
   return chart;
-}
-
-function buildBarChart(canvasId, labels, data, totalValue = null) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) {
-    console.warn(`Canvas element '${canvasId}' not found`);
-    return null;
-  }
-
-  const colors = getChartTheme();
-  const ctx = document.getElementById(canvasId).getContext("2d");
-  const maxVal = Math.max(...data);
-  const suggestedMax = Math.min(100, Math.ceil((maxVal * 1.1) / 10) * 10);
-
-  return new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [
-        {
-          data,
-          backgroundColor: themeColors.slice(0, data.length),
-          borderRadius: 8,
-          barPercentage: 0.8,
-          categoryPercentage: 0.9,
-        },
-      ],
-    },
-    plugins: [ChartDataLabels],
-    options: {
-      indexAxis: "y",
-      responsive: true,
-      maintainAspectRatio: false,
-
-      plugins: {
-        legend: {
-          display: false,
-        },
-
-        datalabels: {
-          clip: false,
-
-          formatter: (value, ctx) => {
-            const label = ctx.chart.data.labels[ctx.dataIndex];
-            return `${label}  ${value.toFixed(1)}%`;
-          },
-
-          color: "#fff",
-
-          anchor: "start",
-          align: "right",
-
-          offset: 8,
-
-          font: {
-            weight: "bold",
-            size: 11,
-          },
-        },
-
-        tooltip: {
-          // your existing tooltip config
-        },
-      },
-
-      scales: {
-        x: {
-          beginAtZero: true,
-          suggestedMax,
-          ticks: {
-            callback: (v) => v + "%",
-            color: colors.textColor,
-          },
-          grid: {
-            color: colors.gridColor,
-          },
-        },
-
-        y: {
-          display: false, // hide axis labels completely
-          grid: {
-            display: false,
-          },
-        },
-      },
-    },
-  });
 }
 
 function adjustXAxisLabels(chart) {
