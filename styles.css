@@ -2834,18 +2834,12 @@ button:disabled {
   background: var(--bg-card);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: border-color 0.15s, color 0.15s;
 }
 
 .hc-show-all-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
-}
-
-.hc-show-all-btn.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
 }
 
 .hc-section-row {
@@ -4837,7 +4831,7 @@ button.theme-toggle {
 .chi-body {
   flex: 1;
   min-width: 0;
-  padding: 11px 10px 10px 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -4880,54 +4874,29 @@ button.theme-toggle {
   overflow: hidden;
 }
 
-.chi-stat-pill {
+.chi-stat-inline {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  border-radius: 5px;
-  padding: 2px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
   white-space: nowrap;
-  border: 1px solid transparent;
 }
 
-.chi-stat-pill--pos {
-  background: rgba(47, 143, 91, 0.1);
-  border-color: rgba(47, 143, 91, 0.2);
-}
-
-.chi-stat-pill--neg {
-  background: rgba(198, 90, 82, 0.08);
-  border-color: rgba(198, 90, 82, 0.18);
-}
+.chi-stat-inline--pos { color: var(--success); }
+.chi-stat-inline--neg { color: var(--danger); }
 
 .chi-stat-label {
   font-size: 9.5px;
   font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.chi-stat-sep {
+  font-size: 9px;
   color: var(--text-tertiary);
-  white-space: nowrap;
-}
-
-.chi-stat-value {
-  font-size: 10.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  color: var(--text-primary);
-}
-
-.chi-stat-pill--pos .chi-stat-value {
-  color: var(--success);
-}
-.chi-stat-pill--neg .chi-stat-value {
-  color: var(--danger);
-}
-
-.chi-stat-pill--neutral {
-  background: rgba(154, 107, 70, 0.08);
-  border-color: rgba(154, 107, 70, 0.18);
-}
-
-.chi-stat-pill--neutral .chi-stat-value {
-  color: var(--accent);
+  margin: 0 2px;
 }
 
 /* Right: curr + invested stacked, right-aligned */
@@ -4955,7 +4924,7 @@ button.theme-toggle {
 .chi-invested {
   font-size: 10.5px;
   font-weight: 600;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .chi-pnl {
@@ -5482,58 +5451,194 @@ button.theme-toggle {
   border: 1px solid rgba(154, 107, 70, 0.15);
 }
 
-/* Meta bar: AMC + Folios */
-.fund-summary-meta-bar {
+/* Modal header — two-row layout */
+.fdm-header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 !important;
+}
+
+.fdm-header-row1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 15px 10px;
+}
+
+.fdm-header-name {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.fdm-header-row2 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 18px;
-  background: rgba(154, 107, 70, 0.08);
-  border-bottom: 1px solid rgba(154, 107, 70, 0.12);
+  padding: 0 15px 12px;
+  gap: 10px;
+}
+
+.fdm-header-meta {
+  display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 5px;
 }
 
-.fund-summary-meta-bar-left {
-  display: flex;
+.fdm-meta-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(154, 107, 70, 0.1);
+  border: 1px solid rgba(154, 107, 70, 0.2);
+  padding: 2px 8px;
+  border-radius: 20px;
+  line-height: 1.6;
+}
+
+.fdm-risk-inline {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-}
-
-.fund-summary-meta-bar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.fund-summary-meta-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.fund-summary-meta-divider {
-  width: 1px;
-  height: 20px;
-  background: rgba(154, 107, 70, 0.25);
+  gap: 6px;
   flex-shrink: 0;
 }
 
-.fund-summary-meta-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--text-secondary);
+.fdm-risk-inline .riskometer-track {
+  display: inline-flex;
+  gap: 3px;
 }
 
-.fund-summary-meta-value {
+.fdm-risk-inline .riskometer-label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-primary);
 }
 
+/* Compact stat strip */
+.fdm-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--bg-card);
+  overflow: hidden;
+  margin: 12px 16px 0;
+}
+
+.fdm-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 8px;
+  text-align: center;
+  gap: 3px;
+  border-right: 1px solid var(--border-light);
+}
+
+.fdm-stat:last-child {
+  border-right: none;
+}
+
+.fdm-stat-l {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.fdm-stat-v {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.fdm-stat-v.gain { color: var(--success); }
+.fdm-stat-v.loss { color: var(--danger); }
+.fdm-stat-v.accent { color: var(--accent); }
+
+.fdm-stat-s {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+.fdm-stat-s.gain { color: var(--success); }
+.fdm-stat-s.loss { color: var(--danger); }
+
+/* Action links row — split-half with center divider */
+.fdm-actions-row {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--bg-card);
+  overflow: hidden;
+  margin: 8px 16px 12px;
+}
+
+.fdm-action-link {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 9px 12px;
+  transition: background 0.15s;
+}
+
+.fdm-action-link:hover { background: rgba(154, 107, 70, 0.06); }
+
+.fdm-action-link--disabled,
+.fdm-action-link[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.fdm-action-link i { font-size: 11px; }
+
+.fdm-action-badge {
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(154, 107, 70, 0.12);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--accent);
+}
+
+.fdm-actions-sep {
+  width: 1px;
+  background: var(--border-light);
+  flex-shrink: 0;
+}
+
+@media (max-width: 560px) {
+  .fdm-stat-strip {
+    grid-template-columns: repeat(4, 1fr);
+    margin: 10px 10px 0;
+  }
+  .fdm-actions-row { margin: 6px 10px 10px; }
+  .fdm-stat:nth-child(4) { border-right: none; }
+  .fdm-stat:nth-child(4) ~ .fdm-stat { border-top: 1px solid var(--border-light); }
+  .fdm-stat-v { font-size: 13px; }
+  .fdm-header-meta .fdm-meta-tag:nth-child(2) { display: none; }
+  .fdm-stat-s { font-size: 8px; }
+}
+
+/* ---- kept for other uses, remove old hero/chips/meta-bar below ---- */
 .fund-summary-folio-chips {
   display: flex;
   flex-wrap: wrap;
@@ -5551,54 +5656,7 @@ button.theme-toggle {
   line-height: 1.6;
 }
 
-/* Hero row: 3 big cards */
-.fund-summary-hero-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0;
-}
-
-.fund-summary-hero-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 18px 12px 16px;
-  text-align: center;
-  border-right: 1px solid rgba(154, 107, 70, 0.1);
-  gap: 3px;
-  position: relative;
-}
-
-.fund-summary-hero-card::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 14px;
-  right: 14px;
-  height: 2px;
-  border-radius: 2px;
-  background: rgba(154, 107, 70, 0.25);
-}
-
-.fund-summary-hero-card:last-child {
-  border-right: none;
-}
-
-.fund-summary-hero-card--pnl {
-  background: rgba(47, 143, 91, 0.05);
-}
-.fund-summary-hero-card--pnl::after {
-  background: rgba(47, 143, 91, 0.4);
-}
-
-.fund-summary-hero-card--pnl.loss {
-  background: rgba(198, 90, 82, 0.05);
-}
-.fund-summary-hero-card--pnl.loss::after {
-  background: rgba(198, 90, 82, 0.4);
-}
-
+/* Hero row: kept for compatibility if needed */
 .fund-summary-hero-card--xirr {
   background: rgba(154, 107, 70, 0.05);
 }
@@ -5705,24 +5763,6 @@ button.theme-toggle {
   letter-spacing: 0.2px;
 }
 
-/* Responsive: hero values shrink on mobile */
-@media (max-width: 500px) {
-  .fund-summary-hero-value {
-    font-size: 15px;
-  }
-  .fund-summary-hero-card {
-    padding: 12px 6px 10px;
-  }
-  .fund-summary-chip {
-    padding: 8px 4px;
-  }
-  .fund-summary-chip-value {
-    font-size: 12px;
-  }
-  .fund-summary-meta-bar {
-    padding: 8px 12px;
-  }
-}
 
 .fund-detail-chart-wrapper {
   position: relative;
@@ -5843,6 +5883,37 @@ button.theme-toggle {
   font-size: 12px;
   line-height: 1;
   color: var(--text-secondary);
+}
+
+.fdm-perf-bm-btns {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.fdm-perf-bm-btn {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 2px 8px;
+  height: 22px;
+  border-radius: 11px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.fdm-perf-bm-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.fdm-perf-bm-btn:not(.active):hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .fund-chart-card-title {
@@ -6194,60 +6265,48 @@ button.theme-toggle {
   text-transform: uppercase;
 }
 
-.fund-tax-split-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  background: var(--border-light);
+.fund-tax-inline-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 12px;
 }
 
-.fund-tax-split-card {
-  background: var(--bg-card);
-  padding: 12px 14px;
+.ftir-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
 }
 
-.fund-tax-split-label {
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-}
-
-.fund-tax-split-threshold {
-  font-weight: 400;
+.ftir-lbl {
+  font-size: 10px;
   color: var(--text-tertiary);
 }
 
-.fund-tax-split-value {
-  font-size: 16px;
+.ftir-val {
+  font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  margin-bottom: 3px;
+  color: var(--text-primary);
 }
 
-.fund-tax-split-value.positive {
-  color: var(--success);
-}
-.fund-tax-split-value.negative {
-  color: var(--danger);
-}
-
-.fund-tax-split-sub {
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-.fund-tax-split-rate {
-  color: var(--text-tertiary);
+.ftir-sub {
   font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.ftir-sep {
+  color: var(--border-medium);
+  font-size: 12px;
 }
 
 .tax-nil {
   color: var(--success);
   font-weight: 600;
-}
-.fund-tax-split-sub .tax-nil {
-  color: inherit;
-  font-weight: 400;
 }
 
 .fund-tax-exit-load {
@@ -6272,33 +6331,6 @@ button.theme-toggle {
 .fund-tax-exit-load-val {
   color: var(--text-primary);
   flex: 1;
-}
-
-.fund-tax-outcome-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 1px;
-  background: var(--border-light);
-  border-top: 1px solid var(--border-light);
-}
-
-.fund-tax-outcome-card {
-  background: var(--bg-card);
-  padding: 10px 14px;
-}
-
-.fund-tax-outcome-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-tertiary);
-  margin-bottom: 3px;
-}
-
-.fund-tax-outcome-val {
-  font-size: 15px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 .fund-tax-outcome-val--warn {
@@ -6444,57 +6476,7 @@ button.theme-toggle {
   letter-spacing: 0.2px;
 }
 
-.fund-summary-actions-row {
-  display: flex;
-  gap: 10px;
-  padding: 10px 14px;
-  border-top: 1px solid rgba(154, 107, 70, 0.12);
-}
-
-.fund-summary-action-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 7px 12px;
-  background: rgba(154, 107, 70, 0.07);
-  border: 1px solid rgba(154, 107, 70, 0.2);
-  border-radius: 8px;
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    border-color 0.15s;
-}
-
-.fund-summary-action-btn i {
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-.fund-summary-action-btn:hover {
-  background: rgba(154, 107, 70, 0.14);
-  border-color: rgba(154, 107, 70, 0.4);
-}
-
-.fund-summary-action-badge {
-  background: rgba(154, 107, 70, 0.15);
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 6px;
-  color: var(--accent);
-}
-
-.fund-summary-action-btn--disabled,
-.fund-summary-action-btn[disabled] {
-  opacity: 0.45;
-  cursor: not-allowed;
-  pointer-events: none;
-}
+/* Old action btn styles — replaced by fdm-action-link above */
 
 /* ============================================
    FUND DETAILS MODAL — PEERS SECTION
@@ -9326,23 +9308,6 @@ button.theme-toggle {
   opacity: 0.85;
 }
 
-.fund-summary-portfolio-pct {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--accent);
-  background: rgba(154, 107, 70, 0.1);
-  border: 1px solid rgba(154, 107, 70, 0.22);
-  padding: 2px 8px;
-  border-radius: 20px;
-  letter-spacing: 0.3px;
-}
-
-.fund-summary-portfolio-pct-sub {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--text-tertiary);
-  letter-spacing: 0.3px;
-}
 
 @media (max-width: 500px) {
   .folio-compact-cell--hold,
@@ -14002,6 +13967,13 @@ button.theme-toggle {
 @media (max-width: 500px) {
   .perf-cell--desktop,
   .perf-th--desktop {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .fund-details-content .perf-cell--desktop,
+  .fund-details-content .perf-th--desktop {
     display: none;
   }
 }

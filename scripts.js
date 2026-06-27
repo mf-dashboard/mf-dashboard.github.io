@@ -7020,6 +7020,7 @@ function updateGainCard(valueId, percentId, gain, percent, xirr) {
 // ── Holdings Charts ──────────────────────────────────────────────────────────
 let perfActivePeriod = "3Y"; // default period
 let perfActiveBenchmark = "n50"; // default benchmark for comparison
+let fdmActivePerfBm = "n50"; // benchmark selector state for fund details modal perf card
 let perfActiveFundsCache = []; // { name, trailing, rolling } per active fund
 let hcShowAll = false; // toggle: show all funds vs top 10 in allocation + perf cards
 
@@ -7265,7 +7266,10 @@ function renderPerfSection() {
     );
 
   // Rebuild fund cache with trailing + rolling for all periods
-  const perfFundList = !hcShowAll && activeFunds.length > 10 ? activeFunds.slice(0, 10) : activeFunds;
+  const perfFundList =
+    !hcShowAll && activeFunds.length > 10
+      ? activeFunds.slice(0, 10)
+      : activeFunds;
   perfActiveFundsCache = perfFundList
     .filter(([, f]) => f.navHistory && f.navHistory.length >= 2)
     .map(([, fund]) => {
@@ -7291,10 +7295,50 @@ function renderPerfSection() {
   renderPerfTable();
 }
 
+function fdmUpdatePerfBm(key, el) {
+  fdmActivePerfBm = key;
+  el.closest(".fdm-perf-bm-btns")
+    .querySelectorAll("button")
+    .forEach((b) => b.classList.toggle("active", b.dataset.bm === key));
+  const th = document.getElementById("fdm-vs-index-th");
+  if (th) th.textContent = key === "n50" ? "vs N50" : "vs N500";
+  const card = document.querySelector(".fund-perf-card");
+  if (!card) return;
+  card.querySelectorAll(".perf-row").forEach((row) => {
+    const benchCell = row.querySelector(".perf-bm-cell");
+    const outCell = row.querySelector(".perf-out-cell");
+    if (!benchCell || !outCell) return;
+    const bmRaw = benchCell.dataset[key];
+    const fundNum = parseFloat(benchCell.dataset.fund);
+    const bmNum =
+      bmRaw != null && bmRaw !== "" && bmRaw !== "null"
+        ? parseFloat(bmRaw)
+        : null;
+    const fmt = (v) =>
+      v != null && !isNaN(v) ? (v >= 0 ? "+" : "") + v.toFixed(2) + "%" : "--";
+    const cls = (v) =>
+      v != null && !isNaN(v)
+        ? v >= 0
+          ? " perf-val--gain"
+          : " perf-val--loss"
+        : "";
+    benchCell.textContent = fmt(bmNum);
+    benchCell.className = "perf-cell perf-val perf-bm-cell" + cls(bmNum);
+    if (!isNaN(fundNum) && bmNum != null) {
+      const diff = fundNum - bmNum;
+      outCell.textContent = fmt(diff);
+      outCell.className =
+        "perf-cell perf-val perf-out-cell perf-cell--out" + cls(diff);
+    } else {
+      outCell.textContent = "--";
+      outCell.className = "perf-cell perf-val perf-out-cell perf-cell--out";
+    }
+  });
+}
+
 function toggleHcShowAll(btn) {
   hcShowAll = !hcShowAll;
-  btn.textContent = hcShowAll ? "Top 10" : "All Funds";
-  btn.classList.toggle("active", hcShowAll);
+  btn.textContent = hcShowAll ? "Show Top 10" : "Show All Funds";
   renderHoldingsCharts();
 }
 
@@ -7316,6 +7360,10 @@ function renderHoldingsCharts() {
   }
   section.style.display = "";
 
+  const toggleRow = document.querySelector(".hc-section-toggle-row");
+  if (toggleRow)
+    toggleRow.style.display = activeFunds.length > 10 ? "" : "none";
+
   // --- allocation bars (top 9 + Others if > 10, unless hcShowAll) ---
   const totalValue = activeFunds.reduce(
     (s, [, f]) => s + (f.advancedMetrics?.currentValue || 0),
@@ -7325,8 +7373,11 @@ function renderHoldingsCharts() {
   if (allocCont && totalValue > 0) {
     allocCont.innerHTML = "";
     const allocFunds =
-      !hcShowAll && activeFunds.length > 10 ? activeFunds.slice(0, 10) : activeFunds;
-    const otherFunds = !hcShowAll && activeFunds.length > 10 ? activeFunds.slice(10) : [];
+      !hcShowAll && activeFunds.length > 10
+        ? activeFunds.slice(0, 10)
+        : activeFunds;
+    const otherFunds =
+      !hcShowAll && activeFunds.length > 10 ? activeFunds.slice(10) : [];
     allocFunds.forEach(([, fund], idx) => {
       const val = fund.advancedMetrics?.currentValue || 0;
       const pct = (val / totalValue) * 100;
@@ -7908,8 +7959,9 @@ function createFundCardForFolios(
     const calc = new XIRRCalculator();
 
     if (isActive) {
-      // For active holdings - include all cashflows and add current value
+      // For active holdings - include only active folio cashflows + current value
       targetFolioSummaries.forEach((folioSummary) => {
+        if ((folioSummary.remainingUnits || 0) <= 0) return;
         folioSummary.cashflows.forEach((cf) => {
           calc.addTransaction(cf.type, cf.date, Math.abs(cf.amount));
         });
@@ -8350,35 +8402,40 @@ function showFundDetailsModal(
       cost > 0 ? ((unrealizedGain / cost) * 100).toFixed(2) : 0;
   }
 
-  // Calculate XIRR
-  let xirr = null;
+  // Calculate XIRR — active folios only (primary) and all folios (blended)
+  const todaySell = new Date().toISOString().split("T")[0] + "T00:00:00.000Z";
+  let xirrActive = null;
+  let xirrAll = null;
+  let hasInactiveFolios = false;
   try {
-    const calc = new XIRRCalculator();
+    const calcActive = new XIRRCalculator();
+    const calcAll = new XIRRCalculator();
     if (fund.advancedMetrics?.folioSummaries) {
-      Object.values(fund.advancedMetrics.folioSummaries).forEach(
-        (folioSummary) => {
-          folioSummary.cashflows.forEach((cf) => {
-            calc.addTransaction(cf.type, cf.date, Math.abs(cf.amount));
-          });
-        },
-      );
+      Object.values(fund.advancedMetrics.folioSummaries).forEach((fs) => {
+        const isActiveFolio = (fs.remainingUnits || 0) > 0;
+        if (!isActiveFolio) hasInactiveFolios = true;
+        fs.cashflows.forEach((cf) => {
+          calcAll.addTransaction(cf.type, cf.date, Math.abs(cf.amount));
+          if (isActiveFolio)
+            calcActive.addTransaction(cf.type, cf.date, Math.abs(cf.amount));
+        });
+      });
     }
     if (current > 0) {
-      calc.addTransaction(
-        "Sell",
-        new Date().toISOString().split("T")[0] + "T00:00:00.000Z",
-        current,
-      );
+      calcActive.addTransaction("Sell", todaySell, current);
+      calcAll.addTransaction("Sell", todaySell, current);
     }
-    if (calc.transactions.length >= 2) {
-      xirr = calc.calculateXIRR();
-    }
+    if (calcActive.transactions.length >= 2)
+      xirrActive = calcActive.calculateXIRR();
+    if (calcAll.transactions.length >= 2) xirrAll = calcAll.calculateXIRR();
   } catch (e) {
     console.debug("XIRR calculation failed for", fund.scheme, e);
   }
 
-  const xirrText =
-    xirr == null || isNaN(xirr) ? "--" : `${parseFloat(xirr.toFixed(2))}%`;
+  const fmt = (v) =>
+    v == null || isNaN(v) ? "--" : `${parseFloat(v.toFixed(2))}%`;
+  const xirrText = fmt(xirrActive);
+  const xirrAllText = hasInactiveFolios ? fmt(xirrAll) : null;
 
   function roundValue(val) {
     if (val === null || val === undefined) return "--";
@@ -8789,6 +8846,25 @@ function showFundDetailsModal(
           })
         : "";
 
+      const stcgTaxStr =
+        stcgGain > 0
+          ? stcgTax !== null
+            ? `tax ${fmtR(stcgTax)}${isEquity ? " @ 20%" : ""}`
+            : "tax at slab"
+          : "no tax";
+      const ltcgTaxStr =
+        ltcgGain > 0
+          ? ltcgTax === 0
+            ? `tax ₹0 @ 12.5%`
+            : `tax ${fmtR(ltcgTax)} @ 12.5%`
+          : "no tax";
+      const totalTaxStr =
+        stcgTax === null && stcgGain > 0
+          ? `at slab${ltcgTax > 0 ? " + " + fmtR(ltcgTax) : ""}`
+          : totalTax > 0
+            ? fmtR(totalTax)
+            : "₹0";
+
       taxExitHTML = `
         <div class="fund-tax-exit-section">
           <div class="fund-tax-exit-header">
@@ -8796,42 +8872,48 @@ function showFundDetailsModal(
             Tax-aware exit
             <span class="fund-tax-exit-badge">If you exit today</span>
           </div>
-          <div class="fund-tax-split-grid">
-            <div class="fund-tax-split-card fund-tax-split-card--stcg">
-              <div class="fund-tax-split-label">STCG <span class="fund-tax-split-threshold">&lt; ${threshLabel}</span></div>
-              <div class="fund-tax-split-value ${stcgGain >= 0 ? "positive" : "negative"}">${fmtR(stcgGain)}</div>
-              <div class="fund-tax-split-sub">Tax: ${stcgGain > 0 ? (stcgTax !== null ? fmtR(stcgTax) : "<em>at slab</em>") : '<span class="tax-nil">₹0</span>'} <span class="fund-tax-split-rate">${stcgGain > 0 && isEquity ? "@ 20%" : ""}</span></div>
-            </div>
-            <div class="fund-tax-split-card fund-tax-split-card--ltcg">
-              <div class="fund-tax-split-label">LTCG <span class="fund-tax-split-threshold">&gt; ${threshLabel}</span></div>
-              <div class="fund-tax-split-value ${ltcgGain >= 0 ? "positive" : "negative"}">${fmtR(ltcgGain)}</div>
-              <div class="fund-tax-split-sub">Tax: ${ltcgGain > 0 ? (ltcgTax === 0 ? `<s style="color:var(--text-tertiary)">${fmtR(ltcgTaxFull)}</s> <span class="tax-nil">₹0</span>` : fmtR(ltcgTax)) : '<span class="tax-nil">₹0</span>'} <span class="fund-tax-split-rate">${ltcgGain > 0 ? "@ 12.5%" : ""}</span></div>
-            </div>
+          <div class="fund-tax-inline-row">
+            <span class="ftir-item">
+              <span class="ftir-lbl">STCG &lt;${threshLabel}</span>
+              <span class="ftir-val ${stcgGain >= 0 ? "positive" : "negative"}">${fmtR(stcgGain)}</span>
+              <span class="ftir-sub">(${stcgTaxStr})</span>
+            </span>
+            <span class="ftir-sep">|</span>
+            <span class="ftir-item">
+              <span class="ftir-lbl">LTCG &gt;${threshLabel}</span>
+              <span class="ftir-val ${ltcgGain >= 0 ? "positive" : "negative"}">${fmtR(ltcgGain)}</span>
+              <span class="ftir-sub">(${ltcgTaxStr})</span>
+            </span>
+            <span class="ftir-sep">|</span>
+            <span class="ftir-item">
+              <span class="ftir-lbl">Est. tax</span>
+              <span class="ftir-val fund-tax-outcome-val--warn">${totalTaxStr}</span>
+            </span>
+            ${
+              exitLoadAmount > 0
+                ? `
+            <span class="ftir-sep">|</span>
+            <span class="ftir-item">
+              <span class="ftir-lbl">Exit load</span>
+              <span class="ftir-val fund-tax-outcome-val--warn">${fmtR(exitLoadAmount)}</span>
+            </span>`
+                : ""
+            }
+            <span class="ftir-sep">|</span>
+            <span class="ftir-item">
+              <span class="ftir-lbl">Net proceeds</span>
+              <span class="ftir-val fund-tax-outcome-val--net">${fmtR(netProceeds)}</span>
+            </span>
           </div>
           ${exitLoadDisplay ? `<div class="fund-tax-exit-load"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span class="fund-tax-exit-load-label">Exit load</span><span class="fund-tax-exit-load-val">${exitLoadDisplay}</span></div>` : ""}
-          <div class="fund-tax-outcome-row">
-            <div class="fund-tax-outcome-card">
-              <div class="fund-tax-outcome-label">Total est. tax</div>
-              <div class="fund-tax-outcome-val fund-tax-outcome-val--warn">${stcgTax === null && stcgGain > 0 ? `<em style="font-size:12px">at slab${ltcgTax > 0 ? " + " + fmtR(ltcgTax) : ""}</em>` : totalTax > 0 ? fmtR(totalTax) : '<span class="tax-nil">₹0</span>'}</div>
-            </div>
-            <div class="fund-tax-outcome-card">
-              <div class="fund-tax-outcome-label">Total exit load</div>
-              <div class="fund-tax-outcome-val ${exitLoadAmount > 0 ? "fund-tax-outcome-val--warn" : ""}">${exitLoadAmount > 0 ? fmtR(exitLoadAmount) : exitLoadDisplay && !parsedLoad ? '<span style="font-size:11px;color:var(--text-tertiary)">See above</span>' : '<span class="tax-nil">₹0</span>'}</div>
-            </div>
-            <div class="fund-tax-outcome-card">
-              <div class="fund-tax-outcome-label">Net proceeds</div>
-              <div class="fund-tax-outcome-val fund-tax-outcome-val--net">${fmtR(netProceeds)}</div>
-            </div>
-          </div>
           ${
             earliestStcg &&
             earliestStcg.daysLeft > 0 &&
             earliestStcg.stcgTaxOnLot > 0
-              ? `
-          <div class="fund-tax-wait-banner">
-            <i class="fa-solid fa-clock" aria-hidden="true"></i>
-            <span>Wait <strong>${earliestStcg.daysLeft}d</strong> (until ${turnDateStr}) for earliest STCG lot to turn LTCG — saves ~<strong>${fmtR(earliestStcg.stcgTaxOnLot)}</strong> in tax.</span>
-          </div>`
+              ? `<div class="fund-tax-wait-banner">
+                <i class="fa-solid fa-clock" aria-hidden="true"></i>
+                <span>Wait <strong>${earliestStcg.daysLeft}d</strong> (until ${turnDateStr}) — saves ~<strong>${fmtR(earliestStcg.stcgTaxOnLot)}</strong> in tax.</span>
+               </div>`
               : ""
           }
         </div>`;
@@ -8990,7 +9072,7 @@ function showFundDetailsModal(
               ${logoHTML}
               <div>
                 <div class="fdm-peer-name">${shortName}</div>
-                <div class="fdm-peer-house">${standardizeTitle(peer.fund_house || "")}</div>
+                <div class="fdm-peer-house">${standardizeTitle(peer.amc || "")}</div>
               </div>
             </div>
           </td>
@@ -9044,170 +9126,146 @@ function showFundDetailsModal(
       <div class="fdm-spinner-overlay" id="fdmSpinnerOverlay">
         <div class="fdm-spinner"></div>
       </div>
-      <div class="modal-header">
-        <div class="modal-header-fund-title">
+      <div class="modal-header fdm-header">
+        <div class="fdm-header-row1">
           ${extendedData?.logo_url ? `<img class="modal-fund-logo" src="${extendedData.logo_url}" alt="" onerror="this.style.display='none'">` : ""}
-          <h2>${displayName}</h2>
+          <h2 class="fdm-header-name">${displayName}</h2>
+          <button class="modal-close" onclick="closeFundDetailsModal()"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        <button class="modal-close" onclick="closeFundDetailsModal()"><i class="fa-solid fa-xmark"></i></button>
+        <div class="fdm-header-row2">
+          <div class="fdm-header-meta">
+            ${(() => {
+              if (isPastHolding || !current) return "";
+              const totalPfValue = Object.values(fundWiseData).reduce(
+                (s, f) => s + (f.advancedMetrics?.currentValue || 0),
+                0,
+              );
+              const pct =
+                totalPfValue > 0
+                  ? ((current / totalPfValue) * 100).toFixed(2)
+                  : null;
+              return pct !== null
+                ? `<span class="fdm-meta-tag">${pct}% of portfolio</span>`
+                : "";
+            })()}
+            ${(() => {
+              const cat = extendedData?.meta?.scheme_category
+                ? extendedData.meta.scheme_category
+                    .replace(/\bFund\b/gi, "")
+                    .replace(/\bScheme\b(?=\s*[-–])/gi, "")
+                    .replace(/\s{2,}/g, " ")
+                    .trim()
+                : null;
+              return cat ? `<span class="fdm-meta-tag">${cat}</span>` : "";
+            })()}
+          </div>
+          ${(() => {
+            const riskNumeric = extendedData?.return_stats?.risk_rating ?? null;
+            const riskLevels = [
+              "Low",
+              "Low to Moderate",
+              "Moderate",
+              "Moderately High",
+              "High",
+              "Very High",
+            ];
+            const riskColors = [
+              "#2F8F5B",
+              "#5A9E6E",
+              "#C9872D",
+              "#D9854A",
+              "#C65A52",
+              "#B84E47",
+            ];
+            const riskLevel =
+              riskNumeric !== null && !isNaN(parseInt(riskNumeric))
+                ? (riskLevels[parseInt(riskNumeric) - 1] ?? null)
+                : null;
+            if (!riskLevel) return "";
+            const activeIdx = riskLevels.findIndex(
+              (r) => r.toLowerCase() === riskLevel.toLowerCase(),
+            );
+            const dots = riskLevels
+              .map((r, i) => {
+                const isActive = i === activeIdx;
+                const isPast = i < activeIdx;
+                const dotColor = isActive
+                  ? riskColors[i]
+                  : isPast
+                    ? riskColors[i] + "80"
+                    : "rgba(154,107,70,0.15)";
+                return `<span class="riskometer-dot${isActive ? " riskometer-dot--active" : ""}" style="background:${dotColor};box-shadow:${isActive ? "0 0 5px " + riskColors[i] : "none"}" title="${r}"></span>`;
+              })
+              .join("");
+            return `<div class="fdm-risk-inline"><span class="riskometer-track">${dots}</span><span class="riskometer-label" style="color:${riskColors[activeIdx]}">${riskLevel}</span></div>`;
+          })()}
+        </div>
       </div>
       <div class="modal-content fund-details-content">
-        
-        <!-- Summary Stats Section (Compact Redesign) -->
+
         <div class="fund-summary-compact ${summaryCls}">
 
-          <!-- Meta bar: Portfolio % (left) + Riskometer (right) -->
-          <div class="fund-summary-meta-bar">
-            <div class="fund-summary-meta-bar-left">
-              ${
-                !isPastHolding && current > 0
-                  ? (() => {
-                      const totalPfValue = Object.values(fundWiseData).reduce(
-                        (s, f) => s + (f.advancedMetrics?.currentValue || 0),
-                        0,
-                      );
-                      const pct =
-                        totalPfValue > 0
-                          ? ((current / totalPfValue) * 100).toFixed(2)
-                          : null;
-                      return pct !== null
-                        ? `<div class="fund-summary-meta-item">
-                <span class="fund-summary-meta-label">Portfolio</span>
-                <span class="fund-summary-portfolio-pct">${pct}% <span class="fund-summary-portfolio-pct-sub">of Total</span></span>
-              </div>`
-                        : "";
-                    })()
-                  : ""
-              }
-            </div>
-            <div class="fund-summary-meta-bar-right">
-              ${(() => {
-                const riskNumeric =
-                  extendedData?.return_stats?.risk_rating ?? null;
-                const riskLevels = [
-                  "Low",
-                  "Low to Moderate",
-                  "Moderate",
-                  "Moderately High",
-                  "High",
-                  "Very High",
-                ];
-                const riskLevel =
-                  riskNumeric !== null && !isNaN(parseInt(riskNumeric))
-                    ? (riskLevels[parseInt(riskNumeric) - 1] ?? null)
-                    : null;
-                if (!riskLevel) return "";
-                const riskColors = [
-                  "#2F8F5B",
-                  "#5A9E6E",
-                  "#C9872D",
-                  "#D9854A",
-                  "#C65A52",
-                  "#B84E47",
-                ];
-                const activeIdx = riskLevels.findIndex(
-                  (r) => r.toLowerCase() === riskLevel.toLowerCase(),
-                );
-                const riskoDots = riskLevels
-                  .map((r, i) => {
-                    const isActive = i === activeIdx;
-                    const isPast = i < activeIdx;
-                    const dotColor = isActive
-                      ? riskColors[i]
-                      : isPast
-                        ? riskColors[i] + "80"
-                        : "rgba(154, 107, 70, 0.15)";
-                    return `<span class="riskometer-dot ${isActive ? "riskometer-dot--active" : ""}" style="background:${dotColor};box-shadow:${isActive ? "0 0 6px " + riskColors[i] : "none"}" title="${r}"></span>`;
-                  })
-                  .join("");
-                const riskLabelColor =
-                  activeIdx >= 0
-                    ? riskColors[activeIdx]
-                    : "var(--text-secondary)";
-                return `<div class="riskometer">
-                  <div class="riskometer-track">${riskoDots}</div>
-                  <span class="riskometer-label" style="color:${riskLabelColor}">${riskLevel}</span>
-                </div>`;
-              })()}
-            </div>
-          </div>
-
-          <!-- Hero row: 3 primary financial metrics -->
-          <div class="fund-summary-hero-row">
-            <div class="fund-summary-hero-card">
-              <span class="fund-summary-hero-label">${isPastHolding ? "Total Withdrawn" : "Current Value"}</span>
-              <span class="fund-summary-hero-value">₹${formatNumber(isPastHolding ? cost + unrealizedGain : current)}</span>
+          <!-- Compact stat strip: all metrics in one grid row -->
+          <div class="fdm-stat-strip">
+            <div class="fdm-stat">
+              <span class="fdm-stat-l">${isPastHolding ? "Withdrawn" : "Value"}</span>
+              <span class="fdm-stat-v">₹${formatNumber(isPastHolding ? cost + unrealizedGain : current)}</span>
               ${(() => {
                 if (isPastHolding) return "";
                 const od = calculate1DayReturn(fund);
                 if (!od) return "";
                 const pos = od.percent >= 0;
-                const s = pos ? "+" : "-";
-                return `<span class="fund-summary-hero-sub fund-summary-1d-sub ${pos ? "fund-summary-1d-sub--pos" : "fund-summary-1d-sub--neg"}">${pos ? "▲" : "▼"} ₹${formatNumber(Math.abs(Math.round(od.rupees)))} (${s}${Math.abs(od.percent.toFixed(2))}%)</span>`;
+                return `<span class="fdm-stat-s ${pos ? "gain" : "loss"}">${pos ? "▲" : "▼"} ${pos ? "+" : ""}${od.percent.toFixed(2)}% 1D</span>`;
               })()}
             </div>
-            <div class="fund-summary-hero-card fund-summary-hero-card--pnl ${unrealizedGain >= 0 ? "gain" : "loss"}">
-              <span class="fund-summary-hero-label">P&amp;L</span>
-              <span class="fund-summary-hero-value">
-                ₹${formatNumber(Math.abs(unrealizedGain))}
-              </span>
-              <span class="fund-summary-hero-sub">${unrealizedGain >= 0 ? "▲" : "▼"} ${unrealizedGain >= 0 ? "+" : "-"}${Math.abs(unrealizedGainPercentage)}%</span>
+            <div class="fdm-stat">
+              <span class="fdm-stat-l">P&amp;L</span>
+              <span class="fdm-stat-v ${unrealizedGain >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(unrealizedGain))}</span>
+              <span class="fdm-stat-s ${unrealizedGain >= 0 ? "gain" : "loss"}">${unrealizedGain >= 0 ? "▲ +" : "▼ "}${Math.abs(unrealizedGainPercentage)}%</span>
             </div>
-            <div class="fund-summary-hero-card fund-summary-hero-card--xirr">
-              <span class="fund-summary-hero-label">XIRR</span>
-              <span class="fund-summary-hero-value">${xirrText}</span>
+            <div class="fdm-stat">
+              <span class="fdm-stat-l">XIRR</span>
+              <span class="fdm-stat-v accent">${xirrText}</span>
+              ${xirrAllText ? `<span class="fdm-stat-s">${xirrAllText} blended</span>` : ""}
             </div>
-          </div>
-
-          <!-- Secondary metrics: compact chips -->
-          <div class="fund-summary-chips-row">
-            <div class="fund-summary-chip">
-              <span class="fund-summary-chip-label">${isPastHolding ? "Total Invested" : "Invested"}</span>
-              <span class="fund-summary-chip-value">₹${formatNumber(cost)}</span>
+            <div class="fdm-stat">
+              <span class="fdm-stat-l">Curr. NAV</span>
+              <span class="fdm-stat-v">${extendedData?.latest_nav ? `₹${roundValue(parseFloat(extendedData.latest_nav))}` : "--"}</span>
+              ${extendedData?.latest_nav_date ? `<span class="fdm-stat-s">${extendedData.latest_nav_date}</span>` : ""}
             </div>
-            <div class="fund-summary-chip">
-              <span class="fund-summary-chip-label">Units</span>
-              <span class="fund-summary-chip-value">${roundValue(units)}</span>
+            <div class="fdm-stat">
+              <span class="fdm-stat-l">Invested</span>
+              <span class="fdm-stat-v">₹${formatNumber(cost)}</span>
             </div>
-            <div class="fund-summary-chip">
-              <span class="fund-summary-chip-label">Curr. NAV</span>
-              <span class="fund-summary-chip-value">
-                ${extendedData?.latest_nav ? `₹${roundValue(parseFloat(extendedData.latest_nav))}` : "--"}
-                ${extendedData?.latest_nav_date ? `<span class="fund-summary-chip-sub">${extendedData.latest_nav_date}</span>` : ""}
-              </span>
+            <div class="fdm-stat">
+              <span class="fdm-stat-l">Units</span>
+              <span class="fdm-stat-v">${roundValue(units)}</span>
             </div>
-            <div class="fund-summary-chip">
-              <span class="fund-summary-chip-label">Avg NAV</span>
-              <span class="fund-summary-chip-value">${roundValue(avgNav)}</span>
+            <div class="fdm-stat">
+              <span class="fdm-stat-l">Avg NAV</span>
+              <span class="fdm-stat-v">${roundValue(avgNav)}</span>
             </div>
             ${
               !isPastHolding
                 ? `
-            <div class="fund-summary-chip">
-              <span class="fund-summary-chip-label">Avg Hold</span>
-              <span class="fund-summary-chip-value">
-                ${
-                  avgHoldingDays != null && avgHoldingDays > 0
-                    ? roundValue(avgHoldingDays) + "D"
-                    : "--"
-                }
-              </span>
+            <div class="fdm-stat">
+              <span class="fdm-stat-l">Avg Hold</span>
+              <span class="fdm-stat-v">${avgHoldingDays != null && avgHoldingDays > 0 ? roundValue(avgHoldingDays) + "D" : "--"}</span>
             </div>`
                 : ""
             }
           </div>
 
-          <div class="fund-summary-actions-row">
-            <button class="fund-summary-action-btn" onclick="showFundHoldings('${fundKey}')">
-              <i class="fa-solid fa-eye"></i>
-              <span>View Holdings</span>
-              <span class="fund-summary-action-badge">${fund.holdings?.length || 0}</span>
+          <!-- Action links row -->
+          <div class="fdm-actions-row">
+            <button class="fdm-action-link" onclick="showFundHoldings('${fundKey}')">
+              <i class="fa-solid fa-eye"></i> View Holdings
+              <span class="fdm-action-badge">${fund.holdings?.length || 0}</span>
             </button>
-            <button class="fund-summary-action-btn${isSummaryCAS ? " fund-summary-action-btn--disabled" : ""}"
+            <span class="fdm-actions-sep"></span>
+            <button class="fdm-action-link${isSummaryCAS ? " fdm-action-link--disabled" : ""}"
               ${isSummaryCAS ? 'disabled title="Not available for Summary CAS"' : `onclick="showFundTransactions('${fundKey}', '${fund.folios.join(",")}')"`}>
-              <i class="fa-solid fa-exchange-alt"></i>
-              <span>View Transactions</span>
-              ${isSummaryCAS ? '<span class="fund-summary-action-badge" style="opacity:0.5">N/A</span>' : ""}
+              <i class="fa-solid fa-exchange-alt"></i> View Transactions
             </button>
           </div>
 
@@ -9292,6 +9350,23 @@ function showFundDetailsModal(
 
                   const simpleR = extendedData.simple_return || {};
 
+                  const _bmData = storageManager.getBenchmarkData();
+                  const _bmR = _bmData?.returns?.data || {};
+                  const _n50 = _bmR["nifty-50-tri"] || {};
+                  const _n500 = _bmR["nifty-500-tri"] || {};
+                  const getBm = (obj, period) => {
+                    const map = {
+                      "3M": "ret_3m",
+                      "6M": "ret_6m",
+                      "1Y": "ret_1y",
+                      "3Y": "ret_3y",
+                      "5Y": "ret_5y",
+                      "10Y": "ret_10y",
+                    };
+                    const k = map[period];
+                    return k ? (obj[k] ?? null) : null;
+                  };
+
                   const periods = [
                     {
                       label: "3M",
@@ -9299,7 +9374,6 @@ function showFundDetailsModal(
                       sip: sipR.return3m,
                       abs: simpleR.return3m,
                       cat: rs.cat_return3m,
-                      bench: null,
                     },
                     {
                       label: "6M",
@@ -9307,7 +9381,6 @@ function showFundDetailsModal(
                       sip: sipR.return6m,
                       abs: simpleR.return6m,
                       cat: rs.cat_return6m,
-                      bench: null,
                     },
                     {
                       label: "1Y",
@@ -9315,7 +9388,6 @@ function showFundDetailsModal(
                       sip: sipR.return1y,
                       abs: simpleR.return1y,
                       cat: rs.cat_return1y,
-                      bench: br.return1y ?? null,
                     },
                     {
                       label: "3Y",
@@ -9323,7 +9395,6 @@ function showFundDetailsModal(
                       sip: sipR.return3y,
                       abs: simpleR.return3y,
                       cat: rs.cat_return3y,
-                      bench: br.return3y ?? null,
                     },
                     {
                       label: "5Y",
@@ -9331,7 +9402,6 @@ function showFundDetailsModal(
                       sip: sipR.return5y,
                       abs: simpleR.return5y,
                       cat: rs.cat_return5y,
-                      bench: br.return5y ?? null,
                     },
                     {
                       label: "10Y",
@@ -9339,23 +9409,35 @@ function showFundDetailsModal(
                       sip: sipR.return10y,
                       abs: simpleR.return10y,
                       cat: rs.cat_return10y,
-                      bench: null,
                     },
-                  ];
+                  ].map((p) => ({
+                    ...p,
+                    bmN50: getBm(_n50, p.label),
+                    bmN500: getBm(_n500, p.label),
+                  }));
 
                   const rows = periods
-                    .map(
-                      (p) => `
+                    .map((p) => {
+                      const initBm =
+                        fdmActivePerfBm === "n50" ? p.bmN50 : p.bmN500;
+                      const fundNum =
+                        p.fund != null ? parseFloat(p.fund) : null;
+                      const bmNum = initBm != null ? parseFloat(initBm) : null;
+                      const outDiff =
+                        fundNum != null && bmNum != null
+                          ? fundNum - bmNum
+                          : null;
+                      return `
                     <tr class="perf-row">
                       <td class="perf-cell perf-cell--period">${p.label}</td>
                       <td class="perf-cell perf-val ${colorCls(p.fund)}">${fmtR(p.fund)}</td>
-                      <td class="perf-cell perf-val ${colorCls(p.sip)}">${fmtR(p.sip)}</td>
+                      <td class="perf-cell perf-val perf-cell--desktop ${colorCls(p.sip)}">${fmtR(p.sip)}</td>
                       <td class="perf-cell perf-val perf-cell--desktop ${colorCls(p.abs)}">${fmtR(p.abs)}</td>
                       <td class="perf-cell perf-val ${colorCls(p.cat)}">${fmtR(p.cat)}</td>
-                      <td class="perf-cell perf-val ${p.bench !== null && p.bench !== undefined ? colorCls(p.bench) : ""}">${p.bench !== null && p.bench !== undefined ? fmtR(p.bench) : "--"}</td>
-                      <td class="perf-cell perf-val perf-cell--out perf-cell--desktop ${outColorCls(p.fund, p.bench)}">${fmtOut(p.fund, p.bench)}</td>
-                    </tr>`,
-                    )
+                      <td class="perf-cell perf-val perf-bm-cell ${colorCls(initBm)}" data-fund="${fundNum ?? ""}" data-n50="${p.bmN50 ?? ""}" data-n500="${p.bmN500 ?? ""}">${fmtR(initBm)}</td>
+                      <td class="perf-cell perf-val perf-out-cell perf-cell--out ${outColorCls(p.fund, initBm)}">${fmtOut(p.fund, initBm)}</td>
+                    </tr>`;
+                    })
                     .join("");
 
                   const sinceCreated = rs.return_since_created;
@@ -9370,6 +9452,10 @@ function showFundDetailsModal(
             <div class="fund-chart-card-header">
               <span class="fund-chart-card-icon"><i class="fa-solid fa-chart-line"></i></span>
               <span class="fund-chart-card-title">Returns</span>
+              <div class="fdm-perf-bm-btns">
+                <button class="fdm-perf-bm-btn${fdmActivePerfBm === "n50" ? " active" : ""}" data-bm="n50" onclick="fdmUpdatePerfBm('n50', this)">N50</button>
+                <button class="fdm-perf-bm-btn${fdmActivePerfBm === "n500" ? " active" : ""}" data-bm="n500" onclick="fdmUpdatePerfBm('n500', this)">N500</button>
+              </div>
             </div>
             <div class="perf-table-wrapper">
               <table class="perf-table">
@@ -9377,11 +9463,11 @@ function showFundDetailsModal(
                   <tr class="perf-head-row">
                     <th class="perf-th perf-th--period">Period</th>
                     <th class="perf-th">Fund</th>
-                    <th class="perf-th">SIP</th>
+                    <th class="perf-th perf-th--desktop">SIP</th>
                     <th class="perf-th perf-th--desktop">Abs.</th>
                     <th class="perf-th">Category</th>
-                    <th class="perf-th">Benchmark</th>
-                    <th class="perf-th perf-th--out perf-th--desktop">Outperform</th>
+                    <th class="perf-th" id="fdm-vs-index-th">vs ${fdmActivePerfBm === "n50" ? "N50" : "N500"}</th>
+                    <th class="perf-th perf-th--out">Outperform</th>
                   </tr>
                 </thead>
                 <tbody>${rows}</tbody>
@@ -9590,7 +9676,7 @@ function showFundDetailsModal(
                 <span class="fund-stats-cell-value">${roundValueOrDash(extendedData.return_stats?.sortino_ratio, "-")}</span>
               </div>
               <div class="fund-stats-cell">
-                <span class="fund-stats-cell-label">Info Ratio</span>
+                <span class="fund-stats-cell-label">Info</span>
                 <span class="fund-stats-cell-value">${roundValueOrDash(extendedData.return_stats?.information_ratio, "-")}</span>
               </div>
               <div class="fund-stats-cell">
@@ -13040,6 +13126,7 @@ function populateCompactHoldings(funds) {
       if (fund.advancedMetrics?.folioSummaries) {
         Object.values(fund.advancedMetrics.folioSummaries).forEach(
           (folioSummary) => {
+            if ((folioSummary.remainingUnits || 0) <= 0) return;
             folioSummary.cashflows.forEach((cf) => {
               calc.addTransaction(cf.type, cf.date, Math.abs(cf.amount));
             });
@@ -13140,24 +13227,13 @@ function populateCompactHoldings(funds) {
     };
 
     item.innerHTML = `
-      <div class="chi-accent ${isProfit ? "chi-accent--gain" : "chi-accent--loss"}"></div>
       <div class="chi-body">
         <div class="chi-top">
           <div class="chi-left">
             <div class="chi-name">${fund.schemeDisplay || fund.scheme}</div>
             <div class="chi-stats-line">
-              <span class="chi-stat-pill ${oneDayPositive ? "chi-stat-pill--pos" : "chi-stat-pill--neg"}">
-                <span class="chi-stat-label">1D</span>
-                <span class="chi-stat-value">${oneDayText}</span>
-              </span>
-              ${
-                !isSummaryCAS
-                  ? `<span class="chi-stat-pill ${xirrVal < 0 ? "chi-stat-pill--neg" : "chi-stat-pill--pos"}">
-                <span class="chi-stat-label">XIRR</span>
-                <span class="chi-stat-value">${xirrText}</span>
-              </span>`
-                  : ""
-              }
+              <span class="chi-stat-inline ${oneDayPositive ? "chi-stat-inline--pos" : "chi-stat-inline--neg"}"><span class="chi-stat-label">1D:</span> ${oneDayText}</span>
+              ${!isSummaryCAS ? `<span class="chi-stat-sep">|</span><span class="chi-stat-inline ${xirrVal < 0 ? "chi-stat-inline--neg" : "chi-stat-inline--pos"}"><span class="chi-stat-label">XIRR:</span> ${xirrText}</span>` : ""}
             </div>
           </div>
           <div class="chi-right">
@@ -13223,16 +13299,12 @@ function populateCompactPastHoldings(fundsWithMetrics, listElement = null) {
     // Past holdings — no modal
 
     item.innerHTML = `
-      <div class="chi-accent ${isProfit ? "chi-accent--gain" : "chi-accent--loss"}"></div>
       <div class="chi-body">
         <div class="chi-top">
           <div class="chi-left">
             <div class="chi-name">${fund.schemeDisplay || fund.scheme}</div>
             <div class="chi-stats-line">
-              <span class="chi-stat-pill ${isProfit ? "chi-stat-pill--pos" : "chi-stat-pill--neg"}">
-                <span class="chi-stat-label">P&L</span>
-                <span class="chi-stat-value">${gainText}</span>
-              </span>
+              <span class="chi-stat-inline ${isProfit ? "chi-stat-inline--pos" : "chi-stat-inline--neg"}"><span class="chi-stat-label">P&L:</span> ${gainText}</span>
             </div>
           </div>
           <div class="chi-right">

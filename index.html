@@ -33,7 +33,7 @@
       })();
     </script>
     <!-- End Cloudflare Web Analytics -->
-    <link rel="stylesheet" href="styles.css?v=20260627b" />
+    <link rel="stylesheet" href="styles.css?v=20260628a" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -64,7 +64,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260627b" />
+    <link rel="manifest" href="/manifest.json?v=20260628a" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -254,7 +254,7 @@
             <div class="sidebar-group">
               <div class="sidebar-group-label">Portfolio</div>
               <button
-                class="sidebar-menu-item main-button active"
+                class="sidebar-menu-item main-button dashboard-button active"
                 onclick="
                   switchDashboardTab('dashboard');
                   closeMobileMenu();
@@ -265,7 +265,7 @@
                 <span>Dashboard</span>
               </button>
               <button
-                class="sidebar-menu-item health-score-button"
+                class="sidebar-menu-item health-score-button health-button"
                 onclick="
                   switchDashboardTab('health');
                   closeMobileMenu();
@@ -281,7 +281,7 @@
             <div class="sidebar-group">
               <div class="sidebar-group-label">Holdings</div>
               <button
-                class="sidebar-menu-item current-holding-button"
+                class="sidebar-menu-item current-holding-button current-holdings-button"
                 onclick="
                   switchDashboardTab('current-holdings');
                   closeMobileMenu();
@@ -292,7 +292,7 @@
                 <span>Current Holdings</span>
               </button>
               <button
-                class="sidebar-menu-item past-holding-button"
+                class="sidebar-menu-item past-holding-button past-holdings-button"
                 id="show-past-mobile"
                 onclick="
                   switchDashboardTab('past-holdings');
@@ -320,7 +320,7 @@
             <div class="sidebar-group">
               <div class="sidebar-group-label">Analytics</div>
               <button
-                class="sidebar-menu-item charts-button"
+                class="sidebar-menu-item charts-button performance-button"
                 onclick="
                   switchDashboardTab('performance');
                   closeMobileMenu();
@@ -1076,7 +1076,7 @@
             style="display: none"
           >
             <div class="hc-section-toggle-row">
-              <button class="hc-show-all-btn" onclick="toggleHcShowAll(this)">All Funds</button>
+              <button class="hc-show-all-btn" onclick="toggleHcShowAll(this)">Show All Funds</button>
             </div>
             <div class="hc-section-row">
               <div class="hc-card" id="hc-card-allocation">
@@ -1349,8 +1349,8 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260627b"></script>
-    <script src="utils.js?v=20260627b"></script>
-    <script src="scripts.js?v=20260627b"></script>
+    <script src="indexeddb-helper.js?v=20260628a"></script>
+    <script src="utils.js?v=20260628a"></script>
+    <script src="scripts.js?v=20260628a"></script>
   </body>
 </html>
