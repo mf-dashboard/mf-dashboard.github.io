@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -33,7 +33,7 @@
       })();
     </script>
     <!-- End Cloudflare Web Analytics -->
-    <link rel="stylesheet" href="styles.css?v=20260628a" />
+    <link rel="stylesheet" href="styles.css?v=20260629a" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -64,7 +64,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="MYMF" />
-    <link rel="manifest" href="/manifest.json?v=20260628a" />
+    <link rel="manifest" href="/manifest.json?v=20260629a" />
     <link rel="apple-touch-startup-image" href="/img/apple-touch-icon.png" />
   </head>
   <body>
@@ -114,7 +114,7 @@
             </div>
             <div class="topbar-divider topbar-divider--meta"></div>
 
-            <!-- ⋮ menu — always visible -->
+            <!-- â‹® menu â€” always visible -->
             <button
               class="topbar-overflow-btn"
               id="topbarOverflowBtn"
@@ -714,7 +714,7 @@
           </div>
         </section>
         <section id="dashboard">
-          <!-- ── Mobile-only summary card (Dashboard tab) ── -->
+          <!-- â”€â”€ Mobile-only summary card (Dashboard tab) â”€â”€ -->
           <div class="compact-dashboard" id="mainMobileSummary">
             <div class="compact-summary-card">
               <div class="compact-header">
@@ -750,7 +750,7 @@
               </div>
             </div>
           </div>
-          <!-- ── 5-cell summary strip ── -->
+          <!-- â”€â”€ 5-cell summary strip â”€â”€ -->
           <div class="summary-cards">
             <div class="card">
               <h3>Current Value</h3>
@@ -783,7 +783,7 @@
             </div>
           </div>
 
-          <!-- ── Portfolio Overview (3-col) ── -->
+          <!-- â”€â”€ Portfolio Overview (3-col) â”€â”€ -->
           <div class="dash-section-divider">Portfolio Overview</div>
           <div class="dash-main-grid">
             <!-- Health snippet -->
@@ -838,7 +838,7 @@
             </div>
           </div>
 
-          <!-- ── Insights at a glance (3 colored-border cards) ── -->
+          <!-- â”€â”€ Insights at a glance (3 colored-border cards) â”€â”€ -->
           <div class="dash-section-divider">Insights at a glance</div>
           <div class="dash-insights-row" id="dashInsightsCard">
             <div class="dash-snippet-loading">
@@ -846,7 +846,7 @@
             </div>
           </div>
 
-          <!-- ── Milestones & Monthly Flow ── -->
+          <!-- â”€â”€ Milestones & Monthly Flow â”€â”€ -->
           <div class="dash-section-divider" id="dashMilestoneDivider">
             Portfolio Journey
           </div>
@@ -880,7 +880,7 @@
             </div>
           </div>
 
-          <!-- ── Holdings intelligence ── -->
+          <!-- â”€â”€ Holdings intelligence â”€â”€ -->
           <div class="dash-section-divider">Holdings Intelligence</div>
           <div class="dash-section-card" id="dashHoldingsCard">
             <div class="dash-section-card-header">
@@ -1054,15 +1054,40 @@
               </div>
             </div>
             <div class="compact-controls">
-              <span class="compact-controls-label">Sort by</span>
-              <div class="compact-sort-chips">
-                <button
-                  class="compact-filter-btn"
-                  onclick="toggleCompactSort()"
-                >
-                  <span>Current Value</span>
-                  <i class="fa-solid fa-arrow-right-arrow-left fa-xs"></i>
-                </button>
+              <div
+                class="compact-view-group"
+                id="compactViewGroup"
+                style="display: none"
+              >
+                <span class="compact-controls-label">View</span>
+                <div class="compact-sort-chips">
+                  <button
+                    class="compact-filter-btn compact-view-btn active"
+                    id="compactViewTop10Btn"
+                    onclick="setCompactView('top10')"
+                  >
+                    Top 10
+                  </button>
+                  <button
+                    class="compact-filter-btn compact-view-btn"
+                    id="compactViewAllBtn"
+                    onclick="setCompactView('all')"
+                  >
+                    All
+                  </button>
+                </div>
+              </div>
+              <div class="compact-sort-group">
+                <span class="compact-controls-label">Sort by</span>
+                <div class="compact-sort-chips">
+                  <button
+                    class="compact-filter-btn active"
+                    onclick="toggleCompactSort()"
+                  >
+                    <span>Current Value</span>
+                    <i class="fa-solid fa-arrow-right-arrow-left fa-xs"></i>
+                  </button>
+                </div>
               </div>
             </div>
             <div class="compact-holdings-list" id="compactHoldingsList"></div>
@@ -1075,9 +1100,6 @@
             id="holdingsChartsSection"
             style="display: none"
           >
-            <div class="hc-section-toggle-row">
-              <button class="hc-show-all-btn" onclick="toggleHcShowAll(this)">Show All Funds</button>
-            </div>
             <div class="hc-section-row">
               <div class="hc-card" id="hc-card-allocation">
                 <div class="hc-header">
@@ -1180,7 +1202,7 @@
               >Expense ratios use the <strong>30-day median</strong> to smooth
               daily reporting spikes. Daily TER figures may appear elevated on
               certain dates due to SEBI's accrual-based reporting (effective Apr
-              2026) — your actual annual cost is unaffected.</span
+              2026) â€” your actual annual cost is unaffected.</span
             >
           </div>
         </section>
@@ -1349,8 +1371,8 @@
         </section>
       </div>
     </div>
-    <script src="indexeddb-helper.js?v=20260628a"></script>
-    <script src="utils.js?v=20260628a"></script>
-    <script src="scripts.js?v=20260628a"></script>
+    <script src="indexeddb-helper.js?v=20260629a"></script>
+    <script src="utils.js?v=20260629a"></script>
+    <script src="scripts.js?v=20260629a"></script>
   </body>
 </html>

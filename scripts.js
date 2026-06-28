@@ -3559,6 +3559,7 @@ function displayAssetAllocation(assetAllocation) {
 
 function displayMarketCapSplit(marketCap, assetAllocation, totalValue) {
   const marketCapCard = document.getElementById("marketCapCard");
+  if (!marketCapCard) return;
   const domesticEquityPct = assetAllocation["domestic equity"] || 0;
 
   if (domesticEquityPct <= 0) {
@@ -4128,10 +4129,6 @@ function displayWeightedReturns(wr, containerId = "weightedReturnsContainer") {
     card.innerHTML = ` <div class="wr-period-header"> <span class="wr-period-label"> ${p.label} Weighted Return </span> <span class="return-value ${portfolioCls} wr-portfolio-val"> ${portfolioFmt} </span> </div> <div class="wr-bars"> ${barsHtml} </div> <div class="wr-divider"></div> <div class="wr-alpha-rows"> <div class="wr-alpha-row"> <span class="wr-alpha-label">vs Nifty 50</span> ${alphaPill(p.alphaN50, alphaN50Str)} </div> <div class="wr-alpha-row"> <span class="wr-alpha-label">vs Nifty 500</span> ${alphaPill(p.alphaN500, alphaN500Str)} </div> </div> `;
     container.appendChild(card);
   });
-  const legend = document.createElement("div");
-  legend.className = "wr-legend";
-  legend.innerHTML = ` <span class="wr-legend-item"> <span class="wr-legend-dot" style="background:var(--wr-portfolio-color);"> </span> Portfolio </span> <span class="wr-legend-item"> <span class="wr-legend-dot" style="background:var(--wr-n50-color);"> </span> Nifty 50 </span> <span class="wr-legend-item"> <span class="wr-legend-dot" style="background:var(--wr-n500-color);"> </span> Nifty 500 </span> <span class="wr-legend-sep"></span> <span class="wr-legend-item"> <span class="wr-alpha-pill wr-alpha-pos" style="font-size:11px;"> ▲ +X% </span> &nbsp;Outperformance (alpha) </span> `;
-  container.appendChild(legend);
 }
 
 function displayCapitalGains() {
@@ -7023,6 +7020,7 @@ let perfActiveBenchmark = "n50"; // default benchmark for comparison
 let fdmActivePerfBm = "n50"; // benchmark selector state for fund details modal perf card
 let perfActiveFundsCache = []; // { name, trailing, rolling } per active fund
 let hcShowAll = false; // toggle: show all funds vs top 10 in allocation + perf cards
+let compactViewAll = false; // toggle: show all vs top 10 in compact holdings list
 
 const HC_COLORS = [
   "#9a6b46",
@@ -7337,9 +7335,81 @@ function fdmUpdatePerfBm(key, el) {
 }
 
 function toggleHcShowAll(btn) {
-  hcShowAll = !hcShowAll;
-  btn.textContent = hcShowAll ? "Show Top 10" : "Show All Funds";
+  const isTop10 = btn.id === "hcViewTop10Btn";
+  hcShowAll = !isTop10;
+  document
+    .getElementById("hcViewTop10Btn")
+    ?.classList.toggle("active", !hcShowAll);
+  document
+    .getElementById("hcViewAllBtn")
+    ?.classList.toggle("active", hcShowAll);
+  // Toggle currentFolioGrid rows
+  const currentGrid = document.getElementById("currentFolioGrid");
+  if (currentGrid) {
+    const tbody = currentGrid.querySelector("tbody");
+    const items = tbody
+      ? Array.from(tbody.querySelectorAll("tr"))
+      : Array.from(currentGrid.children);
+    items
+      .slice(PAST_HOLDINGS_LIMIT)
+      .forEach((el) => el.classList.toggle(PAST_LIMIT_CLASS, !hcShowAll));
+  }
   renderHoldingsCharts();
+}
+
+function togglePastDesktopView(mode) {
+  const expanded = mode === "all";
+  document
+    .getElementById("pastDesktopViewTop10Btn")
+    ?.classList.toggle("active", !expanded);
+  document
+    .getElementById("pastDesktopViewAllBtn")
+    ?.classList.toggle("active", expanded);
+  const pastRedeemedGrid = document.getElementById("pastRedeemedGrid");
+  if (pastRedeemedGrid) {
+    const tbody = pastRedeemedGrid.querySelector("tbody");
+    const items = tbody
+      ? Array.from(tbody.querySelectorAll("tr"))
+      : Array.from(pastRedeemedGrid.children);
+    items
+      .slice(PAST_HOLDINGS_LIMIT)
+      .forEach((el) => el.classList.toggle(PAST_LIMIT_CLASS, !expanded));
+  }
+}
+
+function setCompactView(mode) {
+  compactViewAll = mode === "all";
+  const list = document.getElementById("compactHoldingsList");
+  if (list) {
+    Array.from(list.children)
+      .slice(PAST_HOLDINGS_LIMIT)
+      .forEach((el) => el.classList.toggle(PAST_LIMIT_CLASS, !compactViewAll));
+  }
+  document
+    .getElementById("compactViewTop10Btn")
+    ?.classList.toggle("active", !compactViewAll);
+  document
+    .getElementById("compactViewAllBtn")
+    ?.classList.toggle("active", compactViewAll);
+  // Sync charts section
+  hcShowAll = compactViewAll;
+  renderHoldingsCharts();
+}
+
+function setCompactPastView(mode) {
+  const expanded = mode === "all";
+  const list = document.getElementById("compactPastFundsList");
+  if (list) {
+    Array.from(list.children)
+      .slice(PAST_HOLDINGS_LIMIT)
+      .forEach((el) => el.classList.toggle(PAST_LIMIT_CLASS, !expanded));
+  }
+  document
+    .getElementById("compactPastViewTop10Btn")
+    ?.classList.toggle("active", !expanded);
+  document
+    .getElementById("compactPastViewAllBtn")
+    ?.classList.toggle("active", expanded);
 }
 
 function renderHoldingsCharts() {
@@ -7359,10 +7429,6 @@ function renderHoldingsCharts() {
     return;
   }
   section.style.display = "";
-
-  const toggleRow = document.querySelector(".hc-section-toggle-row");
-  if (toggleRow)
-    toggleRow.style.display = activeFunds.length > 10 ? "" : "none";
 
   // --- allocation bars (top 9 + Others if > 10, unless hcShowAll) ---
   const totalValue = activeFunds.reduce(
@@ -7445,12 +7511,12 @@ function renderHoldingsCharts() {
         d.toLocaleString("en-IN", { month: "short", year: "numeric" });
       const duration = (d) => {
         const now = new Date();
-        let mo =
+        const totalMo =
           (now.getFullYear() - d.getFullYear()) * 12 +
           (now.getMonth() - d.getMonth());
-        const yr = Math.floor(mo / 12);
-        mo = mo % 12;
-        return yr > 0 ? `${yr} yr${yr > 1 ? "s" : ""} ${mo} mo` : `${mo} mo`;
+        const yr = Math.floor(totalMo / 12);
+        const mo = totalMo % 12;
+        return yr > 0 ? `${yr}y ${mo}m` : `${mo}m`;
       };
       const tile = (badge, cls, fund, date) => `
         <div class="hc-tenure-tile">
@@ -7565,6 +7631,15 @@ function updateFundBreakdown() {
   } else {
     wrapGridInTable(currentGrid);
     applyFltSortIndicator(currentGrid);
+    if (!hcShowAll) {
+      const curTbody = currentGrid.querySelector("tbody");
+      const curItemsLimit = curTbody
+        ? Array.from(curTbody.querySelectorAll("tr"))
+        : Array.from(currentGrid.children);
+      curItemsLimit
+        .slice(PAST_HOLDINGS_LIMIT)
+        .forEach((el) => el.classList.add(PAST_LIMIT_CLASS));
+    }
   }
 
   renderHoldingsToolbar(currentGrid, "current", {
@@ -7573,6 +7648,26 @@ function updateFundBreakdown() {
     value: curValue,
     gain: curGain,
   });
+
+  // Insert desktop view group just before currentFolioGrid (after toolbar)
+  document.getElementById("hcDesktopViewGroup")?.remove();
+  const curTbodyVG = currentGrid.querySelector("tbody");
+  const curItems = curTbodyVG
+    ? Array.from(curTbodyVG.querySelectorAll("tr"))
+    : Array.from(currentGrid.children);
+  if (curItems.length > PAST_HOLDINGS_LIMIT) {
+    const vg = document.createElement("div");
+    vg.className = "hc-desktop-view-group";
+    vg.id = "hcDesktopViewGroup";
+    vg.innerHTML = `<div class="compact-view-group">
+      <span class="compact-controls-label">View</span>
+      <div class="compact-sort-chips">
+        <button class="compact-filter-btn compact-view-btn ${!hcShowAll ? "active" : ""}" id="hcViewTop10Btn" onclick="toggleHcShowAll(this)">Top 10</button>
+        <button class="compact-filter-btn compact-view-btn ${hcShowAll ? "active" : ""}" id="hcViewAllBtn" onclick="toggleHcShowAll(this)">All ${curItems.length}</button>
+      </div>
+    </div>`;
+    currentGrid.insertAdjacentElement("beforebegin", vg);
+  }
 
   renderHoldingsCharts();
 
@@ -7614,7 +7709,14 @@ function updateFundBreakdown() {
     wrapGridInTable(pastRedeemedGrid);
     sortFltTable("pastRedeemedGrid", "pnl");
     applyFltSortIndicator(pastRedeemedGrid);
-    applyPastHoldingsLimit(pastRedeemedGrid);
+    // Apply Top 10 limit
+    const pastTbody = pastRedeemedGrid.querySelector("tbody");
+    const pastItems = pastTbody
+      ? Array.from(pastTbody.querySelectorAll("tr"))
+      : Array.from(pastRedeemedGrid.children);
+    pastItems
+      .slice(PAST_HOLDINGS_LIMIT)
+      .forEach((el) => el.classList.add(PAST_LIMIT_CLASS));
 
     renderHoldingsToolbar(pastGrid, "past", {
       count: pastCount,
@@ -7622,6 +7724,22 @@ function updateFundBreakdown() {
       value: pastWithdrawn,
       gain: pastGain,
     });
+
+    // Insert desktop view group just before pastRedeemedGrid (after toolbar)
+    document.getElementById("pastDesktopViewGroup")?.remove();
+    if (pastItems.length > PAST_HOLDINGS_LIMIT) {
+      const pvg = document.createElement("div");
+      pvg.className = "hc-desktop-view-group";
+      pvg.id = "pastDesktopViewGroup";
+      pvg.innerHTML = `<div class="compact-view-group">
+        <span class="compact-controls-label">View</span>
+        <div class="compact-sort-chips">
+          <button class="compact-filter-btn compact-view-btn active" id="pastDesktopViewTop10Btn" onclick="togglePastDesktopView('top10')">Top 10</button>
+          <button class="compact-filter-btn compact-view-btn" id="pastDesktopViewAllBtn" onclick="togglePastDesktopView('all')">All ${pastItems.length}</button>
+        </div>
+      </div>`;
+      pastRedeemedGrid.insertAdjacentElement("beforebegin", pvg);
+    }
   } else {
     pastSection?.classList.remove("hidden");
     pastSectionMobile?.classList.remove("hidden");
@@ -8029,6 +8147,67 @@ function createFundCardForFolios(
 
   const statusLabel = "";
 
+  // Compute tenure info for meta line
+  let heldYrsStr = null;
+  let exitedStr = null;
+  let sinceStr = null;
+  let tenureStr = null;
+  {
+    let firstBuy = null;
+    let lastSell = null;
+    targetFolioSummaries.forEach((fs) => {
+      (fs.cashflows || []).forEach((cf) => {
+        const d = new Date(cf.date);
+        if (cf.type === "Buy" && (!firstBuy || d < firstBuy)) firstBuy = d;
+        if (cf.type === "Sell" && (!lastSell || d > lastSell)) lastSell = d;
+      });
+    });
+    if (!isActive) {
+      if (firstBuy && lastSell) {
+        const totalMo =
+          (lastSell.getFullYear() - firstBuy.getFullYear()) * 12 +
+          (lastSell.getMonth() - firstBuy.getMonth());
+        const yr = Math.floor(totalMo / 12);
+        const mo = totalMo % 12;
+        heldYrsStr = yr > 0 ? `${yr}y ${mo}m` : `${mo}m`;
+      }
+      if (lastSell) {
+        exitedStr = lastSell.toLocaleString("en-IN", {
+          month: "short",
+          year: "numeric",
+        });
+      }
+    } else {
+      // For active tenure, only consider folios still holding units
+      let activeFirstBuy = null;
+      targetFolioSummaries.forEach((fs) => {
+        if ((fs.remainingUnits || 0) <= 0) return;
+        (fs.cashflows || []).forEach((cf) => {
+          const d = new Date(cf.date);
+          if (cf.type === "Buy" && (!activeFirstBuy || d < activeFirstBuy))
+            activeFirstBuy = d;
+        });
+      });
+      if (activeFirstBuy) {
+        sinceStr = activeFirstBuy.toLocaleString("en-IN", {
+          month: "short",
+          year: "numeric",
+        });
+        const now = new Date();
+        const totalMo =
+          (now.getFullYear() - activeFirstBuy.getFullYear()) * 12 +
+          (now.getMonth() - activeFirstBuy.getMonth());
+        const yr = Math.floor(totalMo / 12);
+        const mo = totalMo % 12;
+        tenureStr = yr > 0 ? `${yr}y ${mo}m` : `${mo}m`;
+      }
+    }
+  }
+
+  const activeFolioCount = isActive
+    ? targetFolioSummaries.filter((fs) => (fs.remainingUnits || 0) > 0).length
+    : folioNumbers.length;
+
   const modifiedFund = {
     ...fund,
     folios: folioNumbers,
@@ -8052,6 +8231,11 @@ function createFundCardForFolios(
     xirrText,
     statusLabel,
     isActive,
+    heldYrsStr,
+    exitedStr,
+    sinceStr,
+    tenureStr,
+    activeFolioCount,
   );
 }
 function createFundCardWithTransactions(
@@ -8072,6 +8256,11 @@ function createFundCardWithTransactions(
   xirrText,
   statusLabel,
   isActive = true,
+  heldYrsStr = null,
+  exitedStr = null,
+  sinceStr = null,
+  tenureStr = null,
+  activeFolioCount = null,
 ) {
   const card = document.createElement("tr");
   if (isActive && current > 0) {
@@ -8216,6 +8405,20 @@ function createFundCardWithTransactions(
       ? ` · ${parseFloat(remainingUnits).toFixed(3)} units`
       : "";
 
+  const folioCount = activeFolioCount ?? displayFolios.length;
+  const folioCountStr = `${folioCount} ${folioCount === 1 ? "folio" : "folios"}`;
+  const metaLine = isActive
+    ? [folioCountStr, sinceStr ? `Since ${sinceStr}` : null, tenureStr || null]
+        .filter(Boolean)
+        .join(" · ")
+    : [
+        folioCountStr,
+        heldYrsStr ? `Held ${heldYrsStr}` : null,
+        exitedStr ? `Exited ${exitedStr}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+
   // Must use createElement for each td — browsers strip td innerHTML set directly on a tr
   const cells = [
     // Fund name + meta
@@ -8223,7 +8426,7 @@ function createFundCardWithTransactions(
       ${logoHTML}
       <div class="flt-fund-text">
         <span class="flt-fund-name" title="${displayName}">${displayName}</span>
-        <span class="flt-fund-meta">${amcShortName} · ${displayFolios.length} ${displayFolios.length === 1 ? "folio" : "folios"}${unitsMetaStr}</span>
+        <span class="flt-fund-meta">${metaLine}</span>
       </div>
     </div>`,
     // Current value + invested sub
@@ -8865,6 +9068,26 @@ function showFundDetailsModal(
             ? fmtR(totalTax)
             : "₹0";
 
+      const waitBannerHTML =
+        earliestStcg &&
+        earliestStcg.daysLeft > 0 &&
+        earliestStcg.stcgTaxOnLot > 0
+          ? `<div class="ftax-insight ftax-insight--wait">
+             <i class="fa-solid fa-clock" aria-hidden="true"></i>
+             <span>Wait <strong>${earliestStcg.daysLeft}d</strong> (until ${turnDateStr}) — saves ~<strong>${fmtR(earliestStcg.stcgTaxOnLot)}</strong> in tax as units cross ${threshLabel} threshold</span>
+           </div>`
+          : "";
+      const exitLoadBannerHTML = exitLoadDisplay
+        ? `<div class="ftax-insight ftax-insight--load">
+             <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
+             <span>Exit load of <strong>${exitLoadDisplay.replace(/^Exit load of\s*/i, "").replace(/^1%,?/i, "1%")}</strong></span>
+           </div>`
+        : "";
+      const insightsHTML =
+        waitBannerHTML || exitLoadBannerHTML
+          ? `<div class="ftax-insights-row">${waitBannerHTML}${exitLoadBannerHTML}</div>`
+          : "";
+
       taxExitHTML = `
         <div class="fund-tax-exit-section">
           <div class="fund-tax-exit-header">
@@ -8872,50 +9095,44 @@ function showFundDetailsModal(
             Tax-aware exit
             <span class="fund-tax-exit-badge">If you exit today</span>
           </div>
-          <div class="fund-tax-inline-row">
-            <span class="ftir-item">
-              <span class="ftir-lbl">STCG &lt;${threshLabel}</span>
-              <span class="ftir-val ${stcgGain >= 0 ? "positive" : "negative"}">${fmtR(stcgGain)}</span>
-              <span class="ftir-sub">(${stcgTaxStr})</span>
-            </span>
-            <span class="ftir-sep">|</span>
-            <span class="ftir-item">
-              <span class="ftir-lbl">LTCG &gt;${threshLabel}</span>
-              <span class="ftir-val ${ltcgGain >= 0 ? "positive" : "negative"}">${fmtR(ltcgGain)}</span>
-              <span class="ftir-sub">(${ltcgTaxStr})</span>
-            </span>
-            <span class="ftir-sep">|</span>
-            <span class="ftir-item">
-              <span class="ftir-lbl">Est. tax</span>
-              <span class="ftir-val fund-tax-outcome-val--warn">${totalTaxStr}</span>
-            </span>
+          <div class="ftax-cards-row">
+            <div class="ftax-card">
+              <div class="ftax-card-lbl">STCG &lt;${threshLabel}</div>
+              <div class="ftax-card-val ${stcgGain >= 0 ? "fund-tax-outcome-val--net" : "fund-tax-outcome-val--warn"}">${fmtR(stcgGain)}</div>
+              <div class="ftax-card-sub ${stcgGain > 0 ? "fund-tax-outcome-val--warn" : "tax-nil"}">${stcgTaxStr}</div>
+            </div>
+            <div class="ftax-card">
+              <div class="ftax-card-lbl">LTCG &gt;${threshLabel}</div>
+              <div class="ftax-card-val ${ltcgGain >= 0 ? "fund-tax-outcome-val--net" : "fund-tax-outcome-val--warn"}">${fmtR(ltcgGain)}</div>
+              <div class="ftax-card-sub ${ltcgTax === 0 ? "tax-nil" : "fund-tax-outcome-val--warn"}">${ltcgTaxStr}</div>
+            </div>
+            <div class="ftax-card ftax-card--highlight">
+              <div class="ftax-card-lbl">Est. tax</div>
+              <div class="ftax-card-val fund-tax-outcome-val--warn">${totalTaxStr}</div>
+              <div class="ftax-card-sub">${(() => {
+                const net = (stcgGain || 0) + (ltcgGain || 0);
+                return net >= 0
+                  ? `on ${fmtR(net)} gains`
+                  : `<span class="fund-tax-outcome-val--warn">net loss ${fmtR(net)}</span>`;
+              })()}</div>
+            </div>
             ${
               exitLoadAmount > 0
                 ? `
-            <span class="ftir-sep">|</span>
-            <span class="ftir-item">
-              <span class="ftir-lbl">Exit load</span>
-              <span class="ftir-val fund-tax-outcome-val--warn">${fmtR(exitLoadAmount)}</span>
-            </span>`
+            <div class="ftax-card">
+              <div class="ftax-card-lbl">Exit load</div>
+              <div class="ftax-card-val fund-tax-outcome-val--warn">${fmtR(exitLoadAmount)}</div>
+              <div class="ftax-card-sub">if redeemed early</div>
+            </div>`
                 : ""
             }
-            <span class="ftir-sep">|</span>
-            <span class="ftir-item">
-              <span class="ftir-lbl">Net proceeds</span>
-              <span class="ftir-val fund-tax-outcome-val--net">${fmtR(netProceeds)}</span>
-            </span>
+            <div class="ftax-card">
+              <div class="ftax-card-lbl">Net proceeds</div>
+              <div class="ftax-card-val fund-tax-outcome-val--net">${fmtR(netProceeds)}</div>
+              <div class="ftax-card-sub">after tax + load</div>
+            </div>
           </div>
-          ${exitLoadDisplay ? `<div class="fund-tax-exit-load"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span class="fund-tax-exit-load-label">Exit load</span><span class="fund-tax-exit-load-val">${exitLoadDisplay}</span></div>` : ""}
-          ${
-            earliestStcg &&
-            earliestStcg.daysLeft > 0 &&
-            earliestStcg.stcgTaxOnLot > 0
-              ? `<div class="fund-tax-wait-banner">
-                <i class="fa-solid fa-clock" aria-hidden="true"></i>
-                <span>Wait <strong>${earliestStcg.daysLeft}d</strong> (until ${turnDateStr}) — saves ~<strong>${fmtR(earliestStcg.stcgTaxOnLot)}</strong> in tax.</span>
-               </div>`
-              : ""
-          }
+          ${insightsHTML}
         </div>`;
     }
   }
@@ -9160,6 +9377,43 @@ function showFundDetailsModal(
             })()}
           </div>
           ${(() => {
+            const folioSummaries = Object.values(
+              fund.advancedMetrics?.folioSummaries || {},
+            );
+            const activeFolios = isPastHolding
+              ? folioSummaries
+              : folioSummaries.filter((fs) => (fs.remainingUnits || 0) > 0);
+            let firstBuy = null;
+            let lastSell = null;
+            activeFolios.forEach((fs) => {
+              (fs.cashflows || []).forEach((cf) => {
+                const d = new Date(cf.date);
+                if (cf.type === "Buy" && (!firstBuy || d < firstBuy))
+                  firstBuy = d;
+                if (cf.type === "Sell" && (!lastSell || d > lastSell))
+                  lastSell = d;
+              });
+            });
+            const refDate = isPastHolding ? lastSell : new Date();
+            if (!firstBuy || !refDate) return "";
+            const totalMo =
+              (refDate.getFullYear() - firstBuy.getFullYear()) * 12 +
+              (refDate.getMonth() - firstBuy.getMonth());
+            const yr = Math.floor(totalMo / 12);
+            const mo = totalMo % 12;
+            const tenureStr = yr > 0 ? `${yr}y ${mo}m` : `${mo}m`;
+            const sinceStr = firstBuy.toLocaleString("en-IN", {
+              month: "short",
+              year: "numeric",
+            });
+            const exitedStr =
+              isPastHolding && lastSell
+                ? ` · Exited ${lastSell.toLocaleString("en-IN", { month: "short", year: "numeric" })}`
+                : "";
+            const heldSuffix = isPastHolding ? ` held${exitedStr}` : "";
+            return `<span class="fdm-meta-divider"></span><span class="fdm-tenure-tag">Since <span style="font-weight:500;color:var(--text-secondary)">${sinceStr} · ${tenureStr}</span>${heldSuffix}</span>`;
+          })()}
+          ${(() => {
             const riskNumeric = extendedData?.return_stats?.risk_rating ?? null;
             const riskLevels = [
               "Low",
@@ -9221,7 +9475,7 @@ function showFundDetailsModal(
             <div class="fdm-stat">
               <span class="fdm-stat-l">P&amp;L</span>
               <span class="fdm-stat-v ${unrealizedGain >= 0 ? "gain" : "loss"}">₹${formatNumber(Math.abs(unrealizedGain))}</span>
-              <span class="fdm-stat-s ${unrealizedGain >= 0 ? "gain" : "loss"}">${unrealizedGain >= 0 ? "▲ +" : "▼ "}${Math.abs(unrealizedGainPercentage)}%</span>
+              <span class="fdm-stat-s ${unrealizedGain >= 0 ? "gain" : "loss"}">${unrealizedGain >= 0 ? "▲ +" : "▼ -"}${Math.abs(unrealizedGainPercentage)}%</span>
             </div>
             <div class="fdm-stat">
               <span class="fdm-stat-l">XIRR</span>
@@ -13070,7 +13324,7 @@ function updateCompactPastDashboard() {
           <span class="stat-value">₹${formatNumber(totalInvested)}</span>
         </div>
         <div class="compact-stat-row">
-          <span class="stat-label">Realised P&amp;L</span>
+          <span class="stat-label">Realized P&amp;L</span>
           <div class="stat-value-line">
             <span class="stat-value ${pastPnlClass}">₹${formatNumber(Math.abs(totalRealizedGain))}</span>
             <span class="stat-sub ${pastPnlClass}">(${pastPnlSign}${Math.abs(parseFloat(realizedGainPercent).toFixed(2))}%)</span>
@@ -13080,11 +13334,25 @@ function updateCompactPastDashboard() {
     </div>
 
     <div class="compact-controls past-sort">
-    <span class="compact-controls-label">Sort by</span>
-      <button class="compact-filter-btn" onclick="toggleCompactPastSort()">
-        <i class="fa-solid fa-sort"></i>
-        <span>Returns</span>
-      </button>
+      ${
+        pastFundsWithMetrics.length > 10
+          ? `
+      <div class="compact-view-group" id="compactPastViewGroup">
+        <span class="compact-controls-label">View</span>
+        <div class="compact-sort-chips">
+          <button class="compact-filter-btn compact-view-btn active" id="compactPastViewTop10Btn" onclick="setCompactPastView('top10')">Top 10</button>
+          <button class="compact-filter-btn compact-view-btn" id="compactPastViewAllBtn" onclick="setCompactPastView('all')">All ${pastFundsWithMetrics.length}</button>
+        </div>
+      </div>`
+          : ""
+      }
+      <div class="compact-sort-group">
+        <span class="compact-controls-label">Sort by</span>
+        <button class="compact-filter-btn active" onclick="toggleCompactPastSort()">
+          <i class="fa-solid fa-sort"></i>
+          <span>Returns</span>
+        </button>
+      </div>
     </div>
   `;
 
@@ -13109,6 +13377,46 @@ function updateCompactHeaderSubtitle(mfValue) {
   if (subtitle) {
     subtitle.remove();
   }
+}
+
+const CHI_BADGE_PALETTES = [
+  { bg: "rgba(154,107,70,0.15)", color: "#7a5234" },
+  { bg: "rgba(47,143,91,0.12)", color: "#1e6b3f" },
+  { bg: "rgba(198,90,82,0.1)", color: "#a04040" },
+  { bg: "rgba(55,138,221,0.12)", color: "#145c9e" },
+  { bg: "rgba(83,74,183,0.12)", color: "#3a3384" },
+  { bg: "rgba(201,135,45,0.15)", color: "#8a5c10" },
+];
+
+function getChiBadge(fund) {
+  const logoUrl = mfStats?.[fund.isin]?.logo_url;
+  if (logoUrl) {
+    return `<div class="chi-badge chi-badge--logo"><img src="${logoUrl}" class="chi-badge-img" alt="" loading="lazy"></div>`;
+  }
+  const name = fund.scheme || "";
+  const clean = name
+    .replace(
+      /\b(Mutual Fund|Direct|Regular|Growth|Plan|Option|Fund|Scheme)\b/gi,
+      "",
+    )
+    .trim();
+  const words = clean.split(/\s+/).filter(Boolean);
+  let initials;
+  if (words.length === 0) initials = "?";
+  else if (words.length === 1) initials = words[0].slice(0, 2).toUpperCase();
+  else if (words.length === 2)
+    initials = (words[0][0] + words[1][0]).toUpperCase();
+  else
+    initials = words
+      .slice(0, 3)
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase();
+  let hash = 0;
+  for (let i = 0; i < name.length; i++)
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  const p = CHI_BADGE_PALETTES[Math.abs(hash) % CHI_BADGE_PALETTES.length];
+  return `<div class="chi-badge" style="background:${p.bg};color:${p.color}">${initials}</div>`;
 }
 
 function populateCompactHoldings(funds) {
@@ -13215,8 +13523,9 @@ function populateCompactHoldings(funds) {
     const oneDayReturn = fund.oneDayReturn;
     const oneDayPositive = !oneDayReturn || oneDayReturn.percent >= 0;
     const odSign = oneDayPositive ? "+" : "-";
+    const odArrow = oneDayPositive ? "▲" : "▼";
     const oneDayText = oneDayReturn
-      ? `₹${formatNumber(Math.abs(oneDayReturn.rupees))} (${odSign}${Math.abs(oneDayReturn.percent.toFixed(2))}%)`
+      ? `${odArrow} ${fmtAbbr(Math.abs(oneDayReturn.rupees))} (${odSign}${Math.abs(oneDayReturn.percent.toFixed(2))}%)`
       : "--";
 
     const item = document.createElement("div");
@@ -13226,28 +13535,58 @@ function populateCompactHoldings(funds) {
       showFundDetailsModal(fundKey, false);
     };
 
+    const gainAbbrText =
+      returns === 0
+        ? "--"
+        : `${returnsSign}${fmtAbbr(Math.abs(returns))} (${returnsSign}${Math.abs(returnsPercent.toFixed(2))}%)`;
     item.innerHTML = `
-      <div class="chi-body">
-        <div class="chi-top">
-          <div class="chi-left">
+      <div class="chi-body chi-body--card">
+        <div class="chi-card-top">
+          ${getChiBadge(fund)}
+          <div class="chi-info">
             <div class="chi-name">${fund.schemeDisplay || fund.scheme}</div>
             <div class="chi-stats-line">
               <span class="chi-stat-inline ${oneDayPositive ? "chi-stat-inline--pos" : "chi-stat-inline--neg"}"><span class="chi-stat-label">1D:</span> ${oneDayText}</span>
-              ${!isSummaryCAS ? `<span class="chi-stat-sep">|</span><span class="chi-stat-inline ${xirrVal < 0 ? "chi-stat-inline--neg" : "chi-stat-inline--pos"}"><span class="chi-stat-label">XIRR:</span> ${xirrText}</span>` : ""}
+              ${!isSummaryCAS ? `<span class="chi-stat-sep">·</span><span class="chi-stat-inline ${xirrVal < 0 ? "chi-stat-inline--neg" : "chi-stat-inline--pos"}"><span class="chi-stat-label">XIRR:</span> ${xirrText}</span>` : ""}
             </div>
           </div>
-          <div class="chi-right">
-            <div class="chi-current ${isProfit ? "chi-current--gain" : "chi-current--loss"}">₹${formatNumber(currentValue)}</div>
-            <div class="chi-invested">₹${formatNumber(invested)}</div>
-            <div class="chi-returns ${isProfit ? "chi-returns--gain" : "chi-returns--loss"}">${returnsPercentText}</div>
+          <div class="chi-chevron"><i class="fa-solid fa-chevron-right"></i></div>
+        </div>
+        <div class="chi-card-stats">
+          <div class="chi-card-stat">
+            <div class="chi-card-stat-label">Invested</div>
+            <div class="chi-card-stat-value">${fmtAbbr(invested)}</div>
+          </div>
+          <div class="chi-card-stat">
+            <div class="chi-card-stat-label">Current value</div>
+            <div class="chi-card-stat-value">${fmtAbbr(currentValue)}</div>
+          </div>
+          <div class="chi-card-stat">
+            <div class="chi-card-stat-label">Unrealized P\&amp;L</div>
+            <div class="chi-card-stat-value ${isProfit ? "chi-stat-val--pos" : "chi-stat-val--neg"}">${gainAbbrText}</div>
           </div>
         </div>
       </div>
-      <div class="chi-chevron"><i class="fa-solid fa-chevron-right"></i></div>
     `;
 
     list.appendChild(item);
   });
+
+  // Wire VIEW group
+  const viewGroup = document.getElementById("compactViewGroup");
+  const allBtn = document.getElementById("compactViewAllBtn");
+  if (viewGroup)
+    viewGroup.style.display = sortedFunds.length > 10 ? "" : "none";
+  if (allBtn) allBtn.textContent = `All ${sortedFunds.length}`;
+  // Apply top-10 limit (respect current toggle state)
+  compactViewAll = false;
+  document.getElementById("compactViewTop10Btn")?.classList.add("active");
+  document.getElementById("compactViewAllBtn")?.classList.remove("active");
+  if (sortedFunds.length > PAST_HOLDINGS_LIMIT) {
+    Array.from(list.children)
+      .slice(PAST_HOLDINGS_LIMIT)
+      .forEach((el) => el.classList.add(PAST_LIMIT_CLASS));
+  }
 }
 function populateCompactPastHoldings(fundsWithMetrics, listElement = null) {
   const list =
@@ -13292,24 +13631,60 @@ function populateCompactPastHoldings(fundsWithMetrics, listElement = null) {
       invested > 0
         ? parseFloat((realizedGain / invested) * 100).toFixed(2)
         : "0.00";
-    const gainText = `₹${formatNumber(Math.abs(realizedGain))} (${gainSign}${Math.abs(realizedGainPercent)}%)`;
+    const gainAbbrText = `${gainSign}${fmtAbbr(Math.abs(realizedGain))} (${gainSign}${Math.abs(realizedGainPercent)}%)`;
+
+    // Derive held period + exit date from cashflows
+    let firstBuyDate = null;
+    let lastSellDate = null;
+    const folioNums = fundData.folios?.map((f) => f.folioNum) || [];
+    Object.values(fund.advancedMetrics?.folioSummaries || {}).forEach((fs) => {
+      if (folioNums.length && !folioNums.includes(fs.folio)) return;
+      (fs.cashflows || []).forEach((cf) => {
+        const d = cf.date instanceof Date ? cf.date : new Date(cf.date);
+        if (cf.type === "Buy" && (!firstBuyDate || d < firstBuyDate))
+          firstBuyDate = d;
+        if (cf.type === "Sell" && (!lastSellDate || d > lastSellDate))
+          lastSellDate = d;
+      });
+    });
+    let subLine = "";
+    if (firstBuyDate && lastSellDate) {
+      const heldYrs = (
+        (lastSellDate - firstBuyDate) /
+        (365.25 * 86400000)
+      ).toFixed(1);
+      const exitStr = lastSellDate.toLocaleDateString("en-IN", {
+        month: "short",
+        year: "numeric",
+      });
+      subLine = `Held ${heldYrs} yrs · Exited ${exitStr}`;
+    }
 
     const item = document.createElement("div");
     item.className = "compact-holding-item chi-hero chi-hero--past";
-    // Past holdings — no modal
 
     item.innerHTML = `
-      <div class="chi-body">
-        <div class="chi-top">
-          <div class="chi-left">
+      <div class="chi-body chi-body--card">
+        <div class="chi-card-top">
+          ${getChiBadge(fund)}
+          <div class="chi-info">
             <div class="chi-name">${fund.schemeDisplay || fund.scheme}</div>
-            <div class="chi-stats-line">
-              <span class="chi-stat-inline ${isProfit ? "chi-stat-inline--pos" : "chi-stat-inline--neg"}"><span class="chi-stat-label">P&L:</span> ${gainText}</span>
-            </div>
+            ${subLine ? `<div class="chi-sub-line">${subLine}</div>` : ""}
           </div>
-          <div class="chi-right">
-            <div class="chi-current ${isProfit ? "chi-current--gain" : "chi-current--loss"}">₹${formatNumber(withdrawn)}</div>
-            <div class="chi-invested">₹${formatNumber(invested)}</div>
+          <div class="chi-chevron"><i class="fa-solid fa-chevron-right"></i></div>
+        </div>
+        <div class="chi-card-stats">
+          <div class="chi-card-stat">
+            <div class="chi-card-stat-label">Invested</div>
+            <div class="chi-card-stat-value">${fmtAbbr(invested)}</div>
+          </div>
+          <div class="chi-card-stat">
+            <div class="chi-card-stat-label">Withdrawn</div>
+            <div class="chi-card-stat-value">${fmtAbbr(withdrawn)}</div>
+          </div>
+          <div class="chi-card-stat">
+            <div class="chi-card-stat-label">Realized P&amp;L</div>
+            <div class="chi-card-stat-value ${isProfit ? "chi-stat-val--pos" : "chi-stat-val--neg"}">${gainAbbrText}</div>
           </div>
         </div>
       </div>
@@ -13318,7 +13693,12 @@ function populateCompactPastHoldings(fundsWithMetrics, listElement = null) {
     list.appendChild(item);
   });
 
-  applyPastHoldingsLimit(list);
+  // Apply top-10 limit on initial render; VIEW toggle controls expand/collapse
+  if (sortedFunds.length > 10) {
+    Array.from(list.children)
+      .slice(PAST_HOLDINGS_LIMIT)
+      .forEach((el) => el.classList.add(PAST_LIMIT_CLASS));
+  }
 }
 const PAST_HOLDINGS_LIMIT = 10;
 const PAST_LIMIT_CLASS = "past-limit-hidden";
@@ -13406,21 +13786,6 @@ function toggleCompactXIRR(displayMode) {
       oneDayElements.forEach((el) => el.classList.remove("hidden"));
       break;
   }
-
-  const toggleBtn = document.querySelector(".compact-sort-btn span");
-  if (toggleBtn) {
-    switch (compactDisplayMode) {
-      case "xirr":
-        toggleBtn.textContent = "XIRR %";
-        break;
-      case "abs":
-        toggleBtn.textContent = "Returns %";
-        break;
-      case "1day":
-        toggleBtn.textContent = "1D Returns %";
-        break;
-    }
-  }
 }
 
 function toggleCompactSort() {
@@ -13439,7 +13804,9 @@ function toggleCompactSort() {
     display = "1day";
   }
 
-  const sortBtn = document.querySelector(".compact-filter-btn");
+  const sortBtn = document.querySelector(
+    ".compact-sort-group .compact-filter-btn",
+  );
   if (sortBtn) {
     const btnText = sortBtn.querySelector("span");
     if (btnText) {
@@ -13478,7 +13845,7 @@ function toggleCompactPastSort() {
 
   // Update button text
   const sortBtn = document.querySelector(
-    "#compactPastDashboard .compact-filter-btn",
+    "#compactPastDashboard .compact-sort-group .compact-filter-btn",
   );
   if (sortBtn) {
     const btnText = sortBtn.querySelector("span");

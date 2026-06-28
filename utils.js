@@ -51,6 +51,13 @@ function formatNumber(num) {
   return Object.is(rounded, -0) ? "0" : rounded.toLocaleString("en-IN");
 }
 
+function fmtAbbr(v) {
+  const abs = Math.abs(v);
+  if (abs >= 100000) return `₹${(abs / 100000).toFixed(2)}L`;
+  if (abs >= 1000) return `₹${(abs / 1000).toFixed(1)}K`;
+  return `₹${Math.round(abs)}`;
+}
+
 function sortData(labels, data) {
   const combined = labels.map((label, i) => ({ label, value: data[i] }));
   combined.sort((a, b) => b.value - a.value);
