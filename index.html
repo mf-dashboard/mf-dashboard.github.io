@@ -13,6 +13,26 @@
     <link rel="icon" type="image/svg+xml" href="/img/favicon.svg" />
     <link rel="shortcut icon" href="/img/favicon.ico" />
     <meta name="theme-color" content="#1C1A17" />
+    <!-- Cloudflare Web Analytics -->
+    <script>
+      (() => {
+        const host = location.hostname;
+        const isLocalDev =
+          host === "localhost" || host === "127.0.0.1" || host === "";
+
+        if (!isLocalDev) {
+          const script = document.createElement("script");
+          script.defer = true;
+          script.src = "https://static.cloudflareinsights.com/beacon.min.js";
+          script.setAttribute(
+            "data-cf-beacon",
+            '{"token":"4d8174ccb12041b3a010d11343f45f18"}',
+          );
+          document.head.appendChild(script);
+        }
+      })();
+    </script>
+    <!-- End Cloudflare Web Analytics -->
     <style>
       :root {
         --bg-light: #fffdf9;
